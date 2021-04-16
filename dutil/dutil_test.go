@@ -1,6 +1,7 @@
 package dutil
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -17,7 +18,11 @@ func TestNewDfile(t *testing.T) {
 	}
 
 	for _, t := range tests {
-
+		df, err := New(t.fileName)
+		if err != nil {
+			fmt.Errorf("Failed to read file %s: %v", t.fileName, err)
+		}
+		df.PrintDfile()
 	}
 
 }

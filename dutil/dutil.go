@@ -15,19 +15,24 @@ import (
 	"crypto/md5"
 	"errors"
 	"io"
-	"io/ioutil"
+
+	// "io"
+	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func init() {
-	log.SetLevel(log.LevelDebug)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Info().Msg("Logging look nice.")
+
 }
 
 type Dfile struct {
 	fileName    string
-	fileSize    uint64
+	fileSize    int64
 	fileMd5Hash string
 }
 
@@ -48,24 +53,23 @@ func New(fName string) (*Dfile, error) {
 	if err != nil {
 		fmt.Errorf("Failed to call Stat on file %s\n", fName)
 		d.fileSize = 0
-		return d
+		return d, errors.New("Failed to call Stat on file")
 	}
 
 	// If file size isn't zero, grab hash of file.
 	d.fileSize = f.Size()
-	if d.fileSize {
+	if d.fileSize != 0 {
 		err := d.hashFile()
 		if err != nil {
 			fmt.Errorf("Failed to hash file %s\n", fName)
-			d.fileMd5Hash = "FAILED"
 		}
 	}
 
-	return d
+	return d, nil
 }
 
 // FileSize will return the size of the file described by dfile object.
-func (d *Dfile) GetFileSize() uint64 { return d.fileSize }
+func (d *Dfile) GetFileSize() int64 { return d.fileSize }
 
 // GetHash will return MD5 Hash string of file.
 func (d *Dfile) GetHash() string { return d.fileMd5Hash }
@@ -74,28 +78,29 @@ func (d *Dfile) GetHash() string { return d.fileMd5Hash }
 func (d *Dfile) hashFile() error {
 
 	if d.fileSize == 0 {
-		return error.New("File size is zero")
+		return errors.New("File size is zero")
 	}
 
-	data, err := ioutil.ReadFile(d.fileName)
+	f, err := os.Open(d.fileName)
 	if err != nil {
 		fmt.Errorf("Failed to read file %s", d.fileName)
 		return err
 	}
+	defer f.Close()
 
-	d.fileMd5Hash = md5.Sum(data)
-	log.WithFields(log.Fields{
-		"hash": d.fileMd5Hash,
-	}).Debug("Hash of file")
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		e := "error"
+		log.Fatal().Str("error", e)
+	}
 
+	d.fileMd5Hash = fmt.Sprintf("%x", h.Sum(nil))
 	return nil
 }
 
 // Simple debug function to show current Dfile fields.
 func (d *Dfile) PrintDfile() {
-	log.WithFields(log.Fields{
-		"fileName": d.fileName,
-		"fileSize", d.fileSize,
-		"fileMd5Hash": d.fileMd5Hash,
-	}).Debug("Dfile information")
+	log.Info().Msgf("d.fileSize %d", d.fileSize)
+	log.Info().Msgf("d.fileMd5Hash %s", d.fileMd5Hash)
+	log.Info().Msgf("d.fileName %s", d.fileName)
 }
