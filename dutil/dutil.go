@@ -68,6 +68,9 @@ func New(fName string) (*Dfile, error) {
 	return d, nil
 }
 
+// FileName will simply return the name of the file currently described by the dfile
+func (d *Dfile) FileName() string { return d.fileName }
+
 // FileSize will return the size of the file described by dfile object.
 func (d *Dfile) GetFileSize() int64 { return d.fileSize }
 
