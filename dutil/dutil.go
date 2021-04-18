@@ -16,7 +16,6 @@ import (
 	"errors"
 	"io"
 
-	// "io"
 	"fmt"
 	"os"
 
@@ -30,6 +29,9 @@ func init() {
 
 }
 
+// Dfile structure will describe a given file. We
+// only care about the few file properties that will
+// allow us to detect a duplicate.
 type Dfile struct {
 	fileName    string
 	fileSize    int64
@@ -37,7 +39,7 @@ type Dfile struct {
 }
 
 // New creates a new Dfile.
-func New(fName string) (*Dfile, error) {
+func NewDfile(fName string) (*Dfile, error) {
 
 	if fName == "" {
 		fmt.Errorf("File name must be specified\n")
@@ -58,31 +60,26 @@ func New(fName string) (*Dfile, error) {
 
 	// If file size isn't zero, grab hash of file.
 	d.fileSize = f.Size()
-	if d.fileSize != 0 {
-		err := d.hashFile()
-		if err != nil {
-			fmt.Errorf("Failed to hash file %s\n", fName)
-		}
+	err = d.hashFile()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to hash %s", d.fileName)
+		return d, errors.New("Failed to hash file")
 	}
 
 	return d, nil
 }
 
-// FileName will simply return the name of the file currently described by the dfile
+// FileName will return the name of the file currently described by the dfile
 func (d *Dfile) FileName() string { return d.fileName }
 
 // FileSize will return the size of the file described by dfile object.
-func (d *Dfile) GetFileSize() int64 { return d.fileSize }
+func (d *Dfile) FileSize() int64 { return d.fileSize }
 
 // GetHash will return MD5 Hash string of file.
-func (d *Dfile) GetHash() string { return d.fileMd5Hash }
+func (d *Dfile) Hash() string { return d.fileMd5Hash }
 
 // HashFile will MD5 hash our Dfile.
 func (d *Dfile) hashFile() error {
-
-	if d.fileSize == 0 {
-		return errors.New("File size is zero")
-	}
 
 	f, err := os.Open(d.fileName)
 	if err != nil {

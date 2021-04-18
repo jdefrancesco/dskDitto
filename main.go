@@ -56,8 +56,8 @@ func main() {
 
 }
 
-// buildFileDuplicateMap will walk our filesystem, hash our files, add
+// buildDupMap will walk our filesystem, hash our files, add
 // to our primary map of potential duplicate files.
-func buildFileDuplicateMap(path string) error {
+func buildDupMap(path string) error {
 
 }

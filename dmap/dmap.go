@@ -8,12 +8,9 @@
 // MD5 will be used for the time being, mainly for the slight speed advantage.
 package dmap
 
-import "sync"
-
 type Md5String string
 
 type Dmap struct {
-	sync.RWMutex
 	filesMap  map[Md5String][]string
 	fileCount uint64
 }
