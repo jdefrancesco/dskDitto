@@ -3,12 +3,9 @@ module ditto
 go 1.16
 
 require (
-	github.com/cloudfoundry/gosigar v1.1.0 // indirect
-	github.com/karrick/godirwalk v1.16.1 // indirect
-	github.com/rs/zerolog v1.21.0 // indirect
-	github.com/saracen/walker v0.1.2 // indirect
-	github.com/shirou/gopsutil v3.21.3+incompatible // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20210415045647-66c3f260301c // indirect
+	github.com/cloudfoundry/gosigar v1.1.0
+	github.com/onsi/gomega v1.12.0 // indirect
+	github.com/pterm/pterm v0.12.14
+	github.com/rs/zerolog v1.21.0
+	golang.org/x/sys v0.0.0-20210507161434-a76c4d0a0096 // indirect
 )

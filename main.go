@@ -6,7 +6,7 @@ import (
 	"os"
 	"runtime"
 
-	_ "github.com/karrick/godirwalk"
+	_ "github.com/pterm/pterm"
 )
 
 var done = make(chan bool)
@@ -40,7 +40,7 @@ func main() {
 
 	// Iterate through our FS
 	for _, arg := range os.Args[1:] {
-		count, err = buildFileDuplicateMap(arg)
+		count, err = buildDupMap(arg)
 		total += count
 		if err != nil {
 			break

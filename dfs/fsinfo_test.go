@@ -1,4 +1,4 @@
-package dutil
+package dfs
 
 import "testing"
 

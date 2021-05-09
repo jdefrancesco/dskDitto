@@ -15,6 +15,6 @@ type Dmap struct {
 	fileCount uint64
 }
 
-func (d *Dmap) New() {
+func NewDmap() (*Dmap, error) {
 
 }
