@@ -9,7 +9,7 @@
  * The file type Dfile is also defined. This serves as a file descriptor storing
  * important information about files.
  */
-package dutil
+package dfs
 
 import (
 	"crypto/md5"
@@ -25,8 +25,6 @@ import (
 
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	log.Info().Msg("Logging look nice.")
-
 }
 
 // Dfile structure will describe a given file. We

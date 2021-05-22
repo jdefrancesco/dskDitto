@@ -26,15 +26,12 @@ type DFileStat struct {
 	Size    int64
 	Blksize int64
 	Blocks  int64
-	Atime   *timestamp.Timestamp
-	Mtime   *timestamp.Timestamp
-	Ctime   *timestamp.Timestamp
 }
 
 // GetDFileState will return Stat information of file
-func GetDFileStat(info os.FileInfo) (*DStat, error) {
+func GetDFileStat(info os.FileInfo) (*DFileStat, error) {
 	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		return DFileStat{
+		return &DFileStat{
 			Dev:     uint64(stat.Dev),
 			Inode:   stat.Ino,
 			Nlink:   uint64(stat.Nlink),
@@ -45,9 +42,6 @@ func GetDFileStat(info os.FileInfo) (*DStat, error) {
 			Size:    stat.Size,
 			Blksize: int64(stat.Blksize),
 			Blocks:  stat.Blocks,
-			Atime:   timespec2Timestamp(stat.Atimespec),
-			Mtime:   timespec2Timestamp(stat.Mtimespec),
-			Ctime:   timespec2Timestamp(stat.Ctimespec),
 		}, nil
 	}
 
@@ -60,9 +54,10 @@ type DittoFsInfo struct {
 }
 
 // DittoFsInfo constructor.
-func NewDittoFsInfo() (*DittoFsInfo, error) {
+// func NewDittoFsInfo() (*DittoFsInfo, error) {
 
-}
+// 	return
+// }
 
 // FsInfo will print out filesystem stats.
 func (fs *DittoFsInfo) PrintFsInfo(path string) {
