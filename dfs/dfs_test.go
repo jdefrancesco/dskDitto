@@ -2,6 +2,7 @@ package dfs
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestNewDfile(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		df, err := NewDfile(test.fileName)
+		df, err := NewDfile(test.fileName, test.fileSize)
 		if err != nil {
 			fmt.Errorf("Failed to read file %s: %v", test.fileName, err)
 		}
@@ -26,15 +27,30 @@ func TestNewDfile(t *testing.T) {
 
 		fileSize := df.FileSize()
 		fileName := df.FileName()
+		fileBaseName := df.BaseName()
 		fileHash := df.Hash()
 
-		fmt.Printf("File name: %s\n", fileName)
+		testBaseFileName := filepath.Base(test.fileName)
+
+		testFullFileName, err := filepath.Abs(test.fileName)
+		if err != nil {
+			t.Errorf("filepath.Base() error: %s\n", err)
+		}
+
+		if testFullFileName != fileName {
+			t.Errorf("testFullFileName want = %s, got = %s\n", testFullFileName, fileName)
+		}
+
+		if testBaseFileName != fileBaseName {
+			t.Errorf("t.fileName want = %s, got = %s\n", testBaseFileName, fileBaseName)
+		}
+
 		if test.fileSize != fileSize {
-			t.Errorf("t.fileSize want = %d, got = %d", test.fileSize, fileSize)
+			t.Errorf("t.fileSize want = %d, got = %d\n", test.fileSize, fileSize)
 		}
 
 		if test.fileMd5Hash != fileHash {
-			t.Errorf("t.fileMd5Hash want = %s, got = %s", test.fileMd5Hash, fileHash)
+			t.Errorf("t.fileMd5Hash want = %s, got = %s\n", test.fileMd5Hash, fileHash)
 		}
 	}
 

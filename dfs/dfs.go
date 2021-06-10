@@ -38,7 +38,7 @@ type Dfile struct {
 }
 
 // New creates a new Dfile.
-func NewDfile(fName string) (*Dfile, error) {
+func NewDfile(fName string, fSize int64) (*Dfile, error) {
 
 	if fName == "" {
 		fmt.Errorf("File name must be specified\n")
@@ -53,20 +53,10 @@ func NewDfile(fName string) (*Dfile, error) {
 
 	d := &Dfile{
 		fileName: fullFileName,
+		fileSize: fSize,
 	}
 
-	// First get file size without opening the file
-	f, err := os.Stat(fName)
-	if err != nil {
-		fmt.Errorf("Failed to call Stat on file %s\n", fName)
-		d.fileSize = 0
-		return d, errors.New("Failed to call Stat on file")
-	}
-
-	// If file size isn't zero, grab hash of file.
-	d.fileSize = f.Size()
-	err = d.hashFile()
-	if err != nil {
+	if err = d.hashFile(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to hash %s", d.fileName)
 		return d, errors.New("Failed to hash file")
 	}
@@ -76,6 +66,9 @@ func NewDfile(fName string) (*Dfile, error) {
 
 // FileName will return the name of the file currently described by the dfile
 func (d *Dfile) FileName() string { return d.fileName }
+
+// BaseName returns the base filename only instead of the full pathname.
+func (d *Dfile) BaseName() string { return filepath.Base(d.fileName) }
 
 // FileSize will return the size of the file described by dfile object.
 func (d *Dfile) FileSize() int64 { return d.fileSize }
