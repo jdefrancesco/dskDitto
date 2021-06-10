@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+// Test Dmap type.. Eventually I should make these tests far more robust.
+// For now, lets just get things working so I can see all the pieces in place.
 func TestNewDmap(t *testing.T) {
 
 	dmap, err := NewDmap()
@@ -39,6 +41,16 @@ func TestNewDmap(t *testing.T) {
 	size := dmap.MapSize()
 	if size != 4 {
 		t.Errorf("Size incorrect got %d\n", size)
+	}
+
+	fmt.Println("Testing dmap.Get()")
+	files, err := dmap.Get("891656230863b3136a7bee17222cabc8")
+	if err != nil {
+		t.Errorf("Error gettings hash from map")
+	}
+
+	if len(files) != 0 {
+		fmt.Println(files)
 	}
 
 }

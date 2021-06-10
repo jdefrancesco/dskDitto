@@ -15,6 +15,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"io"
+	"path/filepath"
 
 	"fmt"
 	"os"
@@ -44,8 +45,14 @@ func NewDfile(fName string) (*Dfile, error) {
 		return nil, errors.New("File name needs to be specified\n")
 	}
 
+	fullFileName, err := filepath.Abs(fName)
+	if err != nil {
+		fmt.Errorf("couldn't get absolute filename for %s\n", fName)
+		return nil, err
+	}
+
 	d := &Dfile{
-		fileName: fName,
+		fileName: fullFileName,
 	}
 
 	// First get file size without opening the file

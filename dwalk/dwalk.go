@@ -60,7 +60,7 @@ func (d *DWalk) Run(ctx context.Context) {
 	}()
 }
 
-// cancelled will poll to check is there in a cancellation.
+// cancelled will poll to check for cancellation.
 func cancelled(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
@@ -70,7 +70,8 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// walkDir
+// walkDir recursively walk directories and send files to our monitor go routine
+// (in main.go) to be added to the duplication map.
 func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- int64) {
 	defer d.wg.Done()
 	if cancelled(ctx) {

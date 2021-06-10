@@ -28,7 +28,7 @@ func TestNewDfile(t *testing.T) {
 		fileName := df.FileName()
 		fileHash := df.Hash()
 
-		fmt.Printf("File name: %s", fileName)
+		fmt.Printf("File name: %s\n", fileName)
 		if test.fileSize != fileSize {
 			t.Errorf("t.fileSize want = %d, got = %d", test.fileSize, fileSize)
 		}
