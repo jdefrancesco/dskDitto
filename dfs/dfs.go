@@ -57,7 +57,7 @@ func NewDfile(fName string, fSize int64) (*Dfile, error) {
 	}
 
 	if err = d.hashFile(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to hash %s", d.fileName)
+		fmt.Fprintf(os.Stderr, "Failed to hash %s: error: %s\n", d.fileName, err)
 		return d, errors.New("Failed to hash file")
 	}
 

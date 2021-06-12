@@ -11,6 +11,8 @@ import (
 	_ "runtime"
 
 	"ditto/dfs"
+	"ditto/dmap"
+	"ditto/dwalk"
 
 	_ "github.com/pterm/pterm"
 	"github.com/rs/zerolog"
@@ -32,35 +34,35 @@ func main() {
 	// Create a context.
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var rootDir string
+	var rootDirs []string
 	if len(os.Args) > 1 && os.Args[1] != "" {
-		rootDir = os.Args[1]
-		log.Info().Msgf("rootDir %s", rootDir)
+		rootDirs = []string{os.Args[1]}
+		log.Info().Msgf("rootDir %s\n", rootDirs)
 	} else {
-		rootDir = "."
-		log.Info().Msgf("rootDir %s", rootDir)
+		rootDirs = []string{"."}
+		log.Info().Msgf("rootDir %s\n", rootDirs)
 	}
 
 	go func() {
-		// This will kill dskditto!
+		// This will quit dskditto!
 		os.Stdin.Read(make([]byte, 1))
 		cancel()
 	}()
 
-	// Create DMap to house our duplicate file information.
-	dMap, err := NewDMap()
+	// Create Dmap to house our duplicate file information.
+	dMap, err := dmap.NewDmap()
 	if err != nil {
-		log.Fatal().Msgf("could not create new dmap: %s", err)
+		log.Fatal().Msgf("could not create new dmap: %s\n", err)
 	}
 
-	// dFiles will be the channel we recieve files to be processed over.
-	dFiles := make(chan dfs.Dfile)
-	walker := NewDWalker(rootDirs, dFiles)
+	// dFiles will be the channel we receive files to be added to the DMap.
+	dFiles := make(chan *dfs.Dfile)
+	walker := dwalk.NewDWalker(rootDirs, dFiles)
 
 	// Kickoff filesystem walking.
 	walker.Run(ctx)
 
-	var nfiles, nbytes int64
+	var nfiles int64
 	tick := time.Tick(500 * time.Millisecond)
 
 MainLoop:
@@ -73,17 +75,20 @@ MainLoop:
 			break MainLoop
 		case dFile, ok := <-dFiles:
 			if !ok {
+				log.Info().Msg("dFile channel closed\n")
 				break MainLoop
 			}
 			// Add dFile to our DMap
+			nfiles++
 			dMap.Add(dFile)
 		case <-tick:
 			// Display progress information.
-			log.Info().Msgf("Tick...")
+			log.Info().Msgf("Files processed: %d.\n", nfiles)
 		}
 	}
 
 	// Show final results.
-	fmt.Printf("%d files %.1f GB\n", nfiles, float64(nbytes)/1e9)
+	fmt.Printf("%d files processed.\n", nfiles)
+	dMap.PrintDmap()
 
 }

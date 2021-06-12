@@ -44,12 +44,16 @@ func (d *Dmap) Add(dfile *dfs.Dfile) {
 // PrintDmap will print entries currently stored in map.
 func (d *Dmap) PrintDmap() {
 	for k, v := range d.filesMap {
-		fmt.Println("hash: ", k, "files: ", v)
+		fmt.Printf("Hash: %s  Files: \n", k)
+		for i, f := range v {
+			fmt.Printf("\t%d: %s \n", i, f)
+		}
+		fmt.Println("--------------------------")
 	}
 }
 
 // MapSize returns number of entries in the map.
-func (d *Dmap) MapSize() uint {
+func (d *Dmap) MapSize() int {
 	return len(d.filesMap)
 }
 

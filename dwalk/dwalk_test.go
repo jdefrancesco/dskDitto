@@ -14,15 +14,6 @@ func TestNewDWalk(t *testing.T) {
 	rootDirs := []string{"test_files"}
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// go func() {
-	// 	// Read a single byte. This will interrupt ditto.
-	// 	os.Stdin.Read(make([]byte, 1))
-	// 	// Replace me with cancelled()
-	// 	cancel()
-	// }()
-
-	// Read starting directory.
-
 	dFiles := make(chan int64)
 	walker := NewDWalker(rootDirs, dFiles)
 	// walker
