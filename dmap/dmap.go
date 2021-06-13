@@ -11,6 +11,8 @@ package dmap
 import (
 	"ditto/dfs"
 	"fmt"
+
+	"github.com/pterm/pterm"
 )
 
 type Md5Hash string
@@ -50,6 +52,28 @@ func (d *Dmap) PrintDmap() {
 		}
 		fmt.Println("--------------------------")
 	}
+}
+
+// ShowResults will display duplicates held in our Dmap as
+// a pretty tree.
+func (d *Dmap) ShowResults() {
+
+	var leveledList pterm.LeveledList
+
+	for k, v := range d.filesMap {
+		// Our hash value will be our level 0 item from which all duplicate files
+		// will be subitems.
+		listItem := pterm.LeveledListItem{Level: 0, Text: string(k)}
+		leveledList = append(leveledList, listItem)
+		for _, fileName := range v {
+			listItem = pterm.LeveledListItem{Level: 1, Text: fileName}
+			leveledList = append(leveledList, listItem)
+		}
+	}
+
+	root := pterm.NewTreeFromLeveledList(leveledList)
+	pterm.DefaultTree.WithRoot(root).Render()
+
 }
 
 // MapSize returns number of entries in the map.

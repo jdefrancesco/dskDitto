@@ -7,14 +7,12 @@ import (
 	"time"
 
 	_ "flag"
-	_ "io/ioutil"
-	_ "runtime"
 
 	"ditto/dfs"
 	"ditto/dmap"
 	"ditto/dwalk"
 
-	_ "github.com/pterm/pterm"
+	"github.com/pterm/pterm"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -31,20 +29,22 @@ func main() {
 	// )
 	// flag.Parse()
 
+	showHeader()
+
+	if os.Args[1] == "--header" {
+		os.Exit(0)
+	}
+
+	rootDirs := os.Args[1:]
+	if len(rootDirs) == 0 {
+		rootDirs = []string{"."}
+	}
+
 	// Create a context.
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var rootDirs []string
-	if len(os.Args) > 1 && os.Args[1] != "" {
-		rootDirs = []string{os.Args[1]}
-		log.Info().Msgf("rootDir %s\n", rootDirs)
-	} else {
-		rootDirs = []string{"."}
-		log.Info().Msgf("rootDir %s\n", rootDirs)
-	}
-
+	// Allow user to quit dskditto.
 	go func() {
-		// This will quit dskditto!
 		os.Stdin.Read(make([]byte, 1))
 		cancel()
 	}()
@@ -63,6 +63,8 @@ func main() {
 	walker.Run(ctx)
 
 	var nfiles int64
+	// This is so we can show progress to user every half second.
+	// TODO: Make configurable via command options
 	tick := time.Tick(500 * time.Millisecond)
 
 MainLoop:
@@ -75,12 +77,11 @@ MainLoop:
 			break MainLoop
 		case dFile, ok := <-dFiles:
 			if !ok {
-				log.Info().Msg("dFile channel closed\n")
 				break MainLoop
 			}
 			// Add dFile to our DMap
-			nfiles++
 			dMap.Add(dFile)
+			nfiles++
 		case <-tick:
 			// Display progress information.
 			log.Info().Msgf("Files processed: %d.\n", nfiles)
@@ -88,7 +89,29 @@ MainLoop:
 	}
 
 	// Show final results.
-	fmt.Printf("%d files processed.\n", nfiles)
-	dMap.PrintDmap()
+	// dMap.PrintDmap()
+	dMap.ShowResults()
+	fmt.Printf("Total files processed: %d\n", nfiles)
+
+}
+
+// showHeader prints colorful dskDitto logo.
+func showHeader() {
+
+	// Tiny little space between the shell prompt and our logo.
+	fmt.Println("")
+
+	dskDitto, _ := pterm.DefaultBigText.WithLetters(
+		pterm.NewLettersFromStringWithStyle("dsk", pterm.NewStyle(pterm.FgLightGreen)),
+		pterm.NewLettersFromStringWithStyle("Ditto", pterm.NewStyle(pterm.FgLightWhite))).
+		Srender()
+
+	pterm.DefaultCenter.Println(dskDitto)
+}
+
+// showResults will display the file duplication map as a tree.
+// Each result (set of duplicates) will be grouped together as a tree
+// for easier reading.
+func showResults(dMap *dmap.Dmap) {
 
 }

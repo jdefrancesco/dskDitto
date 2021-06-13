@@ -60,7 +60,6 @@ func (d *DWalk) Run(ctx context.Context) {
 
 	// Wait for all instances of walkDir() to finish.
 	go func() {
-		log.Info().Msgf("launched walkDir: waiting for jobs to finish\n")
 		d.wg.Wait()
 		close(d.dFiles)
 	}()
@@ -104,8 +103,6 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			}
 
 			absFileName := filepath.Join(dir, entry.Name())
-			log.Info().Msgf("%s", absFileName)
-
 			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
