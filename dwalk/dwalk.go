@@ -98,7 +98,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Handle special files...
 			if !entry.Mode().IsRegular() {
 				// For now we will skip over special files...
-				log.Info().Msgf("Skipping file %s\n", entry.Name())
+				log.Info().Msgf("Skipping file %s", entry.Name())
 				continue
 			}
 
@@ -106,7 +106,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
-				log.Info().Msgf("error creating dFile: %s\n", err)
+				log.Error().Msgf("Error creating dFile: %s\n", err)
 				continue
 			}
 

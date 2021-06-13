@@ -89,9 +89,8 @@ MainLoop:
 	}
 
 	// Show final results.
-	// dMap.PrintDmap()
+	pterm.Success.Println("Total of", nfiles, "files processed. Duplicates:")
 	dMap.ShowResults()
-	fmt.Printf("Total files processed: %d\n", nfiles)
 
 }
 
@@ -101,17 +100,8 @@ func showHeader() {
 	// Tiny little space between the shell prompt and our logo.
 	fmt.Println("")
 
-	dskDitto, _ := pterm.DefaultBigText.WithLetters(
+	pterm.DefaultBigText.WithLetters(
 		pterm.NewLettersFromStringWithStyle("dsk", pterm.NewStyle(pterm.FgLightGreen)),
 		pterm.NewLettersFromStringWithStyle("Ditto", pterm.NewStyle(pterm.FgLightWhite))).
-		Srender()
-
-	pterm.DefaultCenter.Println(dskDitto)
-}
-
-// showResults will display the file duplication map as a tree.
-// Each result (set of duplicates) will be grouped together as a tree
-// for easier reading.
-func showResults(dMap *dmap.Dmap) {
-
+		Render()
 }

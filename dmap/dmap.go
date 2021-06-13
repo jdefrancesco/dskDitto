@@ -58,15 +58,20 @@ func (d *Dmap) PrintDmap() {
 // a pretty tree.
 func (d *Dmap) ShowResults() {
 
+	// Banner
 	var leveledList pterm.LeveledList
 
-	for k, v := range d.filesMap {
+	for hash, files := range d.filesMap {
+		// Only show files that have at least one other duplicate.
+		if len(files) < 2 {
+			continue
+		}
 		// Our hash value will be our level 0 item from which all duplicate files
 		// will be subitems.
-		listItem := pterm.LeveledListItem{Level: 0, Text: string(k)}
+		listItem := pterm.LeveledListItem{Level: 0, Text: string(hash)}
 		leveledList = append(leveledList, listItem)
-		for _, fileName := range v {
-			listItem = pterm.LeveledListItem{Level: 1, Text: fileName}
+		for _, f := range files {
+			listItem = pterm.LeveledListItem{Level: 1, Text: f}
 			leveledList = append(leveledList, listItem)
 		}
 	}
