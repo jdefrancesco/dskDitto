@@ -84,7 +84,7 @@ MainLoop:
 			nfiles++
 		case <-tick:
 			// Display progress information.
-			log.Info().Msgf("Files processed: %d.\n", nfiles)
+			log.Info().Msgf("Files processed: %d", nfiles)
 		}
 	}
 

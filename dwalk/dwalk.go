@@ -98,7 +98,8 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Handle special files...
 			if !entry.Mode().IsRegular() {
 				// For now we will skip over special files...
-				log.Info().Msgf("Skipping file %s", entry.Name())
+				// XXX: TURN THIS BACK ON
+				// log.Info().Msgf("Skipping file %s", entry.Name())
 				continue
 			}
 
