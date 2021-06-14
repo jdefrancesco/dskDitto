@@ -20,4 +20,3 @@ $ mv ditto dskDitto # The executable created is called ditto which will conflict
 
 TODO
 
-
