@@ -1,6 +1,5 @@
 dskDitto TODO:
 
-- Add command line option flags.
 - Add progress indicators with pterm.
 - Colorize the duplication results and seperate them so the user can see each cluster more easily.
 - Test dskDitto cancellation.

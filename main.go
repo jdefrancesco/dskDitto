@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"time"
-
-	_ "flag"
 
 	"ditto/dfs"
 	"ditto/dmap"
@@ -19,23 +18,28 @@ import (
 
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+	// Custom help message
+	flag.Usage = func() {
+		fmt.Printf("Usage: dskDitto [options] PATHS\n\n")
+		flag.PrintDefaults()
+	}
 }
 
 func main() {
 
-	// var (
-	// 	flStartDirectory = flag.String("dir", ".", "Root directory to search for duplicates")
-	// 	flWorkers        = flag.Int("workers", runtime.NumCPU(), "Number of workers")
-	// )
-	// flag.Parse()
+	var (
+		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
+		flProgressTime = flag.Int("show-progress", 500, "Progress time in miliseconds")
+	)
+	flag.Parse()
 
-	showHeader()
-
-	if os.Args[1] == "--header" {
-		os.Exit(0)
+	// Toggle banner.
+	if !*flNoBanner {
+		showHeader()
 	}
 
-	rootDirs := os.Args[1:]
+	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
 	}
@@ -43,13 +47,13 @@ func main() {
 	// Create a context.
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Allow user to quit dskditto.
+	// Allow user to quit dskDitto.
 	go func() {
 		os.Stdin.Read(make([]byte, 1))
 		cancel()
 	}()
 
-	// Create Dmap to house our duplicate file information.
+	// Dmap stores duplicate file information.
 	dMap, err := dmap.NewDmap()
 	if err != nil {
 		log.Fatal().Msgf("could not create new dmap: %s\n", err)
@@ -61,11 +65,14 @@ func main() {
 
 	// Kickoff filesystem walking.
 	walker.Run(ctx)
+	// Start our clock so we can track scan time.
+	start := time.Now()
 
+	// Number of files we been sent for processing.
 	var nfiles int64
-	// This is so we can show progress to user every half second.
-	// TODO: Make configurable via command options
-	tick := time.Tick(500 * time.Millisecond)
+
+	// This is so we can show progress to user at specified interval.
+	tick := time.Tick(time.Duration(*flProgressTime) * time.Millisecond)
 
 MainLoop:
 	for {
@@ -88,8 +95,11 @@ MainLoop:
 		}
 	}
 
+	// Get elapsed time of entire scan.
+	duration := time.Since(start)
+
 	// Show final results.
-	pterm.Success.Println("Total of", nfiles, "files processed. Duplicates:")
+	pterm.Success.Println("Total of", nfiles, "files processed in", duration, "Duplicates:")
 	dMap.ShowResults()
 
 }
