@@ -26,9 +26,7 @@ type DWalk struct {
 	rootDirs []string
 	wg       *sync.WaitGroup
 
-	// This channel will be created by monitor
-	// loop to collect Dfile data needed to build
-	// duplication map.
+	// Channel used to communicate with main monitor goroutine.
 	dFiles chan<- *dfs.Dfile
 	sem    *semaphore.Weighted
 }
@@ -42,23 +40,20 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 		dFiles:   dFiles,
 	}
 	walker.wg = new(sync.WaitGroup)
-	// Concurrency limiting semaphore to ensure we don't exhaust file resources.
 	walker.sem = semaphore.NewWeighted(int64(20))
 	return walker
 
 }
 
-// Run kicks off filesystem walking. Run takes a context as
-// its sole argument to handle cancellations.
+// Run method kicks off filesystem crawl for file dupes.
 func (d *DWalk) Run(ctx context.Context) {
 
-	// For each root directory, we invoke walkDir
 	for _, root := range d.rootDirs {
 		d.wg.Add(1)
 		go walkDir(ctx, root, d, d.dFiles)
 	}
 
-	// Wait for all instances of walkDir() to finish.
+	// Wait for all goroutines to finish.
 	go func() {
 		d.wg.Wait()
 		close(d.dFiles)
@@ -66,7 +61,7 @@ func (d *DWalk) Run(ctx context.Context) {
 
 }
 
-// cancelled will poll to check for cancellation.
+// cancelled polls, checking for cancellation.
 func cancelled(ctx context.Context) bool {
 
 	select {
@@ -95,7 +90,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			subDir := filepath.Join(dir, entry.Name())
 			go walkDir(ctx, subDir, d, dFiles)
 		} else {
-			// Handle special files...
+			// Handle special files.
 			if !entry.Mode().IsRegular() {
 				// For now we will skip over special files...
 				log.Info().Msgf("Skipping file %s", entry.Name())
@@ -118,12 +113,15 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 }
 
 // dirEntries returns contents of a directory specified by dir.
+// The semaphore limits concurrency; preventing system resource
+// exhaustion.
 func dirEntries(ctx context.Context, dir string, d *DWalk) []os.FileInfo {
 
-	// Handle cancellation.
+	// Handle cancellation and semaphore acquisition.
 	select {
 	case <-ctx.Done():
-		return nil // cancelled
+		// cancel asserted.
+		return nil
 	default:
 		d.sem.Acquire(ctx, 1)
 	}

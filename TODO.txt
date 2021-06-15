@@ -1,7 +1,14 @@
-dskDitto TODO:
+TODO:
 
-- Add progress indicators with pterm.
 - Colorize the duplication results and seperate them so the user can see each cluster more easily.
 - Test dskDitto cancellation.
 - Add content to LICENSE file, decide what license I want to use, apache maybe?
+- Output results to file.
 
+FEATURES:
+
+In the future I would like the following features:
+
+* Fuzzy match duplication. Match files as duplicates so as long as they are within a similarity threshold.
+* Output HTML/JSON
+* Allow user to purge duplicates.
