@@ -30,9 +30,10 @@ func init() {
 func main() {
 
 	var (
-		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
-		flProgressTime = flag.Int("show-progress", 500, "Progress time in miliseconds")
-		flCpuProfile   = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
+		flNoBanner        = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
+		flProgressTime    = flag.Int("show-progress", 500, "Progress time in miliseconds")
+		flCpuProfile      = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
+		flSuppressUpdates = flag.Bool("suppress-updates", false, "Do not show progress")
 	)
 	flag.Parse()
 
@@ -99,6 +100,9 @@ MainLoop:
 			dMap.Add(dFile)
 			nfiles++
 		case <-tick:
+			if *flSuppressUpdates {
+				continue
+			}
 			// Display progress information.
 			log.Info().Msgf("Files processed: %d", nfiles)
 		}

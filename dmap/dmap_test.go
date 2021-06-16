@@ -28,8 +28,6 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	for _, f := range dfiles {
-		// absFileName := filepath.Join(dir, f.Name())
-		// Create new Dfile for file entry.
 		df, err := dfs.NewDfile(f.fileName, f.fileSize)
 		if err != nil {
 			fmt.Errorf("Failed to read file %s: %v", f.fileName, err)
@@ -41,6 +39,7 @@ func TestNewDmap(t *testing.T) {
 	dmap.PrintDmap()
 
 	size := dmap.MapSize()
+
 	// Size should be four because we have one duplciate entry.
 	if size != 4 {
 		t.Errorf("Size incorrect got %d\n", size)

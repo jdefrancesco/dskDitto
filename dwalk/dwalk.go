@@ -101,7 +101,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
-				log.Error().Msgf("Error creating dFile: %s\n", err)
+				log.Error().Msgf("Error creating dFile: %s", err)
 				continue
 			}
 
