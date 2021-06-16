@@ -2,6 +2,7 @@ package dwalk
 
 import (
 	"context"
+	"ditto/dfs"
 	"fmt"
 	"testing"
 	"time"
@@ -9,41 +10,39 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Test basic walking...
 func TestNewDWalk(t *testing.T) {
 
 	rootDirs := []string{"test_files"}
-	ctx, cancel := context.WithCancel(context.Background())
 
-	dFiles := make(chan int64)
+	dFiles := make(chan *dfs.Dfile)
 	walker := NewDWalker(rootDirs, dFiles)
+
 	// walker
+	ctx, _ := context.WithCancel(context.Background())
 	walker.Run(ctx)
 
-	var nfiles, nbytes int64
+	var nfiles int64
 	tick := time.Tick(500 * time.Millisecond)
 
 loop:
 	for {
 		select {
-		case <-ctx.Done():
-			for range dFiles {
-			}
-			break loop
-		case size, ok := <-dFiles:
+		case _, ok := <-dFiles:
 			if !ok {
 				break loop
 			}
+			// Test dir and subdirs should only have 14 files
 			nfiles++
-			if nfiles >= 3 {
-				cancel()
-			}
-			nbytes += size
+
 		case <-tick:
 			log.Info().Msgf("Tick...")
 		}
 	}
 
-	// Print the results periodically.
-	fmt.Printf("%d files %.1f GB\n", nfiles, float64(nbytes)/1e9)
+	if nfiles != 14 {
+		t.Errorf("want 14 files. got %d\n", nfiles)
+	}
+	fmt.Printf("%d files\n", nfiles)
 
 }

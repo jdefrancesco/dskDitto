@@ -16,12 +16,11 @@ so many features are still yet to be implemented.
 
 ## Building
 
-**NOTE:** A Makefile will be created soon. For now you simply have to call `go build` yourself. 
+Running the following commands will create a new executable `dskDitto`.
 
 ```bash
 $ git clone https://github.com/jdefrancesco/dskDitto && cd dskDitto
-$ go build 
-$ mv ditto dskDitto # The executable created is called ditto which will conflict with another macOS utility called ditto. Simply rename it for now.
+$ make
 ```
 
 ## Contributing

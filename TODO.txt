@@ -1,5 +1,9 @@
 TODO:
 
+* ENSURE ALL TESTS PASS!
+* Hit file descriptor limit running dskDitto on home directory. Maybe need another
+  semaphore.
+
 - Colorize the duplication results and seperate them so the user can see each cluster more easily.
 - Test dskDitto cancellation.
 - Add content to LICENSE file, decide what license I want to use, apache maybe?
@@ -12,3 +16,8 @@ In the future I would like the following features:
 * Fuzzy match duplication. Match files as duplicates so as long as they are within a similarity threshold.
 * Output HTML/JSON
 * Allow user to purge duplicates.
+
+OPTIMIZATIONS:
+
+* Profiling has revealed that dfs.NewDfile is somewhat expensive becasuse of the MD5 hashing that
+  takes place. We need to find a way to possibly optimize dfs.NewDfile() and MD5 hashing. 

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	"ditto/dfs"
@@ -31,8 +32,20 @@ func main() {
 	var (
 		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
 		flProgressTime = flag.Int("show-progress", 500, "Progress time in miliseconds")
+		flCpuProfile   = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
 	)
 	flag.Parse()
+
+	// Enable CPU profiling
+	if *flCpuProfile != "" {
+		// Output to file
+		f, err := os.Create(*flCpuProfile)
+		if err != nil {
+			log.Fatal().Err(err).Msgf("cpuprofile failed")
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	// Toggle banner.
 	if !*flNoBanner {
@@ -63,15 +76,12 @@ func main() {
 	dFiles := make(chan *dfs.Dfile)
 	walker := dwalk.NewDWalker(rootDirs, dFiles)
 
-	// Kickoff filesystem walking.
 	walker.Run(ctx)
-	// Start our clock so we can track scan time.
 	start := time.Now()
 
 	// Number of files we been sent for processing.
 	var nfiles int64
-
-	// This is so we can show progress to user at specified interval.
+	// Show progress to user at intervals specified by tick.
 	tick := time.Tick(time.Duration(*flProgressTime) * time.Millisecond)
 
 MainLoop:
@@ -86,7 +96,6 @@ MainLoop:
 			if !ok {
 				break MainLoop
 			}
-			// Add dFile to our DMap
 			dMap.Add(dFile)
 			nfiles++
 		case <-tick:
@@ -95,11 +104,15 @@ MainLoop:
 		}
 	}
 
-	// Get elapsed time of entire scan.
+	// Get elapsed time of scan.
 	duration := time.Since(start)
 
+	// Scan success message
+	var finalInfo string
+	finalInfo = "Total of " + pterm.LightWhite(nfiles) + " files processed in " + pterm.LightWhite(duration) + ". Duplicates: "
+	pterm.Success.Println(finalInfo)
+
 	// Show final results.
-	pterm.Success.Println("Total of", nfiles, "files processed in", duration, "Duplicates:")
 	dMap.ShowResults()
 
 }
@@ -107,7 +120,6 @@ MainLoop:
 // showHeader prints colorful dskDitto logo.
 func showHeader() {
 
-	// Tiny little space between the shell prompt and our logo.
 	fmt.Println("")
 
 	pterm.DefaultBigText.WithLetters(
