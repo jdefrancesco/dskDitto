@@ -5,6 +5,8 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 BINARY_NAME=dskDitto
 
+PREFIX=/usr/local/bin
+
 all: test build
 
 build:
@@ -13,8 +15,13 @@ build:
 test:
 	$(GOTEST) -v ./...
 
+.PHONY: install
+install:
+	cp ./dskDitto $(PREFIX)/dskDitto
+
 .PHONY: clean
 clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
+
 
