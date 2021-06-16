@@ -10,9 +10,9 @@ so many features are still yet to be implemented.
 
 ## Screenshots
 
-![dskDitto-1](./ss/dskDitto-ss-latest.png)
+![dskDitto-1](./ss/dskDitto-ss-one.png)
 
-![dslDotto-2](./ss/dskDitto-ss.png)
+![dslDotto-2](./ss/dskDitto-ss-two.png)
 
 ## Building
 

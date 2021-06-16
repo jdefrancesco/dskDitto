@@ -1,12 +1,11 @@
 TODO:
 
-* ENSURE ALL TESTS PASS!
-* Hit file descriptor limit running dskDitto on home directory. Maybe need another
-  semaphore.
+FIX:
+!! Hit file descriptor limit running dskDitto on home directory. macOS open fd's is very low, need to add semaphore
+or lift soft limit
 
 - Colorize the duplication results and seperate them so the user can see each cluster more easily.
 - Test dskDitto cancellation.
-- Add content to LICENSE file, decide what license I want to use, apache maybe?
 - Output results to file.
 
 FEATURES:
