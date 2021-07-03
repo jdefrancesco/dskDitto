@@ -2,3 +2,4 @@
 dskDitto
 *.prof
 *.svg
+.DS_Store
