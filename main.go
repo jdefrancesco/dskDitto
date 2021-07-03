@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"runtime/pprof"
 	"time"
@@ -14,11 +15,17 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
+var fileLogger zerolog.Logger
+
 func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "dskditto-main")
+	if err != nil {
+		fmt.Printf("Error creating log file\n")
+	}
+	fileLogger := zerolog.New(tmpFile).With().Logger()
+	fileLogger.Info().Msg("DskDitto Log:")
 
 	// Custom help message
 	flag.Usage = func() {
@@ -42,7 +49,7 @@ func main() {
 		// Output to file
 		f, err := os.Create(*flCpuProfile)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("cpuprofile failed")
+			fileLogger.Fatal().Err(err).Msgf("cpuprofile failed")
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
@@ -70,7 +77,7 @@ func main() {
 	// Dmap stores duplicate file information.
 	dMap, err := dmap.NewDmap()
 	if err != nil {
-		log.Fatal().Msgf("could not create new dmap: %s\n", err)
+		fileLogger.Fatal().Msgf("could not create new dmap: %s\n", err)
 	}
 
 	// dFiles will be the channel we receive files to be added to the DMap.
@@ -84,6 +91,8 @@ func main() {
 	var nfiles int64
 	// Show progress to user at intervals specified by tick.
 	tick := time.Tick(time.Duration(*flProgressTime) * time.Millisecond)
+
+	infoSpinner, _ := pterm.DefaultSpinner.Start()
 
 MainLoop:
 	for {
@@ -104,10 +113,12 @@ MainLoop:
 				continue
 			}
 			// Display progress information.
-			log.Info().Msgf("Files processed: %d", nfiles)
+			progressMsg := fmt.Sprintf("Processed %d files...", nfiles)
+			infoSpinner.UpdateText(progressMsg)
 		}
 	}
 
+	infoSpinner.Stop()
 	// Get elapsed time of scan.
 	duration := time.Since(start)
 
@@ -121,7 +132,7 @@ MainLoop:
 
 }
 
-// showHeader prints colorful dskDitto logo.
+// showHeader prints colorful dskDitto fileLoggero.
 func showHeader() {
 
 	fmt.Println("")

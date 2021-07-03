@@ -4,6 +4,7 @@ package dwalk
 import (
 	"context"
 	"ditto/dfs"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,13 +12,24 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/semaphore"
 )
 
+var fileLogger zerolog.Logger
+
 func init() {
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "dskditto-dwalk")
+	if err != nil {
+		fmt.Printf("Error creating log file\n")
+	}
+	fileLogger := zerolog.New(tmpFile).With().Logger()
+	fileLogger.Info().Msg("DskDitto Log:")
+
+	// Custom help message
+	flag.Usage = func() {
+		fmt.Printf("Usage: dskDitto [options] PATHS\n\n")
+		flag.PrintDefaults()
+	}
 }
 
 // DWalk is our primary object for traversing filesystem
@@ -93,7 +105,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Handle special files.
 			if !entry.Mode().IsRegular() {
 				// For now we will skip over special files...
-				log.Info().Msgf("Skipping file %s", entry.Name())
+				// fileLogger.Info().Msgf("Skipping file %s", entry.Name())
 				continue
 			}
 
@@ -101,7 +113,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
-				log.Error().Msgf("Error creating dFile: %s", err)
+				fileLogger.Error().Msgf("Error creating dFile: %s", err)
 				continue
 			}
 

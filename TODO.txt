@@ -1,22 +1,26 @@
-TODO:
+# TODO
 
-FIX:
-!! Hit file descriptor limit running dskDitto on home directory. macOS open fd's is very low, need to add semaphore
-or lift soft limit
-
+- Add signal handling
+- Add ability to configure open file desc count.
+- Add table printer output
 - Colorize the duplication results and seperate them so the user can see each cluster more easily.
 - Test dskDitto cancellation.
 - Output results to file.
 
-FEATURES:
+## FEATURES TO IMPLEMENT:
 
-In the future I would like the following features:
-
+* Use bubbles golang module to provide a more interactive TUI
 * Fuzzy match duplication. Match files as duplicates so as long as they are within a similarity threshold.
 * Output HTML/JSON
 * Allow user to purge duplicates.
 
-OPTIMIZATIONS:
+## OPTIMIZATIONS:
 
 * Profiling has revealed that dfs.NewDfile is somewhat expensive becasuse of the MD5 hashing that
-  takes place. We need to find a way to possibly optimize dfs.NewDfile() and MD5 hashing. 
+  takes place. We need to find a way to possibly optimize dfs.NewDfile() and MD5 hashing.
+
+
+## ISSUES:
+
+* Running dskDitto is very resource intensive. Running it on home directory can overload the system. Memory usage is high, but reasonable still.
+May need to limit/throttle

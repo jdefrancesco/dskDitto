@@ -15,17 +15,29 @@ import (
 	"crypto/md5"
 	"errors"
 	"io"
+	"io/ioutil"
 	"path/filepath"
 
 	"fmt"
 	"os"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
+const OpenFileDescLimit = 100
+
+var fileLogger zerolog.Logger
+
 func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	// zerofileLogger.SetGlobalLevel(zerofileLogger.InfoLevel)
+	// fileLogger.Logger = fileLogger.Output(zerofileLogger.ConsoleWriter{Out: os.Stderr})
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "dskditto-dfs")
+	if err != nil {
+		fmt.Printf("Error creating log file\n")
+	}
+	fileLogger = zerolog.New(tmpFile).With().Logger()
+	fileLogger.Info().Msg("DskDitto Log:")
+
 }
 
 // Dfile structure will describe a given file. We
@@ -57,7 +69,7 @@ func NewDfile(fName string, fSize int64) (*Dfile, error) {
 	}
 
 	if err = d.hashFile(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to hash %s: error: %s\n", d.fileName, err)
+		fileLogger.Error().Err(err).Msgf("Failed to hash %s: error: %s\n", d.fileName, err)
 		return d, errors.New("Failed to hash file")
 	}
 
@@ -76,8 +88,19 @@ func (d *Dfile) FileSize() int64 { return d.fileSize }
 // GetHash will return MD5 Hash string of file.
 func (d *Dfile) Hash() string { return d.fileMd5Hash }
 
+// concurrency-limiting semaphore to ensure MD5 hashing doesn't exhaust
+// all the available file descriptors. macOS open file limit is ridiculously
+// low; by default 256.
+var sema = make(chan struct{}, OpenFileDescLimit)
+
 // HashFile will MD5 hash our Dfile.
+// Profiling has revealed this to be one of the bottlenecks,
+// in the future seek to improve efficiency of this operation.
 func (d *Dfile) hashFile() error {
+
+	// Acquire token
+	sema <- struct{}{}
+	defer func() { <-sema }()
 
 	f, err := os.Open(d.fileName)
 	if err != nil {
@@ -89,7 +112,7 @@ func (d *Dfile) hashFile() error {
 	h := md5.New()
 	if _, err := io.Copy(h, f); err != nil {
 		e := "error"
-		log.Fatal().Str("error", e)
+		fileLogger.Fatal().Str("error", e)
 	}
 
 	d.fileMd5Hash = fmt.Sprintf("%x", h.Sum(nil))
@@ -98,7 +121,7 @@ func (d *Dfile) hashFile() error {
 
 // Simple debug function to show current Dfile fields.
 func (d *Dfile) PrintDfile() {
-	log.Info().Msgf("d.fileSize %d", d.fileSize)
-	log.Info().Msgf("d.fileMd5Hash %s", d.fileMd5Hash)
-	log.Info().Msgf("d.fileName %s", d.fileName)
+	fileLogger.Info().Msgf("d.fileSize %d", d.fileSize)
+	fileLogger.Info().Msgf("d.fileMd5Hash %s", d.fileMd5Hash)
+	fileLogger.Info().Msgf("d.fileName %s", d.fileName)
 }
