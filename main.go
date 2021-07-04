@@ -127,8 +127,11 @@ MainLoop:
 	finalInfo = "Total of " + pterm.LightWhite(nfiles) + " files processed in " + pterm.LightWhite(duration) + ". Duplicates: "
 	pterm.Success.Println(finalInfo)
 
+	// XXX: FOR DEBUGGING TO TEST SPEED
+	dMap.PrintDmap()
+
 	// Show final results.
-	dMap.ShowResults()
+	// dMap.ShowResults()
 
 }
 

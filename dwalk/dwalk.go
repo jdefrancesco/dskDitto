@@ -68,6 +68,7 @@ func (d *DWalk) Run(ctx context.Context) {
 	// Wait for all goroutines to finish.
 	go func() {
 		d.wg.Wait()
+		// close channel.
 		close(d.dFiles)
 	}()
 

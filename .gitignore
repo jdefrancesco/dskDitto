@@ -3,3 +3,5 @@ dskDitto
 *.prof
 *.svg
 .DS_Store
+*.out
+*.log

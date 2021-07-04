@@ -1,5 +1,16 @@
 # TODO
 
+Change user options:
+
+--show-progress should be changed to just --progress-interval
+--suppress-updates we can probably just get rid of.
+--cpuprofile change argument from "string" to "filename.prof"
+
+
+- Profile goroutine creation
+- Experiment with a worker pool of goroutines.
+- Fix up logging/error handling output to user.
+
 - Add signal handling
 - Add ability to configure open file desc count.
 - Add table printer output
