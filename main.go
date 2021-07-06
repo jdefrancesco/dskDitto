@@ -37,10 +37,9 @@ func init() {
 func main() {
 
 	var (
-		flNoBanner        = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
-		flProgressTime    = flag.Int("show-progress", 500, "Progress time in miliseconds")
-		flCpuProfile      = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
-		flSuppressUpdates = flag.Bool("suppress-updates", false, "Do not show progress")
+		flNoBanner   = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
+		flCpuProfile = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
+		flNoResults  = flag.Bool("time-only", false, "Use to show only the time taken to scan directory")
 	)
 	flag.Parse()
 
@@ -90,7 +89,7 @@ func main() {
 	// Number of files we been sent for processing.
 	var nfiles int64
 	// Show progress to user at intervals specified by tick.
-	tick := time.Tick(time.Duration(*flProgressTime) * time.Millisecond)
+	tick := time.Tick(time.Duration(500) * time.Millisecond)
 
 	infoSpinner, _ := pterm.DefaultSpinner.Start()
 
@@ -109,9 +108,6 @@ MainLoop:
 			dMap.Add(dFile)
 			nfiles++
 		case <-tick:
-			if *flSuppressUpdates {
-				continue
-			}
 			// Display progress information.
 			progressMsg := fmt.Sprintf("Processed %d files...", nfiles)
 			infoSpinner.UpdateText(progressMsg)
@@ -128,6 +124,9 @@ MainLoop:
 	pterm.Success.Println(finalInfo)
 
 	// XXX: FOR DEBUGGING TO TEST SPEED
+	if *flNoResults {
+		os.Exit(0)
+	}
 	dMap.PrintDmap()
 
 	// Show final results.
