@@ -1,5 +1,11 @@
 # TODO
 
+## NEXT THING TO DO:
+    * For command output, if there are too many duplcates for an entry jyst print one or two and then the number
+    of duplicates for that hash. That will be more sightly. We will output the full set of results to a file for processing
+    later on (by user deciding to remove or keep files).
+
+
 Change user options:
 
 --show-progress should be changed to just --progress-interval
