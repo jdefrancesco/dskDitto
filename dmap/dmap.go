@@ -15,13 +15,13 @@ import (
 	"github.com/pterm/pterm"
 )
 
-type Md5Hash string
+type SHA256Hash string
 
 // Dmap structure will hold our file duplication data.
 // It is the primary data structure that will house the results
 // that will eventually be returned to the user.
 type Dmap struct {
-	filesMap  map[Md5Hash][]string
+	filesMap  map[SHA256Hash][]string
 	fileCount uint
 }
 
@@ -32,14 +32,14 @@ func NewDmap() (*Dmap, error) {
 		fileCount: 0,
 	}
 	// Initialize our map.
-	dmap.filesMap = make(map[Md5Hash][]string)
+	dmap.filesMap = make(map[SHA256Hash][]string)
 
 	return dmap, nil
 }
 
 // Add will take a dfile and add it the map.
 func (d *Dmap) Add(dfile *dfs.Dfile) {
-	d.filesMap[Md5Hash(dfile.Hash())] = append(d.filesMap[Md5Hash(dfile.Hash())], dfile.FileName())
+	d.filesMap[SHA256Hash(dfile.Hash())] = append(d.filesMap[SHA256Hash(dfile.Hash())], dfile.FileName())
 	d.fileCount++
 }
 
@@ -96,7 +96,7 @@ func (d *Dmap) FileCount() uint {
 }
 
 // Get will get slice of files associated with hash.
-func (d *Dmap) Get(hash Md5Hash) (files []string, err error) {
+func (d *Dmap) Get(hash SHA256Hash) (files []string, err error) {
 	res, ok := d.filesMap[hash]
 	if !ok {
 		return []string{}, err

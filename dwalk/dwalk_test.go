@@ -27,6 +27,7 @@ func TestNewDWalk(t *testing.T) {
 
 loop:
 	for {
+
 		select {
 		case _, ok := <-dFiles:
 			if !ok {
@@ -41,7 +42,7 @@ loop:
 	}
 
 	if nfiles != 14 {
-		t.Errorf("want 14 files. got %d\n", nfiles)
+		t.Errorf("want 15 files. got %d\n", nfiles)
 	}
 	fmt.Printf("%d files\n", nfiles)
 

@@ -16,15 +16,14 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	var dfiles = []struct {
-		fileName    string
-		fileSize    int64
-		fileMd5Hash string
+		fileName       string
+		fileSize       int64
+		fileSHA256Hash string
 	}{
-		{"test_files/fileOne.bin", 100, "891656230863b3136a7bee17222cabc8"},
-		{"test_files/fileTwo.bin", 3, "ef3f9ad0663a925c16b1ebcba033c269"},
-		{"test_files/fileThree.bin", 0, "d41d8cd98f00b204e9800998ecf8427e"},
-		{"test_files/fileFour.bin", 1, "05d85804dd3e689e1f1a0aaa1975fb4c"},
-		{"test_files/fileFive.bin", 100, "891656230863b3136a7bee17222cabc8"},
+		{"test_files/fileOne.bin", 101, "3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61"},
+		{"test_files/fileTwo.bin", 3, "f2e0e2beb73c21338a1dc872cd7b900c24c4547b6d9ae882e02bcd4257ac7bd4"},
+		{"test_files/fileThree.bin", 0, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+		{"test_files/fileFour.bin", 1, "5ee0dd4d4840229fab4a86438efbcaf1b9571af94f5ace5acc94de19e98ea9ab"},
 	}
 
 	for _, f := range dfiles {
