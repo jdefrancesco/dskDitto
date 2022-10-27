@@ -49,7 +49,7 @@ func (d *Dmap) PrintDmap() {
 		if len(v) < 2 {
 			continue
 		}
-		fmt.Printf("Hash: %s  Files: \n", k)
+		fmt.Printf("Hash: %s  \n ---> Files: \n", k)
 		for i, f := range v {
 			fmt.Printf("\t%d: %s \n", i, f)
 		}

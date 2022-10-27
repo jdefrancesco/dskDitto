@@ -1,7 +1,6 @@
 package dfs
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -21,7 +20,7 @@ func TestNewDfile(t *testing.T) {
 	for _, test := range tests {
 		df, err := NewDfile(test.fileName, test.fileSize)
 		if err != nil {
-			fmt.Errorf("Failed to read file %s: %v", test.fileName, err)
+			t.Errorf("Failed to read file %s: %v", test.fileName, err)
 		}
 		df.PrintDfile()
 

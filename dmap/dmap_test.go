@@ -29,7 +29,7 @@ func TestNewDmap(t *testing.T) {
 	for _, f := range dfiles {
 		df, err := dfs.NewDfile(f.fileName, f.fileSize)
 		if err != nil {
-			fmt.Errorf("Failed to read file %s: %v", f.fileName, err)
+			t.Errorf("Failed to read file %s: %v", f.fileName, err)
 		}
 
 		dmap.Add(df)
@@ -45,7 +45,7 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	fmt.Println("Testing dmap.Get()")
-	files, err := dmap.Get("891656230863b3136a7bee17222cabc8")
+	files, err := dmap.Get("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
 	if err != nil {
 		t.Errorf("Error gettings hash from map")
 	}

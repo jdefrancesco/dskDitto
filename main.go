@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"runtime/pprof"
+	"syscall"
 	"time"
 
 	"ditto/dfs"
@@ -14,6 +16,7 @@ import (
 	"ditto/dwalk"
 
 	"github.com/pterm/pterm"
+	"github.com/pterm/pterm/putils"
 	"github.com/rs/zerolog"
 )
 
@@ -34,8 +37,39 @@ func init() {
 	}
 }
 
+// signalHandler will handle SIGINT and others in order to
+// gracefully shutdown.
+func signalHandler(ctx context.Context, sig os.Signal) {
+	switch sig {
+	case syscall.SIGINT:
+		fmt.Printf("\r[!] Signal %s (SIGINT). Quitting....\n", sig.String())
+		ctx.Done()
+		os.Exit(0)
+	default:
+		fmt.Printf("\r[!] Unhandled/Unknown signal\n")
+		ctx.Done()
+		os.Exit(0)
+	}
+}
+
 func main() {
 
+	// Setup channel for signal handling.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT)
+
+	// Create a context.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Watch for signal events, call handler to shutdown
+	go func() {
+		for {
+			sig := <-sigChan
+			signalHandler(ctx, sig)
+		}
+	}()
+
+	// Parse command flags.
 	var (
 		flNoBanner   = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
 		flCpuProfile = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
@@ -63,9 +97,6 @@ func main() {
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
 	}
-
-	// Create a context.
-	ctx, cancel := context.WithCancel(context.Background())
 
 	// Allow user to quit dskDitto.
 	go func() {
@@ -119,8 +150,7 @@ MainLoop:
 	duration := time.Since(start)
 
 	// Scan success message
-	var finalInfo string
-	finalInfo = "Total of " + pterm.LightWhite(nfiles) + " files processed in " + pterm.LightWhite(duration) + ". Duplicates: "
+	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " + pterm.LightWhite(duration) + ". Duplicates: "
 	pterm.Success.Println(finalInfo)
 
 	// XXX: FOR DEBUGGING TO TEST SPEED
@@ -142,7 +172,7 @@ func showHeader() {
 	fmt.Println("")
 
 	pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("dsk", pterm.NewStyle(pterm.FgLightGreen)),
-		pterm.NewLettersFromStringWithStyle("Ditto", pterm.NewStyle(pterm.FgLightWhite))).
+		putils.LettersFromStringWithStyle("dsk", pterm.NewStyle(pterm.FgLightGreen)),
+		putils.LettersFromStringWithStyle("Ditto", pterm.NewStyle(pterm.FgLightWhite))).
 		Render()
 }
