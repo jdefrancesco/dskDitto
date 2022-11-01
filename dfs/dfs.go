@@ -109,7 +109,7 @@ func (d *Dfile) hashFileSHA256() error {
 
 	f, err := os.Open(d.fileName)
 	if err != nil {
-		fmt.Errorf("Failed to read file %s", d.fileName)
+		err = fmt.Errorf("Failed to read file %s", d.fileName)
 		return err
 	}
 	defer f.Close()
