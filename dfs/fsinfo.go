@@ -96,3 +96,24 @@ func ListFileSystems() bool {
 func formatSize(size uint64) string {
 	return sigar.FormatSize(size * 1024)
 }
+
+// GetFileUidGid calls Stat on a function and grabs the Uid and Gid
+// of a file.
+func GetFileUidGid(filename string) (Uid, Gid int) {
+
+	info, err := os.Stat(filename)
+	if err != nil {
+		err := fmt.Errorf("error os.Stat %v", err)
+		fmt.Println(err)
+		return -1, -1
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		fmt.Println("error calling Stat")
+		return -1, -1
+	}
+
+	Uid = int(stat.Uid)
+	Gid = int(stat.Gid)
+	return Uid, Gid
+}

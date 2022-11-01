@@ -159,10 +159,10 @@ MainLoop:
 	}
 	// TODO: If more than 2-3 duplicates simply print duplicate count out to user as result to save space.
 	// The actual; results we need to write to a file so they can be processed according to users desire (rmeove or keep them)
-	dMap.PrintDmap()
+	// dMap.PrintDmap()
 
 	// Show final results.
-	// dMap.ShowResults()
+	dMap.ShowResults()
 
 }
 

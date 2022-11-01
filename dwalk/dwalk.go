@@ -111,6 +111,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			}
 
 			absFileName := filepath.Join(dir, entry.Name())
+
 			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
@@ -144,7 +145,7 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.FileInfo {
 
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("\rError %v\n", err)
 		return nil
 	}
 

@@ -54,13 +54,13 @@ type Dfile struct {
 func NewDfile(fName string, fSize int64) (*Dfile, error) {
 
 	if fName == "" {
-		fmt.Errorf("File name must be specified\n")
-		return nil, errors.New("File name needs to be specified\n")
+		fmt.Printf("File name must be specified\n")
+		return nil, errors.New("file name needs to be specified")
 	}
 
 	fullFileName, err := filepath.Abs(fName)
 	if err != nil {
-		fmt.Errorf("couldn't get absolute filename for %s\n", fName)
+		fmt.Printf("couldn't get absolute filename for %s\n", fName)
 		return nil, err
 	}
 
@@ -69,10 +69,9 @@ func NewDfile(fName string, fSize int64) (*Dfile, error) {
 		fileSize: fSize,
 	}
 
-	// CALL THIS AD FUNC XXXCX
 	if err = d.hashFileSHA256(); err != nil {
 		fileLogger.Error().Err(err).Msgf("Failed to hash %s: error: %s\n", d.fileName, err)
-		return d, errors.New("Failed to hash file")
+		return d, errors.New("failed to hash file")
 	}
 
 	return d, nil
@@ -89,6 +88,12 @@ func (d *Dfile) FileSize() int64 { return d.fileSize }
 
 // GetHash will return SHA256 Hash string of file.
 func (d *Dfile) Hash() string { return d.fileSHA256Hash }
+
+// GetPerms will give us UNIX permissions we need to ensure we can access
+// a file.
+func (d *Dfile) GetPerms() string {
+	return ""
+}
 
 // concurrency-limiting semaphore to ensure MD5 hashing doesn't exhaust
 // all the available file descriptors. macOS open file limit is ridiculously
