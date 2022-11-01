@@ -145,7 +145,7 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.FileInfo {
 
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
-		fmt.Printf("\rError %v\n", err)
+		fmt.Printf("\rerror: %v\n", err)
 		return nil
 	}
 

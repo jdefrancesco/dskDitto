@@ -2,7 +2,6 @@
 
 ## NEXT THING TO DO
 
-* Implement file permission checks
 
 
 
@@ -17,16 +16,13 @@ Change user options:
 - Experiment with a worker pool of goroutines.
 - Fix up logging/error handling output to user.
 
-- Add signal handling
 - Add ability to configure open file desc count.
 - Add table printer output
 - Colorize the duplication results and seperate them so the user can see each cluster more easily.
-- Test dskDitto cancellation.
 - Output results to file.
 
 ## FEATURES TO IMPLEMENT:
 
-* Use bubbles golang module to provide a more interactive TUI
 * Fuzzy match duplication. Match files as duplicates so as long as they are within a similarity threshold.
 * Output HTML/JSON
 * Allow user to purge duplicates.

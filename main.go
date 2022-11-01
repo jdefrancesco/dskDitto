@@ -150,7 +150,8 @@ MainLoop:
 	duration := time.Since(start)
 
 	// Scan success message
-	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " + pterm.LightWhite(duration) + ". Duplicates: "
+	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
+		pterm.LightWhite(duration) + ". \nDuplicates: "
 	pterm.Success.Println(finalInfo)
 
 	// XXX: FOR DEBUGGING TO TEST SPEED
@@ -161,8 +162,9 @@ MainLoop:
 	// The actual; results we need to write to a file so they can be processed according to users desire (rmeove or keep them)
 	// dMap.PrintDmap()
 
+	fmt.Println("")
 	// Show final results.
-	dMap.ShowResults()
+	dMap.ShowAllResults()
 
 }
 

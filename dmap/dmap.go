@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/pterm/pterm"
+	"github.com/pterm/pterm/putils"
 )
 
 type SHA256Hash string
@@ -79,8 +80,30 @@ func (d *Dmap) ShowResults() {
 		}
 	}
 
-	root := pterm.NewTreeFromLeveledList(leveledList)
+	root := putils.TreeFromLeveledList(leveledList)
 	pterm.DefaultTree.WithRoot(root).Render()
+}
+
+// ShowResultsBullet will display duplicates held in our Dmap as
+// a bullet list..
+func (d *Dmap) ShowAllResults() {
+
+	var bl []pterm.BulletListItem
+	for hash, files := range d.filesMap {
+
+		if len(files) < 2 {
+			continue
+		}
+		pterm.Println(pterm.Green("Hash: ") + pterm.Cyan(hash))
+		// blItem := pterm.BulletListItem{Level: 1, Text: string(hash)}
+		// bl = append(bl, blItem)
+		for _, f := range files {
+			blContent := pterm.BulletListItem{Level: 0, Text: f}
+			bl = append(bl, blContent)
+		}
+		pterm.DefaultBulletList.WithItems(bl).Render()
+		bl = nil
+	}
 
 }
 
