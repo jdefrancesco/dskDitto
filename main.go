@@ -17,6 +17,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
+	"github.com/rivo/tview"
 	"github.com/rs/zerolog"
 )
 
@@ -158,13 +159,16 @@ MainLoop:
 	if *flNoResults {
 		os.Exit(0)
 	}
-	// TODO: If more than 2-3 duplicates simply print duplicate count out to user as result to save space.
+
+	// TODO: Add TUI interactivce mode here so users can select what they wan't to delete
+	app := tview.NewApplication()
+
 	// The actual; results we need to write to a file so they can be processed according to users desire (rmeove or keep them)
-	// dMap.PrintDmap()
+	// if err := app.SetRoot(list, true).EnableMouse(true).Run(); err != nil {
+	// 	panic(err)
+	// }
 
 	fmt.Println("")
-	// Show final results.
-	dMap.ShowAllResults()
 
 }
 
