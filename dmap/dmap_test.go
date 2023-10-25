@@ -55,3 +55,14 @@ func TestNewDmap(t *testing.T) {
 	}
 
 }
+
+func TestNewFileCount(t *testing.T) {
+
+    fmap := NewDFileSizeCache()
+    if fmap == nil {
+        t.Errorf("Couldn't create object.")
+    }
+
+
+    
+}

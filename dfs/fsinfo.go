@@ -28,7 +28,8 @@ type DFileStat struct {
 	Blocks  int64
 }
 
-// GetDFileState will return Stat information of file
+// GetDFileState will return Stat information of file.
+// This includes UID/Filesize/etc.
 func GetDFileStat(info os.FileInfo) (*DFileStat, error) {
 	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
 		return &DFileStat{
@@ -117,3 +118,4 @@ func GetFileUidGid(filename string) (Uid, Gid int) {
 	Gid = int(stat.Gid)
 	return Uid, Gid
 }
+

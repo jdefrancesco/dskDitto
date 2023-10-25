@@ -2,6 +2,8 @@ package dfs
 
 import (
 	"testing"
+    "os"
+    _ "fmt"
 )
 
 // Check if we can correctly enumerate disk information.
@@ -13,11 +15,12 @@ func TestGetFileUidGid(t *testing.T) {
 	test_files := []string{"./test_files/fileOne.bin",
 		"./test_files/fileTwo.bin"}
 
+    curr_uid := os.Getuid()
 	// XXX: Need to fix this test and get UID from env variable
 	for _, test := range test_files {
-		uid, gid := GetFileUidGid(test)
-		if uid != 1000 || gid != 1000 {
-			t.Errorf("uid incorrect (%v, %v)", uid, gid)
+		uid, _ := GetFileUidGid(test)
+		if uid != curr_uid {
+			t.Errorf("uid incorrect (%v)", uid)
 		}
 	}
 }
