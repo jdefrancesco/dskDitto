@@ -1,4 +1,14 @@
-import "testing"
+package dwalk
+
+import (
+	"context"
+	"ditto/dfs"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/rs/zerolog/log"
+)
 
 // Test basic walking...
 func TestNewDWalk(t *testing.T) {
