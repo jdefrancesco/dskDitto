@@ -13,9 +13,21 @@ hash the file for real. Most of the time the first 100 bytes of files can detern
 * Consider BLAKE2 for hash algorithm primary.
 * Handle ultra files
 
+## High Priority
+
+* Size capping. Maybe first read a small chunk of a file to determine if we need to
+hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes
+* Defer hashing until two or more files have the same size.
+* Consider BLAKE2 for hash algorithm primary.
+* Handle ultra files
 
 ## Change user options:
 
+<<<<<<< HEAD
+=======
+## Change user options:
+
+>>>>>>> 8a2492a30f15777a14b77be8b996de03870c2ae6
 * --show-progress should be changed to just --progress-interval
 * --suppress-updates we can probably just get rid of.
 * --cpuprofile change argument from "string" to "filename.prof"
