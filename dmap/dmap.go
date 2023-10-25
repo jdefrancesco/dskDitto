@@ -26,6 +26,7 @@ type Dmap struct {
 	fileCount uint
 }
 
+
 // NewDmap returns a new Dmap structure.
 func NewDmap() (*Dmap, error) {
 
