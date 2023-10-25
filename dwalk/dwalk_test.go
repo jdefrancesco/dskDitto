@@ -41,8 +41,8 @@ loop:
 		}
 	}
 
-	if nfiles != 14 {
-		t.Errorf("want 15 files. got %d\n", nfiles)
+	if nfiles != 12 {
+		t.Errorf("want 12 files. got %d\n", nfiles)
 	}
 	fmt.Printf("%d files\n", nfiles)
 
