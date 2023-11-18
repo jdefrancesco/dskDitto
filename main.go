@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -23,12 +22,6 @@ import (
 var fileLogger zerolog.Logger
 
 func init() {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "dskditto-main")
-	if err != nil {
-		fmt.Printf("Error creating log file\n")
-	}
-	fileLogger := zerolog.New(tmpFile).With().Logger()
-	fileLogger.Info().Msg("DskDitto Log:")
 
 	// Custom help message
 	flag.Usage = func() {
@@ -154,11 +147,12 @@ MainLoop:
 		pterm.LightWhite(duration) + ". \nDuplicates: "
 	pterm.Success.Println(finalInfo)
 
-	// XXX: FOR DEBUGGING TO TEST SPEED
+	//  FOR DEBUGGING TO TEST SPEED
 	if *flNoResults {
 		os.Exit(0)
 	}
 
+	dMap.ShowAllResults()
 	// TODO: Add TUI interactivce mode here so users can select what they wan't to delete
 	// app := tview.NewApplication()
 

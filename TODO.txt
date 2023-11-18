@@ -2,8 +2,8 @@
 
 ## NEXT THING TO DO
 
-* Explore UX TUIs
-* Finish the file size cache
+* Make max file size configurable. Current default is 1GB
+* Add TUI with tcell.
 
 ## High Priority
 
@@ -11,18 +11,18 @@
 hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes
 * Defer hashing until two or more files have the same size.
 * Consider BLAKE2 for hash algorithm primary.
-* Handle ultra files
 
-## High Priority
+## Features To Be Added
 
-* Size capping. Maybe first read a small chunk of a file to determine if we need to
-hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes
-* Defer hashing until two or more files have the same size.
-* Consider BLAKE2 for hash algorithm primary.
-* Handle ultra files
+* File restore: After dskDitto runs and the user clobbers all duplicates they should be able to easily rollback and restore
+all deleted file duplicates. We need to only keep a journal of each file with a duplicate and the meta data associated. This can
+be implemented quite efficiently,
+
+
 
 ## Change user options:
 
+* Add --maxfile-size flag.
 * --show-progress should be changed to just --progress-interval
 * --suppress-updates we can probably just get rid of.
 * --cpuprofile change argument from "string" to "filename.prof"
@@ -31,13 +31,11 @@ hash the file for real. Most of the time the first 100 bytes of files can detern
 ## General internal mechanism to play wirh.
 
 - Experiment with a worker pool of goroutines.
+- Maybe try different hashing algos. Some of the newer ones are more fit for this task.
 - Fix up logging/error handling output to user.
-
 
 
 ## ISSUES:
 
 * Running dskDitto is very resource intensive. Running it on home directory can overload the system. Memory usage is high, but reasonable still.
 May need to limit/throttle.
-* Redis could possibly serve as another option for the dup store. I don't really want redis as 
-a dependency by support may be added in the future.

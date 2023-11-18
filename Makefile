@@ -23,5 +23,6 @@ install:
 clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
-
+	# Clear log files...
+	rm dskditto-*
 

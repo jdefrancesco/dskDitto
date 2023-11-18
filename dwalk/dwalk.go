@@ -1,4 +1,5 @@
 // dwalk is a parallel, fast directory walker written for the needs of dskditto
+// TODO: Migrate away from ioutil as it is deprecated
 package dwalk
 
 import (
@@ -15,10 +16,14 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+const (
+	MAX_FILE_SIZE = 1024 * 1024 * 1024 * 1 // 1GB
+)
+
 var fileLogger zerolog.Logger
 
 func init() {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "dskditto-dwalk")
+	tmpFile, err := os.CreateTemp(".", "dskditto-dwalk")
 	if err != nil {
 		fmt.Printf("Error creating log file\n")
 	}
@@ -103,15 +108,20 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			subDir := filepath.Join(dir, entry.Name())
 			go walkDir(ctx, subDir, d, dFiles)
 		} else {
+
+			// Deal with large or irregular files..
+			// MAX_FILE_SIZE is currently a gig for now. Need to make this configurable.
+			if entry.Size() >= MAX_FILE_SIZE {
+				fileLogger.Debug().Msgf("Skipping file %s. File size exceeds maximum allowed.\n", entry.Name())
+				continue
+			}
+
 			// Handle special files.
 			if !entry.Mode().IsRegular() {
-				// For now we will skip over special files...
-				// fileLogger.Info().Msgf("Skipping file %s", entry.Name())
 				continue
 			}
 
 			absFileName := filepath.Join(dir, entry.Name())
-
 			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
@@ -145,7 +155,7 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.FileInfo {
 
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
-		fmt.Printf("\rerror: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\rerror: %v\n", err)
 		return nil
 	}
 
