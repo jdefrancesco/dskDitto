@@ -40,8 +40,9 @@ func init() {
 // DWalk is our primary object for traversing filesystem
 // in a parallel manner.
 type DWalk struct {
-	rootDirs []string
-	wg       *sync.WaitGroup
+	rootDirs    []string
+	wg          *sync.WaitGroup
+	maxFileSize uint64 // Skip over files that are greater than maxFileSize
 
 	// Channel used to communicate with main monitor goroutine.
 	dFiles chan<- *dfs.Dfile
