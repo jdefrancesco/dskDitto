@@ -26,7 +26,6 @@ type Dmap struct {
 	fileCount uint
 }
 
-
 // NewDmap returns a new Dmap structure.
 func NewDmap() (*Dmap, error) {
 
@@ -127,4 +126,9 @@ func (d *Dmap) Get(hash SHA256Hash) (files []string, err error) {
 	}
 
 	return res, nil
+}
+
+// GetMap will return the map.
+func (d *Dmap) GetMap() map[SHA256Hash][]string {
+	return d.filesMap
 }

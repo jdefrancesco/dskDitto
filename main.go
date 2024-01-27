@@ -16,6 +16,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
+	"github.com/rivo/tview"
 	"github.com/rs/zerolog"
 )
 
@@ -64,11 +65,14 @@ func main() {
 
 	// Parse command flags.
 	var (
-		flNoBanner   = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
-		flCpuProfile = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
-		flNoResults  = flag.Bool("time-only", false, "Use to show only the time taken to scan directory")
+		flNoBanner    = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
+		flCpuProfile  = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
+		flNoResults   = flag.Bool("time-only", false, "Use to show only the time taken to scan directory")
+		flMaxFileSize = flag.Int64("max-file-size", 1, "Max file size is 1 GiB by default")
 	)
 	flag.Parse()
+
+	_ = flMaxFileSize
 
 	// Enable CPU profiling
 	if *flCpuProfile != "" {
@@ -152,14 +156,45 @@ MainLoop:
 		os.Exit(0)
 	}
 
-	dMap.ShowAllResults()
-	// TODO: Add TUI interactivce mode here so users can select what they wan't to delete
-	// app := tview.NewApplication()
+	if dMap.MapSize() < 50 {
+		dMap.ShowAllResults()
+		os.Exit(0)
+	} else {
+		var prompt string
+		pterm.Success.Print("There are too many results to show. Launch TUI? (y/n) ")
+		fmt.Scanf("%s", &prompt)
+		// We exit without showing user anything...
+		if prompt == "n" {
+			os.Exit(0)
+		}
+	}
 
-	// The actual; results we need to write to a file so they can be processed according to users desire (rmeove or keep them)
-	// if err := app.SetRoot(list, true).EnableMouse(true).Run(); err != nil {
-	// 	panic(err)
+	// Launch TUI!
+	// TODO: Refactor this into a function when I get my bearings...
+	app := tview.NewApplication()
+	list := tview.NewList()
+
+	// for hash, files := range dMap.GetMap() {
+	// 	if len(files) > 1 {
+	// 		for _, file := range files {
+	// 			list.AddItem(file, hash, rune(hash[0]), func() {
+	// 				// Here you could delete the file or perform other actions.
+	// 			})
+	// 		}
+	// 	}
 	// }
+
+	// list.SetSelectedFunc(func(i int, s string, r string, ru rune) {
+	// 	// Delete the file when selected.
+	// 	if err := os.Remove(s); err != nil {
+	// 		panic(err)
+	// 	}
+	// 	list.RemoveItem(i)
+	// })
+
+	if err := app.SetRoot(list, true).EnableMouse(true).Run(); err != nil {
+		panic(err)
+	}
 
 	fmt.Println("")
 

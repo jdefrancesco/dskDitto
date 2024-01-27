@@ -115,7 +115,7 @@ func (d *Dfile) GetPerms() string {
 // low; by default 256.
 var sema = make(chan struct{}, OpenFileDescLimit)
 
-// Computer SHA256 hash. This will be the primary hash used, MD5 will be removed.
+// Compute SHA256 hash. This will be the primary hash used, MD5 will be removed.
 func (d *Dfile) hashFileSHA256() error {
 
 	// Acquire semaphore to prevent exhausting all our file descriptors.

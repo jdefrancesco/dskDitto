@@ -1,5 +1,4 @@
 // dwalk is a parallel, fast directory walker written for the needs of dskditto
-// TODO: Migrate away from ioutil as it is deprecated
 package dwalk
 
 import (
@@ -114,16 +113,17 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// MAX_FILE_SIZE is currently a gig for now. Need to make this configurable.
 			if entry.Size() >= MAX_FILE_SIZE {
 				fileLogger.Debug().Msgf("Skipping file %s. File size exceeds maximum allowed.\n", entry.Name())
+				// TODO: Add to a list of files that were skipped.
 				continue
 			}
 
 			// Handle special files.
 			if !entry.Mode().IsRegular() {
+				fileLogger.Debug().Msgf("Skipping file %s. Not a regular file.\n", entry.Name())
 				continue
 			}
 
 			absFileName := filepath.Join(dir, entry.Name())
-			// Create new Dfile for file entry.
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
 				fileLogger.Error().Msgf("Error creating dFile: %s", err)
