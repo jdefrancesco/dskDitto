@@ -10,10 +10,15 @@ PREFIX=/usr/local/bin
 all: test build
 
 build:
+	gosec -exclude=G104 ./...
 	$(GOBUILD) -o $(BINARY_NAME) -v
 
 test:
 	$(GOTEST) -v ./...
+
+.PHONY: gosec
+gosec:
+	gosec -exclude=G104 ./...
 
 .PHONY: install
 install:
