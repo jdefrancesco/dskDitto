@@ -5,7 +5,7 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 BINARY_NAME=dskDitto
 
-# PREFIX=.//usr/local/bin
+PREFIX=/usr/local/bin
 
 all: test build
 
