@@ -49,14 +49,12 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 
 func main() {
 
-	// Setup channel for signal handling.
+	// Setup signal handler
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 
 	// Create a context.
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Watch for signal events, call handler to shutdown
 	go func() {
 		for {
 			sig := <-sigChan
@@ -73,11 +71,11 @@ func main() {
 	)
 	flag.Parse()
 
+	// TODO: Not implemented yet.
 	_ = flMaxFileSize
 
 	// Enable CPU profiling
 	if *flCpuProfile != "" {
-		// Output to file
 		f, err := os.Create(*flCpuProfile)
 		if err != nil {
 			fileLogger.Fatal().Err(err).Msgf("cpuprofile failed")
@@ -86,7 +84,6 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	// Toggle banner.
 	if !*flNoBanner {
 		showHeader()
 	}
@@ -110,16 +107,18 @@ func main() {
 
 	// dFiles will be the channel we receive files to be added to the DMap.
 	dFiles := make(chan *dfs.Dfile)
-	walker := dwalk.NewDWalker(rootDirs, dFiles)
 
+	walker := dwalk.NewDWalker(rootDirs, dFiles)
 	walker.Run(ctx)
+
+	// Track our start time..
 	start := time.Now()
 
 	// Number of files we been sent for processing.
 	var nfiles int64
+
 	// Show progress to user at intervals specified by tick.
 	tick := time.Tick(time.Duration(500) * time.Millisecond)
-
 	infoSpinner, _ := pterm.DefaultSpinner.Start()
 
 MainLoop:
