@@ -147,7 +147,7 @@ MainLoop:
 	duration := time.Since(start)
 
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
-		pterm.LightWhite(duration) + ". \nDuplicates: "
+		pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
 
 	// FOR DEBUGGING TO TEST SPEED
