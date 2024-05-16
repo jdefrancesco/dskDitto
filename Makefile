@@ -5,9 +5,12 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 BINARY_NAME=dskDitto
 
-PREFIX=/usr/local/bin
+# PREFIX=.//usr/local/bin
 
 all: test build
+
+debug:
+	$(GOBUILD) -o $(BINARY_NAME) -v -gcflags "all=-N -l"
 
 build:
 	gosec -exclude=G104 ./...

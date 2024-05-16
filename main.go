@@ -14,6 +14,7 @@ import (
 	"ditto/dmap"
 	"ditto/dwalk"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
 	"github.com/rivo/tview"
@@ -170,34 +171,92 @@ MainLoop:
 	}
 
 	// Launch TUI!
-	// TODO: Refactor this into a function when I get my bearings...
 	app := tview.NewApplication()
-	list := tview.NewList()
+	// Show tree banner
+	tree := tview.NewTreeView().
+		SetRoot(tview.NewTreeNode("dskDitto Results").SetSelectable(false))
 
-	// for hash, files := range dMap.GetMap() {
-	// 	if len(files) > 1 {
-	// 		for _, file := range files {
-	// 			list.AddItem(file, hash, rune(hash[0]), func() {
-	// 				// Here you could delete the file or perform other actions.
-	// 			})
-	// 		}
-	// 	}
-	// }
+	addTreeData(tree, dMap)
 
-	// list.SetSelectedFunc(func(i int, s string, r string, ru rune) {
-	// 	// Delete the file when selected.
-	// 	if err := os.Remove(s); err != nil {
-	// 		panic(err)
-	// 	}
-	// 	list.RemoveItem(i)
-	// })
+	// // Set the navigation key bindings.
+	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEsc:
+			app.Stop()
+		}
+		return event
+	})
+	tree.SetSelectedFunc(func(node *tview.TreeNode) {
+		// Expand or collapse the node.
+		if node.IsExpanded() {
+			node.Collapse()
+		} else {
+			node.Expand()
+		}
+	})
 
-	if err := app.SetRoot(list, true).EnableMouse(true).Run(); err != nil {
+	if err := app.SetRoot(tree, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 
-	fmt.Println("")
+}
 
+func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
+	// Add the header.
+	tree.SetRoot(tview.NewTreeNode("dskDitto Results").SetSelectable(false))
+
+	// Add the hash as root node and the files as children.
+	for hash, files := range dMap.GetMap() {
+		if len(files) > 1 {
+			hashNode := tview.NewTreeNode(string(hash)).SetSelectable(true)
+			for _, file := range files {
+				hashNode.AddChild(tview.NewTreeNode(file)).SetSelectable(true)
+			}
+			tree.GetRoot().AddChild(hashNode)
+		}
+	}
+
+}
+
+func addTableData(table *tview.Table, dMap *dmap.Dmap) {
+	// Add the header.
+	table.SetCell(0, 0, &tview.TableCell{
+		Text:            "File",
+		NotSelectable:   true,
+		Align:           tview.AlignCenter,
+		Color:           tview.Styles.PrimaryTextColor,
+		BackgroundColor: tview.Styles.ContrastBackgroundColor,
+	})
+	table.SetCell(0, 1, &tview.TableCell{
+		Text:            "Hash",
+		NotSelectable:   true,
+		Align:           tview.AlignCenter,
+		Color:           tview.Styles.PrimaryTextColor,
+		BackgroundColor: tview.Styles.ContrastBackgroundColor,
+	})
+
+	// Add the data.
+	for hash, files := range dMap.GetMap() {
+		if len(files) > 1 {
+			for _, file := range files {
+				rowCount := table.GetRowCount()
+				table.SetCell(rowCount, 0, &tview.TableCell{
+					Text:            file,
+					NotSelectable:   false,
+					Align:           tview.AlignLeft,
+					Color:           tview.Styles.PrimaryTextColor,
+					BackgroundColor: tview.Styles.ContrastBackgroundColor,
+				})
+				table.SetCell(rowCount, 1, &tview.TableCell{
+					Text:            string(hash),
+					NotSelectable:   true,
+					Align:           tview.AlignLeft,
+					Color:           tview.Styles.PrimaryTextColor,
+					BackgroundColor: tview.Styles.ContrastBackgroundColor,
+				})
+			}
+		}
+	}
 }
 
 // showHeader prints colorful dskDitto fileLoggero.
