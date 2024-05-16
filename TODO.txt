@@ -2,10 +2,14 @@
 
 ## NEXT THING TO DO
 
+* Continue development of TUI.
+* Begin to add handling of special cases like symlinks. Super large files.
 * Make max file size configurable. Current default is 1GB
-* Add TUI with tcell.
+* Do I leave  md5sum for now just in case user wants faster hashing....
+* Refactor logging mechanism
 
-## High Priority
+
+## Priorities...
 
 * Size capping. Maybe first read a small chunk of a file to determine if we need to
 hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes
@@ -18,21 +22,12 @@ hash the file for real. Most of the time the first 100 bytes of files can detern
 all deleted file duplicates. We need to only keep a journal of each file with a duplicate and the meta data associated. This can
 be implemented quite efficiently,
 
-
-
 ## Change user options:
 
 * Add --maxfile-size flag.
 * --show-progress should be changed to just --progress-interval
 * --suppress-updates we can probably just get rid of.
 * --cpuprofile change argument from "string" to "filename.prof"
-
-
-## General internal mechanism to play wirh.
-
-- Experiment with a worker pool of goroutines.
-- Maybe try different hashing algos. Some of the newer ones are more fit for this task.
-- Fix up logging/error handling output to user.
 
 
 ## ISSUES:
