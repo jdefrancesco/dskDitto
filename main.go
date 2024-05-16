@@ -144,48 +144,58 @@ MainLoop:
 	}
 
 	infoSpinner.Stop()
-	// Get elapsed time of scan.
 	duration := time.Since(start)
 
-	// Scan success message
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
 		pterm.LightWhite(duration) + ". \nDuplicates: "
 	pterm.Success.Println(finalInfo)
 
-	//  FOR DEBUGGING TO TEST SPEED
+	// FOR DEBUGGING TO TEST SPEED
 	if *flNoResults {
 		os.Exit(0)
 	}
 
+	// Decide if we can dump results directly or if we need to launch TUI.
 	if dMap.MapSize() < 50 {
 		dMap.ShowAllResults()
 		os.Exit(0)
 	} else {
 		var prompt string
-		pterm.Success.Print("There are too many results to show. Launch TUI? (y/n) ")
-		fmt.Scanf("%s", &prompt)
-		// We exit without showing user anything...
+		pterm.Success.Print("There are too many results to show. Launch TUI? (Y/n): ")
+		// Get user input
+		fmt.Scanln(&prompt)
 		if prompt == "n" {
 			os.Exit(0)
 		}
 	}
 
-	// Launch TUI!
+	// TODO: Refactor... Launch TUI!
 	app := tview.NewApplication()
-	// Show tree banner
 	tree := tview.NewTreeView().
-		SetRoot(tview.NewTreeNode("dskDitto Results").SetSelectable(false))
+		SetRoot(tview.NewTreeNode("Duplicates").SetColor(tcell.ColorGreen)).
+		SetTopLevel(0)
 
+	tree.SetBorder(true).
+		SetBorderPadding(0, 0, 1, 1).
+		SetTitleColor(tcell.ColorDeepSkyBlue).
+		SetTitle("dskDitto: Interactive Duplicate Management").SetBorderColor(tcell.ColorGreen)
+
+	// Add the nodes to the tree.
 	addTreeData(tree, dMap)
 
-	// // Set the navigation key bindings.
+	// Key binding to quit.
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEsc:
 			app.Stop()
+		case tcell.KeyRune:
+			if event.Rune() == 'q' {
+				app.Stop()
+			}
 		}
 		return event
 	})
+
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		// Expand or collapse the node.
 		if node.IsExpanded() {
@@ -201,62 +211,34 @@ MainLoop:
 
 }
 
+// addTreeData adds the duplicate file information to the tree.
 func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
-	// Add the header.
-	tree.SetRoot(tview.NewTreeNode("dskDitto Results").SetSelectable(false))
+
+	// Get file size in bytes..
+	getFileSize := func(file_name string) uint64 {
+		file, err := os.Stat(file_name)
+		if err != nil {
+			return 0
+		}
+		return uint64(file.Size())
+	}
 
 	// Add the hash as root node and the files as children.
 	for hash, files := range dMap.GetMap() {
 		if len(files) > 1 {
-			hashNode := tview.NewTreeNode(string(hash)).SetSelectable(true)
+			var fmt_str = "%s - %d Duplicates - (%d bytes total)"
+			fSize := getFileSize(files[0])
+			totalSize := uint64(fSize) * uint64(len(files))
+			header := fmt.Sprintf(fmt_str, hash[:8], len(files), totalSize)
+			dupSet := tview.NewTreeNode(header).SetSelectable(true)
 			for _, file := range files {
-				hashNode.AddChild(tview.NewTreeNode(file)).SetSelectable(true)
+				dupSet.AddChild(tview.NewTreeNode(file)).
+					SetColor(tcell.ColorLightGreen)
 			}
-			tree.GetRoot().AddChild(hashNode)
+			tree.GetRoot().AddChild(dupSet)
 		}
 	}
 
-}
-
-func addTableData(table *tview.Table, dMap *dmap.Dmap) {
-	// Add the header.
-	table.SetCell(0, 0, &tview.TableCell{
-		Text:            "File",
-		NotSelectable:   true,
-		Align:           tview.AlignCenter,
-		Color:           tview.Styles.PrimaryTextColor,
-		BackgroundColor: tview.Styles.ContrastBackgroundColor,
-	})
-	table.SetCell(0, 1, &tview.TableCell{
-		Text:            "Hash",
-		NotSelectable:   true,
-		Align:           tview.AlignCenter,
-		Color:           tview.Styles.PrimaryTextColor,
-		BackgroundColor: tview.Styles.ContrastBackgroundColor,
-	})
-
-	// Add the data.
-	for hash, files := range dMap.GetMap() {
-		if len(files) > 1 {
-			for _, file := range files {
-				rowCount := table.GetRowCount()
-				table.SetCell(rowCount, 0, &tview.TableCell{
-					Text:            file,
-					NotSelectable:   false,
-					Align:           tview.AlignLeft,
-					Color:           tview.Styles.PrimaryTextColor,
-					BackgroundColor: tview.Styles.ContrastBackgroundColor,
-				})
-				table.SetCell(rowCount, 1, &tview.TableCell{
-					Text:            string(hash),
-					NotSelectable:   true,
-					Align:           tview.AlignLeft,
-					Color:           tview.Styles.PrimaryTextColor,
-					BackgroundColor: tview.Styles.ContrastBackgroundColor,
-				})
-			}
-		}
-	}
 }
 
 // showHeader prints colorful dskDitto fileLoggero.
