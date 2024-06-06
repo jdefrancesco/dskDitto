@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/rs/zerolog"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -19,16 +18,7 @@ const (
 	MAX_FILE_SIZE = 1024 * 1024 * 1024 * 1 // 1GB
 )
 
-var fileLogger zerolog.Logger
-
 func init() {
-	tmpFile, err := os.CreateTemp(".", "dskditto-dwalk")
-	if err != nil {
-		fmt.Printf("Error creating log file\n")
-	}
-	fileLogger := zerolog.New(tmpFile).With().Logger()
-	fileLogger.Info().Msg("DskDitto Log:")
-
 	// Custom help message
 	flag.Usage = func() {
 		fmt.Printf("Usage: dskDitto [options] PATHS\n\n")
@@ -112,21 +102,18 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Deal with large or irregular files..
 			// MAX_FILE_SIZE is currently a gig for now. Need to make this configurable.
 			if entry.Size() >= MAX_FILE_SIZE {
-				fileLogger.Debug().Msgf("Skipping file %s. File size exceeds maximum allowed.\n", entry.Name())
 				// TODO: Add to a list of files that were skipped.
 				continue
 			}
 
 			// Handle special files.
 			if !entry.Mode().IsRegular() {
-				fileLogger.Debug().Msgf("Skipping file %s. Not a regular file.\n", entry.Name())
 				continue
 			}
 
 			absFileName := filepath.Join(dir, entry.Name())
 			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
 			if err != nil {
-				fileLogger.Error().Msgf("Error creating dFile: %s", err)
 				continue
 			}
 
