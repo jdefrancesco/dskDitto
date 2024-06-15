@@ -1,36 +1,43 @@
 # TODO
 
-## NEXT THING TO DO
+## Coming Up.
 
-* Continue development of TUI.
-* Begin to add handling of special cases like symlinks. Super large files.
-* Make max file size configurable. Current default is 1GB
-* Do I leave  md5sum for now just in case user wants faster hashing....
-* Refactor logging mechanism
+* Finish repo cleanup. Remove all old code and files that are not needed.
+* Test and confirm all repo changes didn't break anything.
+* Handle Symlink and Hardlinks. User should be able to decide what to do. But we want
+sensible defaults.
+* Finish TUI so users can select whath they want to do with duplicates.
+* Add The following options:
+    1. --dry-run
+    2. --delete-all
+    3. --exclude
+    4. --max-file-size
+    5. --min-file-size
+    6. --inc-dotfiles
+    7. --throttle - Avoid resource hogging.
+* File restore. To start we can simpply marshal JSON compressed file in order to restore.
+with mininmal overhead.
 
+## Considerations
 
-## Priorities...
-
+* Some dupliCates are the result of a user having say two different versions of a program, or SDK. They
+may need both. So perhapse we might detect this and ask the user if they want to keep both.
 * Size capping. Maybe first read a small chunk of a file to determine if we need to
 hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes
 * Defer hashing until two or more files have the same size.
+* Decide what we will do if our memory map gets too large.
+* Definitely need care handling user configs files.
+* Consider using a config file for dskDitto itself.
+
+## Long Term Goals
+
 * Consider BLAKE2 for hash algorithm primary.
+* Maybe include fuzzy file diffing. We can tell user if
+files are similar but maybe not the same. This could be useful especially for images
+and other media.
 
-## Features To Be Added
+## Potentiall Issues:
 
-* File restore: After dskDitto runs and the user clobbers all duplicates they should be able to easily rollback and restore
-all deleted file duplicates. We need to only keep a journal of each file with a duplicate and the meta data associated. This can
-be implemented quite efficiently,
-
-## Change user options:
-
-* Add --maxfile-size flag.
-* --show-progress should be changed to just --progress-interval
-* --suppress-updates we can probably just get rid of.
-* --cpuprofile change argument from "string" to "filename.prof"
-
-
-## ISSUES:
-
-* Running dskDitto is very resource intensive. Running it on home directory can overload the system. Memory usage is high, but reasonable still.
-May need to limit/throttle.
+(1) Memory usage. We need to be careful about how we handle memory.
+(2) Consider IO usage.
+(3) Handling of permissions gracefully.
