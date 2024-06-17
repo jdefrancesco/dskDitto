@@ -1,9 +1,9 @@
 # TODO
 
+* Refactor TUI code in ui.
+
 ## Coming Up.
 
-* Finish repo cleanup. Remove all old code and files that are not needed.
-* Test and confirm all repo changes didn't break anything.
 * Handle Symlink and Hardlinks. User should be able to decide what to do. But we want
 sensible defaults.
 * Finish TUI so users can select whath they want to do with duplicates.

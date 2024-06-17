@@ -14,7 +14,7 @@ debug:
 
 build:
 	gosec -exclude=G104 ./...
-	$(GOBUILD) -o $(BINARY_NAME) -v
+	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
 test:
 	$(GOTEST) -v ./...
@@ -30,7 +30,6 @@ install:
 .PHONY: clean
 clean:
 	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
+	rm -f ./bin/$(BINARY_NAME)
 	# Clear log files...
-	rm dskditto-*
-
+	rm -rf app.log

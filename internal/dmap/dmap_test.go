@@ -1,7 +1,7 @@
 package dmap
 
 import (
-	"ditto/dfs"
+	"ditto/internal/dfs"
 	"fmt"
 	"testing"
 )
@@ -58,11 +58,9 @@ func TestNewDmap(t *testing.T) {
 
 func TestNewFileCount(t *testing.T) {
 
-    fmap := NewDFileSizeCache()
-    if fmap == nil {
-        t.Errorf("Couldn't create object.")
-    }
+	fmap := NewDFileSizeCache()
+	if fmap == nil {
+		t.Errorf("Couldn't create object.")
+	}
 
-
-    
 }

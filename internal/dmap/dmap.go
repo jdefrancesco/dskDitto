@@ -9,7 +9,7 @@
 package dmap
 
 import (
-	"ditto/dfs"
+	"ditto/internal/dfs"
 	"fmt"
 
 	"github.com/pterm/pterm"

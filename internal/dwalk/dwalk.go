@@ -3,7 +3,7 @@ package dwalk
 
 import (
 	"context"
-	"ditto/dfs"
+	"ditto/internal/dfs"
 	"flag"
 	"fmt"
 	"io/ioutil"
