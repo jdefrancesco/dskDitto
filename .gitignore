@@ -1,9 +1,7 @@
 # Binary name.
-dskditto-*
-dskDitto
 *.prof
 *.svg
 .DS_Store
 *.out
 *.log
-large
+bin/
