@@ -4,6 +4,7 @@
 
 ## Coming Up.
 
+* Handle permissions error.
 * Handle Symlink and Hardlinks. User should be able to decide what to do. But we want
 sensible defaults.
 * Finish TUI so users can select whath they want to do with duplicates.
@@ -20,7 +21,7 @@ with mininmal overhead.
 
 ## Considerations
 
-* Some dupliCates are the result of a user having say two different versions of a program, or SDK. They
+* Some duplicates are the result of a user having say two different versions of a program, or SDK. They
 may need both. So perhapse we might detect this and ask the user if they want to keep both.
 * Size capping. Maybe first read a small chunk of a file to determine if we need to
 hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes

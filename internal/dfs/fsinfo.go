@@ -5,6 +5,7 @@ package dfs
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	sigar "github.com/cloudfoundry/gosigar"
@@ -119,3 +120,26 @@ func GetFileUidGid(filename string) (Uid, Gid int) {
 	return Uid, Gid
 }
 
+// Check if we have proper permissions for investigating
+// a file. Performs various safety checks to prevent any
+// file path vulnerabilities.
+// TODO: Add more safety checks later on..
+func CheckFilePerms(path string) bool {
+	cleanPath := filepath.Clean(path)
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return false
+	}
+
+	// #nosec G304
+	file, err := os.Open(absPath)
+	if err != nil {
+		if os.IsPermission(err) {
+			return false
+		}
+		// fmt.Printf("Error opening file: %s, error: %v\n", path, err)
+		return false
+	}
+	defer file.Close()
+	return true
+}

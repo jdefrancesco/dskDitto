@@ -6,7 +6,7 @@ import (
 	"ditto/internal/dfs"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -99,20 +99,26 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			go walkDir(ctx, subDir, d, dFiles)
 		} else {
 
-			// Deal with large or irregular files..
-			// MAX_FILE_SIZE is currently a gig for now. Need to make this configurable.
-			if entry.Size() >= MAX_FILE_SIZE {
-				// TODO: Add to a list of files that were skipped.
+			info, err := entry.Info()
+			if err != nil {
+				log.Printf("Error getting file info for %s: %v", entry.Name(), err)
 				continue
 			}
 
-			// Handle special files.
-			if !entry.Mode().IsRegular() {
+			// TODO: We will defer files that are too large until the end or skip them if
+			// user would rather that.
+			if info.Size() >= MAX_FILE_SIZE {
+				log.Printf("Deferred %s because of size", info.Name())
 				continue
 			}
 
 			absFileName := filepath.Join(dir, entry.Name())
-			dFileEntry, err := dfs.NewDfile(absFileName, entry.Size())
+			if !dfs.CheckFilePerms(absFileName) {
+				log.Printf("Cannot access file. Invalid permissions: %s", absFileName)
+				continue
+			}
+
+			dFileEntry, err := dfs.NewDfile(absFileName, info.Size())
 			if err != nil {
 				continue
 			}
@@ -127,7 +133,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 // dirEntries returns contents of a directory specified by dir.
 // The semaphore limits concurrency; preventing system resource
 // exhaustion.
-func dirEntries(ctx context.Context, dir string, d *DWalk) []os.FileInfo {
+func dirEntries(ctx context.Context, dir string, d *DWalk) []os.DirEntry {
 
 	// Handle cancellation and semaphore acquisition.
 	select {
@@ -141,9 +147,10 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.FileInfo {
 		d.sem.Release(1)
 	}()
 
-	entries, err := ioutil.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\rerror: %v\n", err)
+		// TODO: LOG
+		// fmt.Fprintf(os.Stderr, "\rerror: %v\n", err)
 		return nil
 	}
 
