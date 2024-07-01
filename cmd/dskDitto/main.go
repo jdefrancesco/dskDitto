@@ -44,6 +44,13 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 	}
 }
 
+// App status and flags.
+type app struct {
+	logger       log.Logger
+	skipSymLinks bool
+	maxFileSize  uint
+}
+
 func main() {
 
 	// Setup signal handler
@@ -61,10 +68,11 @@ func main() {
 
 	// Parse command flags.
 	var (
-		flNoBanner    = flag.Bool("no-banner", false, "Do not show the dskDitto banner")
-		flCpuProfile  = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis")
-		flNoResults   = flag.Bool("time-only", false, "Use to show only the time taken to scan directory")
-		flMaxFileSize = flag.Int64("max-file-size", 1, "Max file size is 1 GiB by default")
+		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
+		flCpuProfile   = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
+		flNoResults    = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
+		flMaxFileSize  = flag.Int64("max-file-size", 1, "Max file size is 1 GiB by default.")
+		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
 	flag.Parse()
 
