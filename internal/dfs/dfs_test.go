@@ -22,7 +22,6 @@ func TestNewDfile(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to read file %s: %v", test.fileName, err)
 		}
-		df.PrintDfile()
 
 		fileSize := df.FileSize()
 		fileName := df.FileName()

@@ -20,7 +20,8 @@ func TestNewDWalk(t *testing.T) {
 
 	// walker
 	ctx, _ := context.WithCancel(context.Background())
-	walker.Run(ctx)
+	var MaxFileSize uint = 1024 * 1024 * 1024 * 1
+	walker.Run(ctx, MaxFileSize)
 
 	var nfiles int64
 	tick := time.Tick(500 * time.Millisecond)

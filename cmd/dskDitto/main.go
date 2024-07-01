@@ -79,7 +79,12 @@ func main() {
 	log.Println("==================== dskDitto Started ====================")
 
 	// TODO: Not implemented yet.
-	_ = flMaxFileSize
+	var MaxFileSize uint
+	if *flMaxFileSize != 0 {
+		MaxFileSize = uint(*flMaxFileSize)
+	} else {
+		MaxFileSize = dwalk.MAX_FILE_SIZE
+	}
 
 	// Enable CPU profiling
 	if *flCpuProfile != "" {
@@ -117,7 +122,7 @@ func main() {
 	dFiles := make(chan *dfs.Dfile)
 
 	walker := dwalk.NewDWalker(rootDirs, dFiles)
-	walker.Run(ctx)
+	walker.Run(ctx, MaxFileSize)
 
 	// Track our start time..
 	start := time.Now()

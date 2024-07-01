@@ -2,7 +2,7 @@
 //
 // Dmap will be a hash map with roughly the following simple structure:
 //
-// { MD5_Key --> [fileClone1, fileClone2, etc...]}
+// { SHA256Hash --> [fileClone1, fileClone2, etc...]}
 //
 // That is, MD5 hash of file will serve as our hash map key, which maps to a simple list of file names.
 // MD5 will be used for the time being, mainly for the slight speed advantage.

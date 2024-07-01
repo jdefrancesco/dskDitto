@@ -15,13 +15,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
-	"io/ioutil"
+	"log"
 	"path/filepath"
 
 	"fmt"
 	"os"
-
-	"github.com/rs/zerolog"
 )
 
 const OpenFileDescLimit = 100
@@ -40,20 +38,6 @@ const (
 	ZB                             // 1 << (10*7)
 	YB                             // 1 << (10*8)
 )
-
-var fileLogger zerolog.Logger
-
-func init() {
-	// zerofileLogger.SetGlobalLevel(zerofileLogger.InfoLevel)
-	// fileLogger.Logger = fileLogger.Output(zerofileLogger.ConsoleWriter{Out: os.Stderr})
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "dskditto-dfs")
-	if err != nil {
-		fmt.Printf("Error creating log file\n")
-	}
-	fileLogger = zerolog.New(tmpFile).With().Logger()
-	fileLogger.Info().Msg("DskDitto Log:")
-
-}
 
 // Dfile structure will describe a given file. We
 // only care about the few file properties that will
@@ -85,7 +69,7 @@ func NewDfile(fName string, fSize int64) (*Dfile, error) {
 	}
 
 	if err = d.hashFileSHA256(); err != nil {
-		fileLogger.Error().Err(err).Msgf("Failed to hash %s: error: %s\n", d.fileName, err)
+		// fileLogger.Error().Err(err).Msgf("Failed to hash %s: error: %s\n", d.fileName, err)
 		return d, errors.New("failed to hash file")
 	}
 
@@ -131,18 +115,11 @@ func (d *Dfile) hashFileSHA256() error {
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		e := "error"
-		fileLogger.Fatal().Str("error", e)
+		// e := "error"
+		log.Print("Error")
 	}
 
 	d.fileSHA256Hash = fmt.Sprintf("%x", h.Sum(nil))
 	return nil
 
-}
-
-// Simple debug function to show current Dfile fields.
-func (d *Dfile) PrintDfile() {
-	fileLogger.Info().Msgf("d.fileSize %d", d.fileSize)
-	fileLogger.Info().Msgf("d.fileSHA256Hash %s", d.fileSHA256Hash)
-	fileLogger.Info().Msgf("d.fileName %s", d.fileName)
 }

@@ -53,11 +53,11 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 }
 
 // Run method kicks off filesystem crawl for file dupes.
-func (d *DWalk) Run(ctx context.Context) {
+func (d *DWalk) Run(ctx context.Context, maxFileSize uint) {
 
 	for _, root := range d.rootDirs {
 		d.wg.Add(1)
-		go walkDir(ctx, root, d, d.dFiles)
+		go walkDir(ctx, root, d, d.dFiles, maxFileSize)
 	}
 
 	// Wait for all goroutines to finish.
@@ -83,7 +83,7 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile) {
+func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, maxFileSize uint) {
 
 	defer d.wg.Done()
 
@@ -93,25 +93,26 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 	}
 
 	for _, entry := range dirEntries(ctx, dir, d) {
+		// Directory. Explore.
 		if entry.IsDir() {
 			d.wg.Add(1)
 			subDir := filepath.Join(dir, entry.Name())
-			go walkDir(ctx, subDir, d, dFiles)
+			go walkDir(ctx, subDir, d, dFiles, maxFileSize)
 		} else {
-
+			// Files (non-dirs)
 			info, err := entry.Info()
 			if err != nil {
 				log.Printf("Error getting file info for %s: %v", entry.Name(), err)
 				continue
 			}
 
-			// TODO: We will defer files that are too large until the end or skip them if
-			// user would rather that.
-			if info.Size() >= MAX_FILE_SIZE {
+			// TODO: We will defer files that are too large until the end..
+			if uint(info.Size()) >= maxFileSize {
 				log.Printf("Deferred %s because of size", info.Name())
 				continue
 			}
 
+			// Check for permission to operate on file
 			absFileName := filepath.Join(dir, entry.Name())
 			if !dfs.CheckFilePerms(absFileName) {
 				log.Printf("Cannot access file. Invalid permissions: %s", absFileName)
