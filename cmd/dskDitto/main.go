@@ -44,12 +44,13 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 	}
 }
 
-// App status and flags.
-type app struct {
-	logger       log.Logger
-	skipSymLinks bool
-	maxFileSize  uint
-}
+type key int
+
+const (
+	loggerKey key = iota
+	configKey
+	skipSymLinkKey
+)
 
 func main() {
 
@@ -71,7 +72,7 @@ func main() {
 		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flCpuProfile   = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
 		flNoResults    = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
-		flMaxFileSize  = flag.Int64("max-file-size", 1, "Max file size is 1 GiB by default.")
+		flMaxFileSize  = flag.Int64("max-file-size", 1024*1024*1024*2, "Max file size is 1 GiB by default.")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
 	flag.Parse()
@@ -82,9 +83,13 @@ func main() {
 		log.Fatal("Failed to open log file: ", err)
 	}
 	defer logFile.Close()
+	logger := log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 
-	log.SetOutput(logFile)
-	log.Println("==================== dskDitto Started ====================")
+	// Set logger in our context. Set other file options like symlink skip etc.
+	ctx = context.WithValue(ctx, loggerKey, logger)
+	if !*flSkipSymLinks {
+		ctx = context.WithValue(ctx, skipSymLinkKey, true)
+	}
 
 	// TODO: Not implemented yet.
 	var MaxFileSize uint

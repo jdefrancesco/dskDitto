@@ -15,7 +15,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
-	"log"
 	"path/filepath"
 
 	"fmt"
@@ -115,8 +114,10 @@ func (d *Dfile) hashFileSHA256() error {
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
+		// TODO: Handle this more approriately
 		// e := "error"
-		log.Print("Error")
+		// log.Print("Error")
+		return nil
 	}
 
 	d.fileSHA256Hash = fmt.Sprintf("%x", h.Sum(nil))
