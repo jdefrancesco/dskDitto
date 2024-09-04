@@ -14,7 +14,8 @@ func InitializeDlogger(logFile string, logLevel logrus.Level) {
 	Dlogger = logrus.New()
 
 	// Open or create the log file
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	// #nosec G304
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		logrus.Fatalf("Failed to open log file: %v", err)
 	}
@@ -33,5 +34,6 @@ func InitializeDlogger(logFile string, logLevel logrus.Level) {
 
 // init runs when the package is imported, providing a default global logger (Dlogger)
 func init() {
-	InitializeDlogger("app.log", logrus.InfoLevel)
+	InitializeDlogger("app.log", logrus.DebugLevel)
+	Dlogger.Info("Logger initialized")
 }

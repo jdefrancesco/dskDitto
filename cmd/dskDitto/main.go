@@ -13,6 +13,7 @@ import (
 
 	"ditto/internal/dfs"
 	"ditto/internal/dmap"
+	"ditto/internal/dsklog"
 	"ditto/internal/dwalk"
 	"ditto/internal/ui"
 
@@ -54,6 +55,9 @@ const (
 
 func main() {
 
+	// XXX: TODO. Test global logging!
+	dsklog.Dlogger.Debug("Test message")
+
 	// Setup signal handler
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
@@ -76,20 +80,6 @@ func main() {
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
 	flag.Parse()
-
-	// Open a file for logging
-	logFile, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-	if err != nil {
-		log.Fatal("Failed to open log file: ", err)
-	}
-	defer logFile.Close()
-	logger := log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-
-	// Set logger in our context. Set other file options like symlink skip etc.
-	ctx = context.WithValue(ctx, loggerKey, logger)
-	if !*flSkipSymLinks {
-		ctx = context.WithValue(ctx, skipSymLinkKey, true)
-	}
 
 	// TODO: Not implemented yet.
 	var MaxFileSize uint
