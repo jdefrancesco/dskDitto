@@ -5,3 +5,4 @@
 *.out
 *.log
 ./bin/dskDitto
+/bin

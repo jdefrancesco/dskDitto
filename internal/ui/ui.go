@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"ditto/internal/dmap"
+	"ditto/internal/dsklog"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -98,6 +99,15 @@ func LaunchTUI(dMap *dmap.Dmap) {
 // addTreeData adds the duplicate file information to the tree.
 func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 
+	// Ensure tree and dMap are not nil
+	if tree == nil || dMap == nil {
+		dsklog.Dlogger.Debug("tree or dMap is nil")
+	}
+
+	if tree.GetRoot() == nil {
+		tree.SetRoot(tview.NewTreeNode("Root"))
+	}
+
 	// Get file size in bytes..
 	getFileSize := func(file_name string) uint64 {
 		file, err := os.Stat(file_name)
@@ -113,6 +123,7 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 			var fmt_str = "%s - %d Duplicates - (%d bytes total)"
 			fSize := getFileSize(files[0])
 			totalSize := uint64(fSize) * uint64(len(files))
+			dsklog.Dlogger.Printf("Hash: %s\n", hash)
 			header := fmt.Sprintf(fmt_str, hash[:8], len(files), totalSize)
 			dupSet := tview.NewTreeNode(header).SetSelectable(true)
 			for _, file := range files {
