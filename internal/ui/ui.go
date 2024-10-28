@@ -8,6 +8,8 @@ import (
 	"ditto/internal/dmap"
 	"ditto/internal/dsklog"
 
+	"ditto/pkg/utils"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -87,7 +89,6 @@ func LaunchTUI(dMap *dmap.Dmap) {
 			node.Expand()
 		}
 	})
-
 	// Launch the TUI.
 	if err := app.SetRoot(tree, true).
 		EnableMouse(true).
@@ -119,12 +120,18 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 
 	// Add the hash as root node and the files as children.
 	for hash, files := range dMap.GetMap() {
+
+		// XXX: Right now something isn't hashing correctly (symlinks). Fix for real later.
+		if hash == "" {
+			continue
+		}
+
+		dsklog.Dlogger.Printf("Hash: %s\n", hash)
 		if len(files) > 1 {
-			var fmt_str = "%s - %d Duplicates - (%d bytes total)"
+			var fmt_str = "%s - %d Duplicates - (Using %s of storage total)"
 			fSize := getFileSize(files[0])
 			totalSize := uint64(fSize) * uint64(len(files))
-			dsklog.Dlogger.Printf("Hash: %s\n", hash)
-			header := fmt.Sprintf(fmt_str, hash[:8], len(files), totalSize)
+			header := fmt.Sprintf(fmt_str, hash[:8], len(files), utils.DisplaySize(totalSize))
 			dupSet := tview.NewTreeNode(header).SetSelectable(true)
 			for _, file := range files {
 				dupSet.AddChild(tview.NewTreeNode(file)).

@@ -184,6 +184,7 @@ MainLoop:
 		}
 	}
 
+	// dMap.ShowAllResults()
 	// Launch interactive TUI to display results.
 	ui.LaunchTUI(dMap)
 }
