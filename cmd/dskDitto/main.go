@@ -81,7 +81,11 @@ func main() {
 	)
 	flag.Parse()
 
-	// TODO: Not implemented yet.
+	if !*flNoBanner {
+		showHeader()
+	}
+
+	// Check if user specified max file size.
 	var MaxFileSize uint
 	if *flMaxFileSize != 0 {
 		MaxFileSize = uint(*flMaxFileSize)
@@ -97,10 +101,6 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
-	}
-
-	if !*flNoBanner {
-		showHeader()
 	}
 
 	rootDirs := flag.Args()
@@ -171,18 +171,21 @@ MainLoop:
 	}
 
 	// Decide if we can dump results directly or if we need to launch TUI.
-	if dMap.MapSize() < 200 {
-		dMap.ShowAllResults()
-		os.Exit(0)
-	} else {
-		var prompt string
-		pterm.Success.Print("There are too many results to show. Launch TUI? (Y/n): ")
-		// Get user input
-		fmt.Scanln(&prompt)
-		if prompt == "n" {
-			os.Exit(0)
-		}
-	}
+	// if dMap.MapSize() < 200 {
+	// 	dMap.ShowAllResults()
+	// 	os.Exit(0)
+	// } else {
+	// 	var prompt string
+	// 	fmt.Print("There are too many results to show. Launch TUI? (Y/n): ")
+	// 	// Get user input
+	// 	fmt.Scanln(&prompt)
+	// 	if prompt == "n" || prompt == "N" {
+	// 		fmt.Println("got to block")
+	// 		os.Exit(0)
+	// 	}
+	// }
+
+	// XXX: Left off adding logic for showing results.
 
 	// dMap.ShowAllResults()
 	// Launch interactive TUI to display results.

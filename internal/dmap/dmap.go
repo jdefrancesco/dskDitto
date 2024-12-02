@@ -21,9 +21,11 @@ type SHA256Hash string
 // Dmap structure will hold our file duplication data.
 // It is the primary data structure that will house the results
 // that will eventually be returned to the user.
+// TODO: Add dupClusterCount functions
 type Dmap struct {
-	filesMap  map[SHA256Hash][]string
-	fileCount uint
+	filesMap        map[SHA256Hash][]string
+	fileCount       uint
+	dupClusterCount uint // Number of files dup clusters.
 }
 
 // NewDmap returns a new Dmap structure.
@@ -105,6 +107,10 @@ func (d *Dmap) ShowAllResults() {
 		bl = nil
 	}
 
+}
+
+func (d *Dmap) IsEmpty() bool {
+	return d.fileCount == 0
 }
 
 // MapSize returns number of entries in the map.

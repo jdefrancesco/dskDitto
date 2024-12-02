@@ -3,13 +3,14 @@ package dwalk
 
 import (
 	"context"
-	"ditto/internal/dfs"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"ditto/internal/dfs"
+	"ditto/internal/dsklog"
 
 	"golang.org/x/sync/semaphore"
 )
@@ -102,20 +103,20 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			// Files (non-dirs)
 			info, err := entry.Info()
 			if err != nil {
-				log.Printf("Error getting file info for %s: %v", entry.Name(), err)
+				dsklog.Dlogger.Debugf("Error getting file info for %s: %v", entry.Name(), err)
 				continue
 			}
 
 			// TODO: We will defer files that are too large until the end..
 			if uint(info.Size()) >= maxFileSize {
-				log.Printf("Deferred %s because of size", info.Name())
+				dsklog.Dlogger.Debugf("Deferred %s due to size", info.Name())
 				continue
 			}
 
 			// Check for permission to operate on file
 			absFileName := filepath.Join(dir, entry.Name())
 			if !dfs.CheckFilePerms(absFileName) {
-				log.Printf("Cannot access file. Invalid permissions: %s", absFileName)
+				dsklog.Dlogger.Debugf("Cannot access file. Invalid permissions: %s", absFileName)
 				continue
 			}
 
@@ -142,16 +143,27 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.DirEntry {
 		// cancel asserted.
 		return nil
 	default:
-		d.sem.Acquire(ctx, 1)
+		// Continue on to acquire sem.
 	}
-	defer func() {
-		d.sem.Release(1)
-	}()
 
+	// If ctx is cancelled, return nil.
+	if err := d.sem.Acquire(ctx, 1); err != nil {
+		return nil
+	}
+	defer d.sem.Release(1)
+
+	// Final check after acq sem.
+	select {
+	case <-ctx.Done():
+		// cancel asserted.
+		return nil
+	default:
+		// Continue on to acquire sem.
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		// TODO: LOG
-		// fmt.Fprintf(os.Stderr, "\rerror: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\rerror: %v\n", err)
 		return nil
 	}
 

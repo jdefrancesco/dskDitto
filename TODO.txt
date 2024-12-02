@@ -1,24 +1,30 @@
 # TODO
 
-* Refactor TUI code in ui.
-
-## Coming Up.
-
 * Handle Symlink and Hardlinks. User should be able to decide what to do. But we want
 sensible defaults.
-
 * Finish TUI so users can select whath they want to do with duplicates.
-* Add The following options:
-    1. --dry-run
-    2. --delete-all
-    3. --exclude
-    4. --max-file-size
-    5. --min-file-size
-    6. --inc-dotfiles
-    7. --throttle - Avoid resource hogging.
+* Provide grep and unix friendly text output for piping to other tools.
 * File restore. To start we can simpply marshal JSON compressed file in order to restore.
 with mininmal overhead.
 * Handle permissions error. - Need to log to file
+
+
+## Features/Flags to Add
+
+* --print0 - read and write file names terminated by null character
+* --thorough - force byte by byte comparison
+* --dry-run
+* --no-recurse
+* --zero - exclude empty
+* --delete-all
+* --exclude
+* --max-file-size
+* --min-file-size
+* --inc-dotfiles
+* --throttle - Avoid resource hogging.
+* --ignore-hiddens
+* --ignore-links or "physical mode" so we dont report links at dups..
+* --digest
 
 ## Considerations
 
@@ -30,9 +36,6 @@ hash the file for real. Most of the time the first 100 bytes of files can detern
 * Decide what we will do if our memory map gets too large.
 * Definitely need care handling user configs files.
 * Consider using a config file for dskDitto itself.
-
-## Long Term Goals
-
 * Consider BLAKE2 for hash algorithm primary.
 * Maybe include fuzzy file diffing. We can tell user if
 files are similar but maybe not the same. This could be useful especially for images
