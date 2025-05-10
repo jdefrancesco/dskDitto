@@ -33,8 +33,12 @@ type DFileStat struct {
 // This includes UID/Filesize/etc.
 func GetDFileStat(info os.FileInfo) (*DFileStat, error) {
 	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		statDev := stat.Dev
+		if stat.Dev < 0 || stat.Rdev < 0 {
+			return nil, fmt.Errorf("device values are negative: dev=%d rdev=%d", stat.Dev, stat.Rdev)
+		}
 		return &DFileStat{
-			Dev:     uint64(stat.Dev),
+			Dev:     uint64(statDev),
 			Inode:   stat.Ino,
 			Nlink:   uint64(stat.Nlink),
 			Mode:    uint32(stat.Mode),

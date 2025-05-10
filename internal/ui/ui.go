@@ -115,13 +115,17 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 		if err != nil {
 			return 0
 		}
-		return uint64(file.Size())
+		size := file.Size()
+		if size < 0 {
+			return 0
+		}
+		return uint64(size)
 	}
 
 	// Add the hash as root node and the files as children.
 	for hash, files := range dMap.GetMap() {
 
-		// XXX: Right now something isn't hashing correctly (symlinks). Fix for real later.
+		// XXX: Right now something isn't hashing correctly (symlinks). Fix later.
 		if hash == "" {
 			continue
 		}

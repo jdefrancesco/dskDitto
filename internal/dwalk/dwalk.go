@@ -54,7 +54,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 }
 
 // Run method kicks off filesystem crawl for file dupes.
-func (d *DWalk) Run(ctx context.Context, maxFileSize uint) {
+func (d *DWalk) Run(ctx context.Context, maxFileSize uint64) {
 
 	for _, root := range d.rootDirs {
 		d.wg.Add(1)
@@ -84,7 +84,7 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, maxFileSize uint) {
+func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, maxFileSize uint64) {
 
 	defer d.wg.Done()
 
@@ -100,15 +100,23 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			subDir := filepath.Join(dir, entry.Name())
 			go walkDir(ctx, subDir, d, dFiles, maxFileSize)
 		} else {
-			// Files (non-dirs)
+
+			// XXX: Refactor this to make it a bit less cumbersom
+			// Regular files. Grab file metadata
 			info, err := entry.Info()
 			if err != nil {
 				dsklog.Dlogger.Debugf("Error getting file info for %s: %v", entry.Name(), err)
 				continue
 			}
 
-			// TODO: We will defer files that are too large until the end..
-			if uint(info.Size()) >= maxFileSize {
+			size := info.Size()
+			if size < 0 {
+				size = 0
+			}
+			// For some reason gosec is producing this false positive.
+			fileSize := uint64(size) // #nosec G115
+
+			if fileSize >= maxFileSize {
 				dsklog.Dlogger.Debugf("Deferred %s due to size", info.Name())
 				continue
 			}

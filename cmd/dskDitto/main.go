@@ -86,9 +86,11 @@ func main() {
 	}
 
 	// Check if user specified max file size.
-	var MaxFileSize uint
+	var MaxFileSize uint64
 	if *flMaxFileSize != 0 {
-		MaxFileSize = uint(*flMaxFileSize)
+		if *flMaxFileSize >= 0 {
+			MaxFileSize = uint64(*flMaxFileSize)
+		}
 	} else {
 		MaxFileSize = dwalk.MAX_FILE_SIZE
 	}
@@ -184,9 +186,6 @@ MainLoop:
 	// 		os.Exit(0)
 	// 	}
 	// }
-
-	// XXX: Left off adding logic for showing results.
-
 	// dMap.ShowAllResults()
 	// Launch interactive TUI to display results.
 	ui.LaunchTUI(dMap)
