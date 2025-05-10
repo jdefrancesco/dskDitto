@@ -112,7 +112,9 @@ func main() {
 
 	// Allow user to quit dskDitto.
 	go func() {
-		os.Stdin.Read(make([]byte, 1))
+		fmt.Println("[+] Press ENTER to stop dskDitto any time.")
+		var b [1]byte
+		os.Stdin.Read(b[:])
 		cancel()
 	}()
 
@@ -122,22 +124,20 @@ func main() {
 		log.Println("Failed to make new Dmap: ", err)
 		return
 	}
-
-	// dFiles will be the channel we receive files to be added to the DMap.
+	// Recieve files we need to process via this channel.
 	dFiles := make(chan *dfs.Dfile)
 
 	walker := dwalk.NewDWalker(rootDirs, dFiles)
 	walker.Run(ctx, MaxFileSize)
 
-	// Track our start time..
 	start := time.Now()
-
-	// Number of files we been sent for processing.
-	var nfiles int64
 
 	// Show progress to user at intervals specified by tick.
 	tick := time.Tick(time.Duration(500) * time.Millisecond)
 	infoSpinner, _ := pterm.DefaultSpinner.Start()
+
+	// Number of files we need to process.
+	var nfiles int64
 
 MainLoop:
 	for {
@@ -147,12 +147,19 @@ MainLoop:
 			for range dFiles {
 			}
 			break MainLoop
+
 		case dFile, ok := <-dFiles:
 			if !ok {
 				break MainLoop
 			}
+			if dFile == nil {
+				dsklog.Dlogger.Warn("Received nil dFile, skipping...")
+				continue
+			}
+			// Add the file to our map.
 			dMap.Add(dFile)
 			nfiles++
+
 		case <-tick:
 			// Display progress information.
 			progressMsg := fmt.Sprintf("Processed %d files...", nfiles)

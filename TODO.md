@@ -1,5 +1,32 @@
 # TODO
 
+## Next Session...
+
+1. Finish cleaning up logging mechanims to a very simple dsklog. Then cull any residual uses.
+2. Simplify my signal handling. Here is some pseudo-code.
+
+```Go
+sigChan := make(chan os.Signal, 1)
+signal.Notify(sigChan, syscall.SIGINT)
+
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+
+go func() {
+	for sig := range sigChan {
+		dsklog.Dlogger.Infof("Received signal: %s. Exiting gracefully...", sig)
+		cancel() // this triggers ctx.Done()
+		break
+	}
+}()
+```
+3. Simplify and confirm cancellation works when user presses enter.
+4. Dead code cleanup at end of main (where I tested dumping results)
+5. Error recovery in monitor loop should add check for dFile
+
+---
+
+
 * Handle Symlink and Hardlinks. User should be able to decide what to do. But we want
 sensible defaults.
 * Finish TUI so users can select whath they want to do with duplicates.
@@ -11,6 +38,8 @@ with mininmal overhead.
 
 ## Features/Flags to Add
 
+* --version flag.
+* --headless mode will simply show results with no TUI
 * --print0 - read and write file names terminated by null character
 * --thorough - force byte by byte comparison
 * --dry-run
