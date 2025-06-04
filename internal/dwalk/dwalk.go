@@ -170,8 +170,7 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.DirEntry {
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		// TODO: LOG
-		fmt.Fprintf(os.Stderr, "\rerror: %v\n", err)
+		dsklog.Dlogger.Errorf("Directory read error: %v", err)
 		return nil
 	}
 

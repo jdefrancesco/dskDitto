@@ -1,8 +1,6 @@
 # TODO
 
-## Next Session...
 
-1. Finish cleaning up logging mechanims to a very simple dsklog. Then cull any residual uses.
 2. Simplify my signal handling. Here is some pseudo-code.
 
 ```Go
