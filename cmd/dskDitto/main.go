@@ -33,15 +33,16 @@ func init() {
 // signalHandler will handle SIGINT and others in order to
 // gracefully shutdown.
 func signalHandler(ctx context.Context, sig os.Signal) {
+	dsklog.Dlogger.Infoln("Signal received")
 	switch sig {
 	case syscall.SIGINT:
-		fmt.Printf("\r[!] Signal %s (SIGINT). Quitting....\n", sig.String())
+		fmt.Printf("\r[!] Signal %s. Quitting....\n", sig.String())
 		ctx.Done()
-		os.Exit(0)
+		os.Exit(1)
 	default:
-		fmt.Printf("\r[!] Unhandled/Unknown signal\n")
+		fmt.Printf("\r[!] Unhandled/Unknown signal.\n")
 		ctx.Done()
-		os.Exit(0)
+		os.Exit(1)
 	}
 }
 
@@ -55,15 +56,14 @@ const (
 
 func main() {
 
-	// XXX: TODO. Test global logging!
-	dsklog.Dlogger.Debug("Test message")
-
 	// Setup signal handler
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 
 	// Create a context.
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	go func() {
 		for {
 			sig := <-sigChan
@@ -115,7 +115,7 @@ func main() {
 		fmt.Println("[+] Press ENTER to stop dskDitto any time.")
 		var b [1]byte
 		os.Stdin.Read(b[:])
-		cancel()
+		os.Exit(0)
 	}()
 
 	// Dmap stores duplicate file information.
