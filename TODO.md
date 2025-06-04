@@ -1,27 +1,6 @@
 # TODO
 
 
-2. Simplify my signal handling. Here is some pseudo-code.
-
-```Go
-sigChan := make(chan os.Signal, 1)
-signal.Notify(sigChan, syscall.SIGINT)
-
-ctx, cancel := context.WithCancel(context.Background())
-defer cancel()
-
-go func() {
-	for sig := range sigChan {
-		dsklog.Dlogger.Infof("Received signal: %s. Exiting gracefully...", sig)
-		cancel() // this triggers ctx.Done()
-		break
-	}
-}()
-```
-3. Simplify and confirm cancellation works when user presses enter.
-4. Dead code cleanup at end of main (where I tested dumping results)
-5. Error recovery in monitor loop should add check for dFile
-
 ---
 
 

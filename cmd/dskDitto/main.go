@@ -179,22 +179,6 @@ MainLoop:
 		os.Exit(0)
 	}
 
-	// Decide if we can dump results directly or if we need to launch TUI.
-	// if dMap.MapSize() < 200 {
-	// 	dMap.ShowAllResults()
-	// 	os.Exit(0)
-	// } else {
-	// 	var prompt string
-	// 	fmt.Print("There are too many results to show. Launch TUI? (Y/n): ")
-	// 	// Get user input
-	// 	fmt.Scanln(&prompt)
-	// 	if prompt == "n" || prompt == "N" {
-	// 		fmt.Println("got to block")
-	// 		os.Exit(0)
-	// 	}
-	// }
-	// dMap.ShowAllResults()
-	// Launch interactive TUI to display results.
 	ui.LaunchTUI(dMap)
 }
 
