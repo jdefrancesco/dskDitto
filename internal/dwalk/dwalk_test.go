@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 // Test basic walking...
@@ -38,7 +36,8 @@ loop:
 			nfiles++
 
 		case <-tick:
-			log.Info().Msgf("Tick...")
+			fmt.Println("Tick...")
+
 		}
 	}
 

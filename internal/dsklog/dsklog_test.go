@@ -9,7 +9,7 @@ import (
 
 // Test initialization of the global logger for testing (Dlogger)
 func TestGlobalLoggerInitialization(t *testing.T) {
-	InitializeDlogger("test.log", logrus.DebugLevel)
+	InitializeDlogger("test.log")
 	// defer os.Remove("test.log") // Clean up the test log file
 	Dlogger.Debug("Test message")
 

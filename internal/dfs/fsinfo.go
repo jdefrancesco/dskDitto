@@ -55,21 +55,6 @@ func GetDFileStat(info os.FileInfo) (*DFileStat, error) {
 
 }
 
-// Store F
-type DittoFsInfo struct {
-}
-
-// DittoFsInfo constructor.
-// func NewDittoFsInfo() (*DittoFsInfo, error) {
-
-// 	return
-// }
-
-// FsInfo will print out filesystem stats.
-func (fs *DittoFsInfo) PrintFsInfo(path string) {
-
-}
-
 // List filesystems on machine
 func ListFileSystems() bool {
 

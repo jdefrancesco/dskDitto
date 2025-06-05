@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"ditto/internal/dmap"
@@ -14,10 +13,13 @@ import (
 	"github.com/rivo/tview"
 )
 
+// Global app instance. We need this to launch the TUI and may also want other
+// TUI components in main.
+var App *tview.Application = tview.NewApplication()
+
 // LaunchTUI launches the TUI.
 func LaunchTUI(dMap *dmap.Dmap) {
 
-	app := tview.NewApplication()
 	tree := tview.NewTreeView().
 		SetRoot(tview.NewTreeNode("Duplicates").SetColor(tcell.ColorGreen)).
 		SetTopLevel(0)
@@ -37,17 +39,17 @@ func LaunchTUI(dMap *dmap.Dmap) {
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEsc:
-			app.Stop()
+			App.Stop()
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case 'q':
-				app.Stop()
+				App.Stop()
 
 			// Handle marking items for deletion
 			case 'm':
-				log.Println("Marking item")
+				dsklog.Dlogger.Info("Marking item")
 				currentNode := tree.GetCurrentNode()
-				log.Printf("Current node: %d", currentNode.GetLevel())
+				dsklog.Dlogger.Infof("Current node: %d", currentNode.GetLevel())
 				// Skip selection of root node for now.
 				if currentNode.GetLevel() == 1 {
 					goto Skip
@@ -55,12 +57,12 @@ func LaunchTUI(dMap *dmap.Dmap) {
 
 				if node, ok := markedItems[currentNode.GetText()]; !ok {
 					markedItems[currentNode.GetText()] = currentNode
-					log.Printf("Marked item: %v", markedItems)
+					dsklog.Dlogger.Infof("Marked item: %v", markedItems)
 					currentNode.SetColor(tcell.ColorYellow)
 				} else {
 					delete(markedItems, node.GetText())
 					node.SetColor(tcell.ColorWhite)
-					log.Printf("Unmarking item: %v", markedItems)
+					dsklog.Dlogger.Infof("Unmarking item: %v", markedItems)
 				}
 
 			case 'd':
@@ -73,7 +75,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 				// 	}
 				// }
 				// markedItems = make(map[string]*tview.TreeNode) // Clear marked items
-				app.Draw()
+				App.Draw()
 			}
 
 		}
@@ -90,7 +92,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		}
 	})
 	// Launch the TUI.
-	if err := app.SetRoot(tree, true).
+	if err := App.SetRoot(tree, true).
 		EnableMouse(true).
 		Run(); err != nil {
 		panic(err)
@@ -123,20 +125,22 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 	}
 
 	// Add the hash as root node and the files as children.
+	// BUG(jdefr): Map seems to be getting an empty hash somewhere.
 	for hash, files := range dMap.GetMap() {
 
-		// XXX: Right now something isn't hashing correctly (symlinks). Fix later.
+		// TODO(jdefr): Fix reason for empty hash entry. This shouldn't occur.
 		if hash == "" {
 			continue
 		}
 
-		dsklog.Dlogger.Printf("Hash: %s\n", hash)
 		if len(files) > 1 {
 			var fmt_str = "%s - %d Duplicates - (Using %s of storage total)"
 			fSize := getFileSize(files[0])
 			totalSize := uint64(fSize) * uint64(len(files))
+			// Create header with relevant information
 			header := fmt.Sprintf(fmt_str, hash[:8], len(files), utils.DisplaySize(totalSize))
 			dupSet := tview.NewTreeNode(header).SetSelectable(true)
+			// Add our children under header.
 			for _, file := range files {
 				dupSet.AddChild(tview.NewTreeNode(file)).
 					SetColor(tcell.ColorLightGreen)

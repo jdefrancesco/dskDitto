@@ -3,8 +3,6 @@ package dwalk
 
 import (
 	"context"
-	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,19 +17,11 @@ const (
 	MAX_FILE_SIZE = 1024 * 1024 * 1024 * 1 // 1GB
 )
 
-func init() {
-	// Custom help message
-	flag.Usage = func() {
-		fmt.Printf("Usage: dskDitto [options] PATHS\n\n")
-		flag.PrintDefaults()
-	}
-}
-
 // DWalk is our primary object for traversing filesystem
 // in a parallel manner.
 type DWalk struct {
 	rootDirs    []string
-	wg          *sync.WaitGroup
+	wg          sync.WaitGroup
 	maxFileSize uint64 // Skip over files that are greater than maxFileSize
 
 	// Channel used to communicate with main monitor goroutine.
@@ -47,7 +37,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 		rootDirs: rootDirs,
 		dFiles:   dFiles,
 	}
-	walker.wg = new(sync.WaitGroup)
+
 	walker.sem = semaphore.NewWeighted(int64(20))
 	return walker
 

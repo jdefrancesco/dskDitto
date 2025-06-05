@@ -1,3 +1,4 @@
+// dsklog package is just a simple wrapper around logrus
 package dsklog
 
 import (
@@ -6,14 +7,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Global logger instance
 var Dlogger *logrus.Logger
 
 // InitializeDlogger initializes or resets the global logger (Dlogger)
-func InitializeDlogger(logFile string, logLevel logrus.Level) {
-	// Create a new logger instance
+func InitializeDlogger(logFile string) {
 	Dlogger = logrus.New()
 
-	// Open or create the log file
 	// #nosec G304
 	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
@@ -22,18 +22,9 @@ func InitializeDlogger(logFile string, logLevel logrus.Level) {
 
 	// Set the logger output to the log file
 	Dlogger.Out = file
-
-	// Set the log level from the passed argument
-	Dlogger.SetLevel(logLevel)
-
+	Dlogger.SetLevel(logrus.DebugLevel)
 	// Set the log format (can be JSON or TextFormatter)
 	Dlogger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-}
-
-// init runs when the package is imported, providing a default global logger (Dlogger)
-func init() {
-	InitializeDlogger("app.log", logrus.DebugLevel)
-	Dlogger.Info("Logger initialized")
 }
