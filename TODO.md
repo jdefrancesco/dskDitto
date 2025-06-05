@@ -1,5 +1,7 @@
 # TODO
 
+* Map key is currently hex string of hash. We need to change this to more efficient 32 byte key.
+
 
 ---
 
@@ -11,6 +13,7 @@ sensible defaults.
 * File restore. To start we can simpply marshal JSON compressed file in order to restore.
 with mininmal overhead.
 * Handle permissions error. - Need to log to file
+* Controlling size of hash map.
 
 
 ## Features/Flags to Add
@@ -49,6 +52,7 @@ and other media.
 
 ## Potentiall Issues:
 
-(1) Memory usage. We need to be careful about how we handle memory.
-(2) Consider IO usage.
-(3) Handling of permissions gracefully.
+* Consider two pass approach for efficiency.
+* Memory usage. We need to be careful about how we handle memory.
+* Consider IO usage.
+* Handling of permissions gracefully.
