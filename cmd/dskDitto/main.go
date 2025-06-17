@@ -59,6 +59,9 @@ const (
 	skipSymLinkKey
 )
 
+// Version
+const ver = "0.0.1"
+
 func main() {
 
 	// Initialize logger
@@ -83,6 +86,7 @@ func main() {
 	// Parse command flags.
 	var (
 		flNoBanner    = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
+		flShowVersion = flag.Bool("version", false, "Display version")
 		flCpuProfile  = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
 		flNoResults   = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
 		flMaxFileSize = flag.Int64("max-file-size", 1024*1024*1024*2, "Max file size is 1 GiB by default.")
@@ -92,6 +96,10 @@ func main() {
 
 	if !*flNoBanner {
 		showHeader()
+	}
+
+	if *flShowVersion {
+		showVersion()
 	}
 
 	// Check if user specified max file size.
@@ -177,7 +185,7 @@ MainLoop:
 		pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
 
-	// FOR DEBUGGING TO TEST SPEED
+	// For debugging to test speed
 	if *flNoResults {
 		os.Exit(0)
 	}
@@ -185,7 +193,7 @@ MainLoop:
 	ui.LaunchTUI(dMap)
 }
 
-// showHeader prints colorful dskDitto fileLoggero.
+// showHeader prints colorful dskDitto banner.
 func showHeader() {
 
 	fmt.Println("")
@@ -194,4 +202,8 @@ func showHeader() {
 		putils.LettersFromStringWithStyle("dsk", pterm.NewStyle(pterm.FgLightGreen)),
 		putils.LettersFromStringWithStyle("Ditto", pterm.NewStyle(pterm.FgLightWhite))).
 		Render()
+}
+
+func showVersion() {
+	fmt.Printf("Version: %s\n\n", ver)
 }

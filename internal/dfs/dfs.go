@@ -1,14 +1,3 @@
-/* Package dutil implements simple file operation functions.
- *
- * File operations dutil aims to fulfill may include things such as:
- * 	a. Getting size of file
- *  b. Getting type of file
- *  c. Reading a files contents
- *  d. etc...
- *
- * The file type Dfile is also defined. This serves as a file descriptor storing
- * important information about files.
- */
 package dfs
 
 import (

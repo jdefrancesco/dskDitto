@@ -23,7 +23,10 @@ type SHA256Hash string
 // that will eventually be returned to the user.
 // TODO: Add dupClusterCount functions
 type Dmap struct {
-	filesMap        map[SHA256Hash][]string
+	filesMap map[SHA256Hash][]string
+
+	// Files deffered for reasons such as size are stored here for later processing.
+	deferredFiles   []string
 	fileCount       uint
 	dupClusterCount uint // Number of files dup clusters.
 }
@@ -44,6 +47,14 @@ func NewDmap() (*Dmap, error) {
 func (d *Dmap) Add(dfile *dfs.Dfile) {
 	d.filesMap[SHA256Hash(dfile.Hash())] = append(d.filesMap[SHA256Hash(dfile.Hash())], dfile.FileName())
 	d.fileCount++
+}
+
+// AddDeferredFile will add a file to the deferredFiles slice.
+func (d *Dmap) AddDeferredFile(file string) {
+	if file == "" {
+		return
+	}
+	d.deferredFiles = append(d.deferredFiles, file)
 }
 
 // PrintDmap will print entries currently stored in map.

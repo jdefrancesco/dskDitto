@@ -9,7 +9,6 @@ require (
 	github.com/gdamore/tcell/v2 v2.8.1
 	github.com/pterm/pterm v0.12.80
 	github.com/rivo/tview v0.0.0-20250501113434-0c592cd31026
-	github.com/rs/zerolog v1.28.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/sync v0.14.0
 )
@@ -23,8 +22,6 @@ require (
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

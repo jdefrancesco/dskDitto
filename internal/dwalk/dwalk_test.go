@@ -47,23 +47,3 @@ loop:
 	fmt.Printf("%d files\n", nfiles)
 
 }
-
-// Write function to walk directory and return list of files.
-// func TestWalkDir(t *testing.T) {
-
-// 	root := "."
-// 	os.Chdir("test_files")
-// 	fileSystem := os.DirFS(root)
-// 	fs.WalkDir(fileSystem, root, func(path string, d fs.DirEntry, err error) error {
-// 		if err != nil {
-// 			fmt.Println(err)
-// 			return nil
-// 		}
-// 		if !d.IsDir() {
-// 			fmt.Println(path)
-// 		}
-// 		return nil
-// 	})
-
-// 	return
-// }

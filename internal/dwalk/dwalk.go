@@ -84,50 +84,36 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 	}
 
 	for _, entry := range dirEntries(ctx, dir, d) {
-		// Directory. Explore.
 		if entry.IsDir() {
 			d.wg.Add(1)
 			subDir := filepath.Join(dir, entry.Name())
 			go walkDir(ctx, subDir, d, dFiles, maxFileSize)
-		} else {
+			continue
+		}
 
-			// XXX: Refactor this to make it a bit less cumbersom
-			// Regular files. Grab file metadata
-			info, err := entry.Info()
-			if err != nil {
-				dsklog.Dlogger.Debugf("Error getting file info for %s: %v", entry.Name(), err)
-				continue
-			}
+		info, err := entry.Info()
+		if err != nil {
+			dsklog.Dlogger.Debugf("Error getting file info for %s: %v", entry.Name(), err)
+			continue
+		}
 
-			size := info.Size()
-			if size < 0 {
-				size = 0
-			}
-			// For some reason gosec is producing this false positive.
-			fileSize := uint64(size) // #nosec G115
+		fileSize := uint64(max(info.Size(), 0)) // #nosec G115
+		if fileSize >= maxFileSize {
+			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", entry.Name())
+			continue
+		}
 
-			if fileSize >= maxFileSize {
-				dsklog.Dlogger.Debugf("Deferred %s due to size", info.Name())
-				continue
-			}
+		absFileName := filepath.Join(dir, entry.Name())
+		if !dfs.CheckFilePerms(absFileName) {
+			dsklog.Dlogger.Debugf("Cannot access file. Invalid permissions: %s", absFileName)
+			continue
+		}
 
-			// Check for permission to operate on file
-			absFileName := filepath.Join(dir, entry.Name())
-			if !dfs.CheckFilePerms(absFileName) {
-				dsklog.Dlogger.Debugf("Cannot access file. Invalid permissions: %s", absFileName)
-				continue
-			}
-
-			dFileEntry, err := dfs.NewDfile(absFileName, info.Size())
-			if err != nil {
-				continue
-			}
-
-			// send our dFile to our monitor routine.
+		dFileEntry, err := dfs.NewDfile(absFileName, info.Size())
+		if err == nil {
 			dFiles <- dFileEntry
 		}
 	}
-
 }
 
 // dirEntries returns contents of a directory specified by dir.
@@ -135,29 +121,16 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 // exhaustion.
 func dirEntries(ctx context.Context, dir string, d *DWalk) []os.DirEntry {
 
-	// Handle cancellation and semaphore acquisition.
-	select {
-	case <-ctx.Done():
-		// cancel asserted.
+	if cancelled(ctx) {
 		return nil
-	default:
-		// Continue on to acquire sem.
 	}
 
-	// If ctx is cancelled, return nil.
+	// Semaphore helps control concurrency.
 	if err := d.sem.Acquire(ctx, 1); err != nil {
 		return nil
 	}
 	defer d.sem.Release(1)
 
-	// Final check after acq sem.
-	select {
-	case <-ctx.Done():
-		// cancel asserted.
-		return nil
-	default:
-		// Continue on to acquire sem.
-	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		dsklog.Dlogger.Errorf("Directory read error: %v", err)
