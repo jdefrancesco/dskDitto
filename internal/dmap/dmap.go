@@ -18,6 +18,8 @@ import (
 
 type SHA256Hash string
 
+const mapInitSize = 256
+
 // Dmap structure will hold our file duplication data.
 // It is the primary data structure that will house the results
 // that will eventually be returned to the user.
@@ -27,6 +29,7 @@ type Dmap struct {
 
 	// Files deffered for reasons such as size are stored here for later processing.
 	deferredFiles   []string
+	// Number of files in our map.
 	fileCount       uint
 	dupClusterCount uint // Number of files dup clusters.
 }
@@ -38,7 +41,7 @@ func NewDmap() (*Dmap, error) {
 		fileCount: 0,
 	}
 	// Initialize our map.
-	dmap.filesMap = make(map[SHA256Hash][]string)
+	dmap.filesMap = make(map[SHA256Hash][]string, mapInitSize)
 
 	return dmap, nil
 }
@@ -108,8 +111,6 @@ func (d *Dmap) ShowAllResults() {
 			continue
 		}
 		pterm.Println(pterm.Green("Hash: ") + pterm.Cyan(hash))
-		// blItem := pterm.BulletListItem{Level: 1, Text: string(hash)}
-		// bl = append(bl, blItem)
 		for _, f := range files {
 			blContent := pterm.BulletListItem{Level: 0, Text: f}
 			bl = append(bl, blContent)
@@ -121,7 +122,7 @@ func (d *Dmap) ShowAllResults() {
 }
 
 func (d *Dmap) IsEmpty() bool {
-	return d.fileCount == 0
+	return d.MapSize() == 0
 }
 
 // MapSize returns number of entries in the map.
