@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const OpenFileDescLimit = 100
+const OpenFileDescLimit = 256
 
 // File sizes for comparison.
 type ByteSize float64
@@ -33,8 +33,8 @@ const (
 type Dfile struct {
 	fileName string
 	fileSize int64
-	// SHA256 of file. Removing MD5 code.
-	fileSHA256Hash string
+	// SHA256 of file as raw bytes (more efficient than hex string)
+	fileSHA256Hash [32]byte
 }
 
 // New creates a new Dfile.
@@ -57,7 +57,6 @@ func NewDfile(fName string, fSize int64) (*Dfile, error) {
 	}
 
 	if err = d.hashFileSHA256(); err != nil {
-		// fileLogger.Error().Err(err).Msgf("Failed to hash %s: error: %s\n", d.fileName, err)
 		return d, errors.New("failed to hash file")
 	}
 
@@ -73,8 +72,11 @@ func (d *Dfile) BaseName() string { return filepath.Base(d.fileName) }
 // FileSize will return the size of the file described by dfile object.
 func (d *Dfile) FileSize() int64 { return d.fileSize }
 
-// GetHash will return SHA256 Hash string of file.
-func (d *Dfile) Hash() string { return d.fileSHA256Hash }
+// GetHash will return SHA256 Hash as byte array.
+func (d *Dfile) Hash() [32]byte { return d.fileSHA256Hash }
+
+// GetHashString will return SHA256 Hash as hex string for display purposes.
+func (d *Dfile) HashString() string { return fmt.Sprintf("%x", d.fileSHA256Hash) }
 
 // GetPerms will give us UNIX permissions we need to ensure we can access
 // a file.
@@ -96,7 +98,7 @@ func (d *Dfile) hashFileSHA256() error {
 
 	f, err := os.Open(d.fileName)
 	if err != nil {
-		err = fmt.Errorf("Failed to read file %s", d.fileName)
+		err = fmt.Errorf("failed to read file %s", d.fileName)
 		return err
 	}
 	defer f.Close()
@@ -109,7 +111,8 @@ func (d *Dfile) hashFileSHA256() error {
 		return nil
 	}
 
-	d.fileSHA256Hash = fmt.Sprintf("%x", h.Sum(nil))
+	// Copy the hash bytes directly into our fixed-size array
+	copy(d.fileSHA256Hash[:], h.Sum(nil))
 	return nil
 
 }

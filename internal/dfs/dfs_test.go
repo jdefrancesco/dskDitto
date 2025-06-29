@@ -26,7 +26,7 @@ func TestNewDfile(t *testing.T) {
 		fileSize := df.FileSize()
 		fileName := df.FileName()
 		fileBaseName := df.BaseName()
-		fileHash := df.Hash()
+		fileHash := df.HashString() // Use HashString() for comparison with hex string
 
 		testBaseFileName := filepath.Base(test.fileName)
 

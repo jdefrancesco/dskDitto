@@ -45,7 +45,11 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	fmt.Println("Testing dmap.Get()")
-	files, err := dmap.Get("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
+	hash, err := SHA256HashFromHex("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
+	if err != nil {
+		t.Errorf("Error converting hex to hash: %v", err)
+	}
+	files, err := dmap.Get(hash)
 	if err != nil {
 		t.Errorf("Error gettings hash from map")
 	}

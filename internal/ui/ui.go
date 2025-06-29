@@ -35,15 +35,18 @@ func LaunchTUI(dMap *dmap.Dmap) {
 	// Add the nodes to the tree.
 	addTreeData(tree, dMap)
 
+	// Map to keep track of marked items and their original colors
+	markedItems := make(map[string]*tview.TreeNode)
+	originalColors := make(map[string]tcell.Color)
+
+	// Auto-mark all but the first file in each duplicate group for deletion
+	autoMarkDuplicates(tree, markedItems, originalColors)
+
 	root := tree.GetRoot()
 	if root != nil && len(root.GetChildren()) > 0 {
 		// We want arrow keys to be able to nacigate through the tree.
 		tree.SetCurrentNode(root.GetChildren()[0])
 	}
-
-	// Map to keep track of marked items and their original colors
-	markedItems := make(map[string]*tview.TreeNode)
-	originalColors := make(map[string]tcell.Color)
 
 	// Key binding to quit.
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -73,7 +76,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 					originalColors[filePath] = currentNode.GetColor()
 					markedItems[filePath] = currentNode
 					dsklog.Dlogger.Infof("Marked item for deletion: %s", filePath)
-					currentNode.SetColor(tcell.ColorYellow)
+					currentNode.SetColor(tcell.ColorRed)
 				} else {
 					// Unmark the file - restore original color and remove from marked list
 					if originalColor, exists := originalColors[filePath]; exists {
@@ -150,7 +153,8 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 	for hash, files := range dMap.GetMap() {
 
 		// TODO(jdefr): Fix reason for empty hash entry. This shouldn't occur.
-		if hash == "" {
+		var zeroHash dmap.SHA256Hash
+		if hash == zeroHash {
 			continue
 		}
 
@@ -158,8 +162,9 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 			var fmt_str = "%s - %d Duplicates - (Using %s of storage total)"
 			fSize := getFileSize(files[0])
 			totalSize := uint64(fSize) * uint64(len(files))
-			// Create header with relevant information
-			header := fmt.Sprintf(fmt_str, hash[:8], len(files), utils.DisplaySize(totalSize))
+			// Create header with relevant information - display first 8 characters of hex hash
+			hashHex := fmt.Sprintf("%x", hash[:4]) // Show first 4 bytes as 8 hex chars
+			header := fmt.Sprintf(fmt_str, hashHex, len(files), utils.DisplaySize(totalSize))
 			dupSet := tview.NewTreeNode(header).SetSelectable(true)
 			// Add our children under header.
 			for _, file := range files {
@@ -233,4 +238,35 @@ func performDeletion(markedItems map[string]*tview.TreeNode, originalColors map[
 		delete(originalColors, path)
 	}
 	App.Draw()
+}
+
+// autoMarkDuplicates automatically marks all but the first file in each duplicate group for deletion
+func autoMarkDuplicates(tree *tview.TreeView, markedItems map[string]*tview.TreeNode, originalColors map[string]tcell.Color) {
+	root := tree.GetRoot()
+	if root == nil {
+		return
+	}
+
+	// Iterate through each duplicate group (children of root)
+	for _, groupNode := range root.GetChildren() {
+		children := groupNode.GetChildren()
+		if len(children) <= 1 {
+			continue // Skip if no duplicates or only one file
+		}
+
+		// Auto-mark all files except the first one for deletion
+		for i, childNode := range children {
+			if i == 0 {
+				continue // Keep the first file, don't mark it
+			}
+
+			filePath := childNode.GetText()
+			// Store original color and mark for deletion
+			originalColors[filePath] = childNode.GetColor()
+			markedItems[filePath] = childNode
+			childNode.SetColor(tcell.ColorRed)
+
+			dsklog.Dlogger.Infof("Auto-marked file for deletion: %s", filePath)
+		}
+	}
 }

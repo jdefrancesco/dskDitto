@@ -10,13 +10,28 @@ package dmap
 
 import (
 	"ditto/internal/dfs"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
 )
 
-type SHA256Hash string
+type SHA256Hash [32]byte
+
+// SHA256HashFromHex converts a hex string to SHA256Hash
+func SHA256HashFromHex(hexStr string) (SHA256Hash, error) {
+	var hash SHA256Hash
+	bytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return hash, err
+	}
+	if len(bytes) != 32 {
+		return hash, fmt.Errorf("invalid hash length: expected 32 bytes, got %d", len(bytes))
+	}
+	copy(hash[:], bytes)
+	return hash, nil
+}
 
 const mapInitSize = 256
 
@@ -28,7 +43,7 @@ type Dmap struct {
 	filesMap map[SHA256Hash][]string
 
 	// Files deffered for reasons such as size are stored here for later processing.
-	deferredFiles   []string
+	deferredFiles []string
 	// Number of files in our map.
 	fileCount       uint
 	dupClusterCount uint // Number of files dup clusters.
@@ -48,7 +63,8 @@ func NewDmap() (*Dmap, error) {
 
 // Add will take a dfile and add it the map.
 func (d *Dmap) Add(dfile *dfs.Dfile) {
-	d.filesMap[SHA256Hash(dfile.Hash())] = append(d.filesMap[SHA256Hash(dfile.Hash())], dfile.FileName())
+	hash := SHA256Hash(dfile.Hash())
+	d.filesMap[hash] = append(d.filesMap[hash], dfile.FileName())
 	d.fileCount++
 }
 
@@ -88,7 +104,7 @@ func (d *Dmap) ShowResults() {
 		}
 		// Our hash value will be our level 0 item from which all duplicate files
 		// will be subitems.
-		listItem := pterm.LeveledListItem{Level: 0, Text: string(hash)}
+		listItem := pterm.LeveledListItem{Level: 0, Text: fmt.Sprintf("%x", hash)}
 		leveledList = append(leveledList, listItem)
 		for _, f := range files {
 			listItem = pterm.LeveledListItem{Level: 1, Text: f}

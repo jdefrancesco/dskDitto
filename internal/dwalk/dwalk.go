@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"ditto/internal/dfs"
@@ -14,15 +15,15 @@ import (
 )
 
 const (
-	MAX_FILE_SIZE = 1024 * 1024 * 1024 * 1 // 1GB
+	MAX_FILE_SIZE           = 1024 * 1024 * 1024 * 1 // 1GB
+	DEFAULT_DIR_CONCURRENCY = 50                     // Optimal balance for directory reading
 )
 
 // DWalk is our primary object for traversing filesystem
 // in a parallel manner.
 type DWalk struct {
-	rootDirs    []string
-	wg          sync.WaitGroup
-	maxFileSize uint64 // Skip over files that are greater than maxFileSize
+	rootDirs []string
+	wg       sync.WaitGroup
 
 	// Channel used to communicate with main monitor goroutine.
 	dFiles chan<- *dfs.Dfile
@@ -38,7 +39,10 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 		dFiles:   dFiles,
 	}
 
-	walker.sem = semaphore.NewWeighted(int64(20))
+	// Set semaphore to optimal value based on system resources
+	optimalConcurrency := getOptimalConcurrency()
+	dsklog.Dlogger.Infof("Setting directory concurrency to %d (based on %d CPUs)", optimalConcurrency, runtime.NumCPU())
+	walker.sem = semaphore.NewWeighted(int64(optimalConcurrency))
 	return walker
 
 }
@@ -97,6 +101,12 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			continue
 		}
 
+		// Skip non-regular files (sockets, pipes, device files, etc.)
+		if !info.Mode().IsRegular() {
+			dsklog.Dlogger.Debugf("Skipping non-regular file: %s (mode: %s)", entry.Name(), info.Mode())
+			continue
+		}
+
 		fileSize := uint64(max(info.Size(), 0)) // #nosec G115
 		if fileSize >= maxFileSize {
 			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", entry.Name())
@@ -138,4 +148,19 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.DirEntry {
 	}
 
 	return entries
+}
+
+// getOptimalConcurrency returns optimal concurrency based on system resources
+func getOptimalConcurrency() int {
+	numCPU := runtime.NumCPU()
+	// For directory reading, use 2-4x CPU count as it's mostly I/O bound
+	// But cap it to avoid creating too many goroutines
+	optimal := numCPU * 3
+	if optimal > 100 {
+		optimal = 100
+	}
+	if optimal < 20 {
+		optimal = 20
+	}
+	return optimal
 }

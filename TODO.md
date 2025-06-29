@@ -1,6 +1,5 @@
 # TODO
 
-* Map key is currently hex string of hash. We need to change this to more efficient 32 byte key.
 
 
 ---
@@ -8,12 +7,10 @@
 
 * Handle Symlink and Hardlinks. User should be able to decide what to do. But we want
 sensible defaults.
-* Finish TUI so users can select whath they want to do with duplicates.
 * Provide grep and unix friendly text output for piping to other tools.
 * File restore. To start we can simpply marshal JSON compressed file in order to restore.
 with mininmal overhead.
 * Handle permissions error. - Need to log to file
-* Controlling size of hash map.
 
 
 ## Features/Flags to Add

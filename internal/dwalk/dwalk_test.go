@@ -3,6 +3,7 @@ package dwalk
 import (
 	"context"
 	"ditto/internal/dfs"
+	"ditto/internal/dsklog"
 	"fmt"
 	"testing"
 	"time"
@@ -11,13 +12,17 @@ import (
 // Test basic walking...
 func TestNewDWalk(t *testing.T) {
 
+	// Initialize logger for testing
+	dsklog.InitializeDlogger("test.log")
+
 	rootDirs := []string{"test_files"}
 
 	dFiles := make(chan *dfs.Dfile)
 	walker := NewDWalker(rootDirs, dFiles)
 
 	// walker
-	ctx, _ := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var MaxFileSize uint64 = 1024 * 1024 * 1024 * 1
 	walker.Run(ctx, MaxFileSize)
 
