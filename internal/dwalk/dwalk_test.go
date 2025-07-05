@@ -23,7 +23,7 @@ func TestNewDWalk(t *testing.T) {
 	// walker
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var MaxFileSize uint64 = 1024 * 1024 * 1024 * 1
+	var MaxFileSize uint = 1024 * 1024 * 1024 * 1
 	walker.Run(ctx, MaxFileSize)
 
 	var nfiles int64

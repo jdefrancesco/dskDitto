@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	MAX_FILE_SIZE           = 1024 * 1024 * 1024 * 1 // 1GB
-	DEFAULT_DIR_CONCURRENCY = 50                     // Optimal balance for directory reading
+	MAX_FILE_SIZE           uint = 1024 * 1024 * 1024 * 4 // 4GB
+	DEFAULT_DIR_CONCURRENCY      = 50                     // Optimal balance for directory reading
 )
 
 // DWalk is our primary object for traversing filesystem
@@ -48,7 +48,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 }
 
 // Run method kicks off filesystem crawl for file dupes.
-func (d *DWalk) Run(ctx context.Context, maxFileSize uint64) {
+func (d *DWalk) Run(ctx context.Context, maxFileSize uint) {
 
 	for _, root := range d.rootDirs {
 		d.wg.Add(1)
@@ -78,7 +78,7 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, maxFileSize uint64) {
+func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, maxFileSize uint) {
 
 	defer d.wg.Done()
 
@@ -107,7 +107,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			continue
 		}
 
-		fileSize := uint64(max(info.Size(), 0)) // #nosec G115
+		fileSize := uint(max(info.Size(), 0)) // #nosec G115
 		if fileSize >= maxFileSize {
 			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", entry.Name())
 			continue

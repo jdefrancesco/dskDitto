@@ -25,8 +25,9 @@ func init() {
 
 	// Custom help message
 	flag.Usage = func() {
-		fmt.Printf("Usage: dskDitto [options] PATHS\n\n")
+		fmt.Printf("Usage: dskDitto [options] PATHS\n")
 		flag.PrintDefaults()
+		fmt.Printf("\n[note] Double dash notation works too. Example: --no-banner.\n")
 	}
 }
 
@@ -89,7 +90,8 @@ func main() {
 		flShowVersion = flag.Bool("version", false, "Display version")
 		flCpuProfile  = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
 		flNoResults   = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
-		flMaxFileSize = flag.Int64("max-file-size", 1024*1024*1024*2, "Max file size is 1 GiB by default.")
+		flMaxFileSize = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
+		flTextOutput  = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		// flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
 	flag.Parse()
@@ -102,21 +104,21 @@ func main() {
 		showVersion()
 	}
 
-	// Check if user specified max file size.
-	var MaxFileSize uint64
+	var MaxFileSize uint = dwalk.MAX_FILE_SIZE // Default is 4 GiB.
 	if *flMaxFileSize != 0 {
-		if *flMaxFileSize >= 0 {
-			MaxFileSize = uint64(*flMaxFileSize)
-		}
-	} else {
-		MaxFileSize = dwalk.MAX_FILE_SIZE
+		MaxFileSize = *flMaxFileSize
+		fmt.Printf("Skipping files of size: %d bytes.\n\n", MaxFileSize)
+		dsklog.Dlogger.Infof("Max file size set to %d bytes.\n", MaxFileSize)
 	}
+
+	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
 	// Enable CPU profiling
 	if *flCpuProfile != "" {
 		f, err := os.Create(*flCpuProfile)
 		if err != nil {
-			log.Fatal("cpuprofile failed")
+			dsklog.Dlogger.Info("cpuprofile failed")
+			os.Exit(1)
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
@@ -126,8 +128,6 @@ func main() {
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
 	}
-
-	fmt.Println("[+] Press CTRL+C to stop dskDitto at any time.")
 
 	// Dmap stores duplicate file information.
 	dMap, err := dmap.NewDmap()
@@ -190,6 +190,13 @@ MainLoop:
 		os.Exit(0)
 	}
 
+	// Dump results to stdout. Useful for scripting.
+	if *flTextOutput {
+		dMap.PrintDmap()
+		os.Exit(0)
+	}
+
+	// Show TUI interactive interface.
 	ui.LaunchTUI(dMap)
 }
 
@@ -205,5 +212,5 @@ func showHeader() {
 }
 
 func showVersion() {
-	fmt.Printf("Version: %s\n\n", ver)
+	fmt.Printf("Version: %s\n", ver)
 }
