@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -100,8 +99,10 @@ func main() {
 		showHeader()
 	}
 
+	// Just show version then quit.
 	if *flShowVersion {
 		showVersion()
+		os.Exit(0)
 	}
 
 	var MaxFileSize uint = dwalk.MAX_FILE_SIZE // Default is 4 GiB.
@@ -129,12 +130,13 @@ func main() {
 		rootDirs = []string{"."}
 	}
 
-	// Dmap stores duplicate file information.
+	// Dmap stores duplicate file information. Failure is fatal.
 	dMap, err := dmap.NewDmap()
 	if err != nil {
-		log.Println("Failed to make new Dmap: ", err)
-		return
+		dsklog.Dlogger.Fatal("Failed to make new Dmap: ", err)
+		os.Exit(1)
 	}
+
 	// Recieve files we need to process via this channel.
 	dFiles := make(chan *dfs.Dfile)
 

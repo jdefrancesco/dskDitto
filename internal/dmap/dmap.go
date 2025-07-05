@@ -45,8 +45,8 @@ type Dmap struct {
 	// Files deffered for reasons such as size are stored here for later processing.
 	deferredFiles []string
 	// Number of files in our map.
-	fileCount       uint
-	dupClusterCount uint // Number of files dup clusters.
+	fileCount    uint
+	clusterCount uint // Number of files dup clusters.
 }
 
 // NewDmap returns a new Dmap structure.
