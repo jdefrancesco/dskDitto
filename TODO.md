@@ -2,7 +2,7 @@
 
 1. Add skip zero size files
 2. Handle symlinks similar to duff
-3. Decide if we want to process dotfiles by default or make it an option. duff skips.
+3. Decide if we want to process dotfiles (hidden)  by default or make it an option. duff skips.
 4. Add --excess option. This lists all but one file of a duplicate cluster for possible removal by another tool like rm etc..
 5. Refactor ShowResults to use a single function for all output. The format will depend on output flag we pass it.
 
@@ -20,9 +20,8 @@
 * --min-size - Skip files smaller than this size
 * --hidden
 * --throttle - Avoid resource hogging.
-* --ignore-hiddens
 * --ignore-links or "physical mode" so we dont report links at dups..
-* --digest
+* --digest - Select digest. May want at least three options: BLAKE2, SHA256, MD5.
 * --restore - Restore files from a backup.
 
 ## Considerations

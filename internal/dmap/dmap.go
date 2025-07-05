@@ -38,7 +38,7 @@ const mapInitSize = 256
 // Dmap structure will hold our file duplication data.
 // It is the primary data structure that will house the results
 // that will eventually be returned to the user.
-// TODO: Add dupClusterCount functions
+// TODO: Add ClusterCount functions
 type Dmap struct {
 	filesMap map[SHA256Hash][]string
 
@@ -76,7 +76,9 @@ func (d *Dmap) AddDeferredFile(file string) {
 	d.deferredFiles = append(d.deferredFiles, file)
 }
 
-// PrintDmap will print entries currently stored in map.
+// TODO: Refactor ShowResults function that will display results in the various formats.
+
+// PrintDmap will print entries currently stored in map in more text friendly way.
 func (d *Dmap) PrintDmap() {
 	for k, v := range d.filesMap {
 		if len(v) < 2 {

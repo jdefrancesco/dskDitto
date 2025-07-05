@@ -88,7 +88,7 @@ func main() {
 		flNoBanner    = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flShowVersion = flag.Bool("version", false, "Display version")
 		flCpuProfile  = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
-		flNoResults   = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
+		flTimeOnly    = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
 		flMaxFileSize = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput  = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		// flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
@@ -102,7 +102,6 @@ func main() {
 	// Just show version then quit.
 	if *flShowVersion {
 		showVersion()
-		os.Exit(0)
 	}
 
 	var MaxFileSize uint = dwalk.MAX_FILE_SIZE // Default is 4 GiB.
@@ -188,7 +187,7 @@ MainLoop:
 	pterm.Success.Println(finalInfo)
 
 	// For debugging to test speed
-	if *flNoResults {
+	if *flTimeOnly {
 		os.Exit(0)
 	}
 
