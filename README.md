@@ -9,13 +9,8 @@ TODO list.
 
 ## TODO
 
-* Increase efficiency for determining duplicates. Right now we just hastily MD5 a file and keep a giant hashmap. This won't scale well
-for large disks, or machines with minimal resources.
-* Handling of soft/hard symlinks and permissions.
-* Handling of large files.
-* Deal appropriately with collisions.
-* Create appropriate UI for letting the user decide what to trash and what to keep.
-
+* Increase Soft Limit in dfs for num of open file desc 
+* Add power of two constant 
 
 **WARNING:** Although in the future this tool will be cross-platform, I have only been testing/developing it on macOS.
 
