@@ -1,8 +1,10 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+)
 
-// Our size constants
+// Our size constants. Powers of two!
 const (
 	_   = iota
 	KiB = 1 << (10 * iota)

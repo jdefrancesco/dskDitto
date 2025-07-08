@@ -4,13 +4,11 @@
 
 DskDitto is a tiny utility written in Go that helps identify duplicate/useless files on your machine
 in only a matter of seconds. It is highly concurrent, and efficient. The project is still in it's infancy
-so many features are yet to be implemented. I wouldn't use the tool until I complete the currently standing
-TODO list.
+so many features are yet to be implemented.
 
 ## TODO
 
-* Increase Soft Limit in dfs for num of open file desc 
-* Add power of two constant 
+See TODO.txt
 
 **WARNING:** Although in the future this tool will be cross-platform, I have only been testing/developing it on macOS.
 

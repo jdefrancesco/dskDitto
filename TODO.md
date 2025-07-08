@@ -1,10 +1,14 @@
 # TODO
 
+* Update README.md with modern screenshots and examples.
+* Refactor ShowResults to use a single function for all output. The format will depend on output flag we pass it.
+* Make sure there is only one app.log
+
 1. Add skip zero size files
 2. Handle symlinks similar to duff
 3. Decide if we want to process dotfiles (hidden)  by default or make it an option. duff skips.
 4. Add --excess option. This lists all but one file of a duplicate cluster for possible removal by another tool like rm etc..
-5. Refactor ShowResults to use a single function for all output. The format will depend on output flag we pass it.
+6. Clean-up various show dmap logic.
 
 ---
 
@@ -41,5 +45,4 @@ and other media.
 * Consider two pass approach for efficiency.
 * Memory usage. We need to be careful about how we handle memory.
 * Consider IO usage.
-* Handling of permissions gracefully.
 * Adding atomicic file operations when we restore/delete.

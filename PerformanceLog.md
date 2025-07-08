@@ -54,3 +54,15 @@ substituted dMap.ShowResults() with debug function dMap.PrintDump()
 
 Process 999,000+ files in only 4 minutes, and total elapsed time is 4 minutes using dMap.PrintDump().
 This confirms Pterm tree rendering is extremely slow for some reason.
+
+### Run 4
+
+#### Changes
+
+* Updated latest golang
+* Efficient dMap now uses sha256 [32]byte key instead of string
+* Open File Desc. Limit in dfs now a reasonable 8192 
+
+#### Results
+
+Processed 429,565 files in 17.32 seconds!

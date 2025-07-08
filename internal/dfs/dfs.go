@@ -10,22 +10,9 @@ import (
 	"os"
 )
 
-const OpenFileDescLimit = 256
-
-// File sizes for comparison.
-type ByteSize float64
-
-const (
-	_           = iota             // ignore first value by assigning to blank identifier
-	KB ByteSize = 1 << (10 * iota) // 1 << (10*1)
-	MB                             // 1 << (10*2)
-	GB                             // 1 << (10*3)
-	TB                             // 1 << (10*4)
-	PB                             // 1 << (10*5)
-	EB                             // 1 << (10*6)
-	ZB                             // 1 << (10*7)
-	YB                             // 1 << (10*8)
-)
+// For now this will be our max open-file descriptor limit. This value
+// is used by hashing function semaphore logic.
+const OpenFileDescLimMax = 8192
 
 // Dfile structure will describe a given file. We
 // only care about the few file properties that will
@@ -84,10 +71,7 @@ func (d *Dfile) GetPerms() string {
 	return ""
 }
 
-// concurrency-limiting semaphore to ensure MD5 hashing doesn't exhaust
-// all the available file descriptors. macOS open file limit is ridiculously
-// low; by default 256.
-var sema = make(chan struct{}, OpenFileDescLimit)
+var sema = make(chan struct{}, OpenFileDescLimMax)
 
 // Compute SHA256 hash. This will be the primary hash used, MD5 will be removed.
 func (d *Dfile) hashFileSHA256() error {
@@ -106,8 +90,6 @@ func (d *Dfile) hashFileSHA256() error {
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		// TODO: Handle this more approriately
-		// e := "error"
-		// log.Print("Error")
 		return nil
 	}
 
