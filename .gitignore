@@ -4,6 +4,8 @@
 .DS_Store
 *.out
 *.log
+files/
+
 ./bin/dskDitto
 dskDitto
 /bin

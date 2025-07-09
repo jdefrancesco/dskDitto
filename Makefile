@@ -19,6 +19,10 @@ build:
 test:
 	$(GOTEST) -v ./...
 
+bench:
+	$(GOTEST) -bench=. -benchmem ./internal/bench/
+
+
 .PHONY: gosec
 gosec:
 	gosec -exclude=G104 ./...
@@ -26,6 +30,13 @@ gosec:
 .PHONY: install
 install:
 	cp ./dskDitto $(PREFIX)/dskDitto
+
+# flamegraph: profile
+# 	pprof -raw ./internal/bench/benchmarks.test cpu.prof | inferno-flamegraph > flamegraph.svg
+# 	@echo "Generated flamegraph.svg"
+
+# fuzz:
+# 	$(GOTEST) -fuzz=Fuzz -fuzztime=10s ./internal/...
 
 .PHONY: clean
 clean:
