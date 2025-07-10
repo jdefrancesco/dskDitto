@@ -66,3 +66,16 @@ This confirms Pterm tree rendering is extremely slow for some reason.
 #### Results
 
 Processed 429,565 files in 17.32 seconds!
+
+### Run 5
+
+#### Changes
+
+* We started using a buffered channel. 
+
+#### Results
+
+This gave a modest improvement and a bit better file throughput.
+
+Processed 429,663 files in 17.18 seconds...
+

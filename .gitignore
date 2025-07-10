@@ -6,7 +6,7 @@
 *.log
 files/
 app.log
+bin/
 
 ./bin/dskDitto
-dskDitto
 bench.test

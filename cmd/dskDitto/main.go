@@ -51,14 +51,6 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 	}
 }
 
-type key int
-
-const (
-	loggerKey key = iota
-	configKey
-	skipSymLinkKey
-)
-
 // Version
 const ver = "0.0.1"
 
@@ -136,8 +128,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Recieve files we need to process via this channel.
-	dFiles := make(chan *dfs.Dfile)
+	// Receive files we need to process via this channel.
+	// Use buffered channel to allow async file discovery and processing
+	dFiles := make(chan *dfs.Dfile, 1000)
 
 	walker := dwalk.NewDWalker(rootDirs, dFiles)
 	walker.Run(ctx, MaxFileSize)
