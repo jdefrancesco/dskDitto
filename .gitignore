@@ -5,7 +5,8 @@
 *.out
 *.log
 files/
+app.log
 
 ./bin/dskDitto
 dskDitto
-/bin
+bench.test
