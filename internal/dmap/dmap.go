@@ -77,7 +77,6 @@ func (d *Dmap) AddDeferredFile(file string) {
 }
 
 // TODO: Refactor ShowResults function that will display results in the various formats.
-
 // PrintDmap will print entries currently stored in map in more text friendly way.
 func (d *Dmap) PrintDmap() {
 	for k, v := range d.filesMap {
@@ -94,6 +93,9 @@ func (d *Dmap) PrintDmap() {
 
 // ShowResults will display duplicates held in our Dmap as
 // a pretty tree.
+// NOTE: Pterm takes a very long time to render this table for some reason.
+//
+//	The primary method of viewing the results is via the TUI.
 func (d *Dmap) ShowResults() {
 
 	// Banner

@@ -1,8 +1,6 @@
 # TODO
 
-* Update README.md with modern screenshots and examples.
 * Refactor ShowResults to use a single function for all output. The format will depend on output flag we pass it.
-* Make sure there is only one app.log
 
 1. Add skip zero size files
 2. Handle symlinks similar to duff
@@ -11,6 +9,8 @@
 6. Clean-up various show dmap logic.
 
 ---
+
+* Update README.md with modern screenshots and examples.
 
 ## Features/Flags to Add
 
@@ -31,7 +31,7 @@
 ## Considerations
 
 * Some duplicates are the result of a user having say two different versions of a program, or SDK. They
-may need both. So perhapse we might detect this and ask the user if they want to keep both.
+may need both. So perhaps we might detect this and ask the user if they want to keep both.
 * Size capping. Maybe first read a small chunk of a file to determine if we need to
 hash the file for real. Most of the time the first 100 bytes of files can deternie if they are dupes
 * Decide what we will do if our memory map gets too large.
@@ -40,9 +40,9 @@ hash the file for real. Most of the time the first 100 bytes of files can detern
 files are similar but maybe not the same. This could be useful especially for images
 and other media.
 
-## Potentiall Issues:
+## Potential Issues
 
 * Consider two pass approach for efficiency.
 * Memory usage. We need to be careful about how we handle memory.
 * Consider IO usage.
-* Adding atomicic file operations when we restore/delete.
+* Adding atomic file operations when we restore/delete.

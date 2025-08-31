@@ -3,6 +3,7 @@
 package dfs
 
 import (
+	"ditto/internal/dsklog"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -110,9 +111,8 @@ func GetFileUidGid(filename string) (Uid, Gid int) {
 }
 
 // Check if we have proper permissions for investigating
-// a file. Performs various safety checks to prevent any
-// file path vulnerabilities.
-// TODO: Add more safety checks later on..
+// a file. Performs additional fast safety checks to avoid
+// symlink traversal and non-regular special files.
 func CheckFilePerms(path string) bool {
 	cleanPath := filepath.Clean(path)
 	absPath, err := filepath.Abs(cleanPath)
@@ -120,15 +120,49 @@ func CheckFilePerms(path string) bool {
 		return false
 	}
 
-	// #nosec G304
-	file, err := os.Open(absPath)
+	// Fast path checks without following symlinks.
+	fi, err := os.Lstat(absPath)
 	if err != nil {
-		if os.IsPermission(err) {
-			return false
-		}
-		// fmt.Printf("Error opening file: %s, error: %v\n", path, err)
 		return false
 	}
-	defer file.Close()
+	// Disallow symlinks
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return false
+	}
+	// Only allow regular files (exclude sockets, devices, pipes, etc.)
+	if !fi.Mode().IsRegular() {
+		return false
+	}
+
+	// #nosec G304
+	// Use O_NOFOLLOW for additional safety (avoid TOCTOU on symlinks)
+	fd, err := syscall.Open(absPath, syscall.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return false
+	}
+	_ = syscall.Close(fd)
 	return true
+}
+
+// GetFileSize will return size of file in bytes.
+// If file name isn't provided we return zero. Will
+// refactor later for better error handling.
+func GetFileSize(file_name string) uint64 {
+	if len(file_name) == 0 {
+		dsklog.Dlogger.Warn("Empty file name provided")
+		return 0
+	}
+
+	file, err := os.Stat(file_name)
+	if err != nil {
+		dsklog.Dlogger.Warnf("Error calling os.Stat on %s: %v", file_name, err)
+		return 0
+	}
+
+	size := file.Size()
+	// This shouldn't happen.
+	if size < 0 {
+		return 0
+	}
+	return uint64(size)
 }

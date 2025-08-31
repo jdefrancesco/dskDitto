@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"ditto/internal/dfs"
 	"ditto/internal/dmap"
 	"ditto/internal/dsklog"
 
@@ -48,7 +49,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		tree.SetCurrentNode(root.GetChildren()[0])
 	}
 
-	// Key binding to quit.
+	// Key bindings for user actions
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEsc:
@@ -135,24 +136,10 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 		tree.SetRoot(tview.NewTreeNode("Root"))
 	}
 
-	// Get file size in bytes..
-	getFileSize := func(file_name string) uint64 {
-		file, err := os.Stat(file_name)
-		if err != nil {
-			return 0
-		}
-		size := file.Size()
-		if size < 0 {
-			return 0
-		}
-		return uint64(size)
-	}
-
 	// Add the hash as root node and the files as children.
 	// BUG(jdefr): Map seems to be getting an empty hash somewhere.
 	for hash, files := range dMap.GetMap() {
 
-		// TODO(jdefr): Fix reason for empty hash entry. This shouldn't occur.
 		var zeroHash dmap.SHA256Hash
 		if hash == zeroHash {
 			continue
@@ -160,7 +147,7 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 
 		if len(files) > 1 {
 			var fmt_str = "%s - %d Duplicates - (Using %s of storage total)"
-			fSize := getFileSize(files[0])
+			fSize := dfs.GetFileSize(files[0])
 			totalSize := uint64(fSize) * uint64(len(files))
 			// Create header with relevant information - display first 8 characters of hex hash
 			hashHex := fmt.Sprintf("%x", hash[:4]) // Show first 4 bytes as 8 hex chars
@@ -179,7 +166,8 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 
 // showDeleteConfirmation displays a modal dialog asking for confirmation before deleting files
 func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, originalColors map[string]tcell.Color, tree *tview.TreeView) {
-	// Create a modal with the list of files to be deleted
+
+	// Create a modal window with the list of files to be deleted
 	fileList := ""
 	for path := range markedItems {
 		fileList += fmt.Sprintf("• %s\n", filepath.Base(path))
