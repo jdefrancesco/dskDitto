@@ -36,12 +36,11 @@ func LaunchTUI(dMap *dmap.Dmap) {
 	// Add the nodes to the tree.
 	addTreeData(tree, dMap)
 
-	// Map to keep track of marked items and their original colors
+	// Map to keep track of marked items
 	markedItems := make(map[string]*tview.TreeNode)
-	originalColors := make(map[string]tcell.Color)
 
 	// Auto-mark all but the first file in each duplicate group for deletion
-	autoMarkDuplicates(tree, markedItems, originalColors)
+	autoMarkDuplicates(tree, markedItems)
 
 	root := tree.GetRoot()
 	if root != nil && len(root.GetChildren()) > 0 {
@@ -49,62 +48,40 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		tree.SetCurrentNode(root.GetChildren()[0])
 	}
 
-	// Key bindings for user actions
-	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Key() {
-		case tcell.KeyEsc:
-			App.Stop()
-		case tcell.KeyRune:
-			switch event.Rune() {
-			case 'q':
-				App.Stop()
+	 // Key bindings for user actions
+	 tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	 	switch event.Key() {
+	 	case tcell.KeyEsc:
+	 		App.Stop()
+	 	case tcell.KeyRune:
+	 		switch event.Rune() {
+	 		case 'q':
+	 			App.Stop()
 
-			// Handle marking items for deletion
-			case 'm':
-				dsklog.Dlogger.Info("Marking item")
-				currentNode := tree.GetCurrentNode()
-				dsklog.Dlogger.Infof("Current node level: %d", currentNode.GetLevel())
+	 		case 'm':
+	 			currentNode := tree.GetCurrentNode()
+	 			if currentNode.GetLevel() != 2 {
+	 				goto Skip
+	 			}
+	 			filePath := currentNode.GetText()
+	 			if _, ok := markedItems[filePath]; !ok {
+	 				markedItems[filePath] = currentNode
+	 				currentNode.SetColor(tcell.ColorRed)
+	 			} else {
+	 				currentNode.SetColor(tcell.ColorWhite)
+	 				delete(markedItems, filePath)
+	 			}
 
-				// Only allow marking of actual file paths (level 2 - children of duplicate groups)
-				if currentNode.GetLevel() != 2 {
-					dsklog.Dlogger.Info("Can only mark individual files for deletion")
-					goto Skip
-				}
-
-				filePath := currentNode.GetText()
-				if _, ok := markedItems[filePath]; !ok {
-					// Mark the file - store original color and mark it
-					originalColors[filePath] = currentNode.GetColor()
-					markedItems[filePath] = currentNode
-					dsklog.Dlogger.Infof("Marked item for deletion: %s", filePath)
-					currentNode.SetColor(tcell.ColorRed)
-				} else {
-					// Unmark the file - restore original color and remove from marked list
-					if originalColor, exists := originalColors[filePath]; exists {
-						currentNode.SetColor(originalColor)
-						delete(originalColors, filePath)
-					} else {
-						// Fallback to default color if original color not found
-						currentNode.SetColor(tcell.ColorLightGreen)
-					}
-					delete(markedItems, filePath)
-					dsklog.Dlogger.Infof("Unmarked item: %s", filePath)
-				}
-
-			case 'd':
-				if len(markedItems) == 0 {
-					dsklog.Dlogger.Info("No items marked for deletion")
-					goto Skip
-				}
-
-				// Show confirmation dialog before deleting
-				showDeleteConfirmation(markedItems, originalColors, tree)
-			}
-
-		}
+	 		case 'd':
+	 			if len(markedItems) == 0 {
+	 				goto Skip
+	 			}
+	 			showDeleteConfirmation(markedItems, tree)
+	 		}
+	 	}
 	Skip:
-		return event
-	})
+	 	return event
+	 })
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		// Expand or collapse the node.
@@ -165,7 +142,7 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 }
 
 // showDeleteConfirmation displays a modal dialog asking for confirmation before deleting files
-func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, originalColors map[string]tcell.Color, tree *tview.TreeView) {
+func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, tree *tview.TreeView) {
 
 	// Create a modal window with the list of files to be deleted
 	fileList := ""
@@ -183,7 +160,7 @@ func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, originalColo
 
 			// If user clicked "Delete" button (index 1)
 			if buttonIndex == 1 {
-				performDeletion(markedItems, originalColors)
+				performDeletion(markedItems, tree)
 			}
 		})
 
@@ -198,7 +175,7 @@ func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, originalColo
 		switch event.Rune() {
 		case 'y', 'Y':
 			App.SetRoot(tree, true).SetFocus(tree)
-			performDeletion(markedItems, originalColors)
+			performDeletion(markedItems, tree)
 			return nil
 		case 'n', 'N':
 			App.SetRoot(tree, true).SetFocus(tree)
@@ -212,48 +189,39 @@ func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, originalColo
 }
 
 // performDeletion actually deletes the marked files
-func performDeletion(markedItems map[string]*tview.TreeNode, originalColors map[string]tcell.Color) {
+func performDeletion(markedItems map[string]*tview.TreeNode, tree *tview.TreeView) {
 	for path, node := range markedItems {
 		err := os.Remove(path)
 		if err != nil {
 			dsklog.Dlogger.Errorf("Failed to delete file %s: %v", path, err)
-			node.SetColor(tcell.ColorRed).SetText("[ERROR] " + filepath.Base(path))
+			node.SetColor(tcell.ColorGray).SetText("[ERROR] " + filepath.Base(path))
 		} else {
 			dsklog.Dlogger.Infof("Successfully deleted file: %s", path)
 			node.SetColor(tcell.ColorGray).SetText("[DELETED] " + filepath.Base(path))
 		}
-		// Clean up the original color tracking since the file is now processed
-		delete(originalColors, path)
 	}
 	App.Draw()
 }
 
 // autoMarkDuplicates automatically marks all but the first file in each duplicate group for deletion
-func autoMarkDuplicates(tree *tview.TreeView, markedItems map[string]*tview.TreeNode, originalColors map[string]tcell.Color) {
+func autoMarkDuplicates(tree *tview.TreeView, markedItems map[string]*tview.TreeNode) {
 	root := tree.GetRoot()
 	if root == nil {
 		return
 	}
 
-	// Iterate through each duplicate group (children of root)
 	for _, groupNode := range root.GetChildren() {
 		children := groupNode.GetChildren()
 		if len(children) <= 1 {
-			continue // Skip if no duplicates or only one file
+			continue
 		}
-
-		// Auto-mark all files except the first one for deletion
 		for i, childNode := range children {
 			if i == 0 {
-				continue // Keep the first file, don't mark it
+				continue
 			}
-
 			filePath := childNode.GetText()
-			// Store original color and mark for deletion
-			originalColors[filePath] = childNode.GetColor()
 			markedItems[filePath] = childNode
 			childNode.SetColor(tcell.ColorRed)
-
 			dsklog.Dlogger.Infof("Auto-marked file for deletion: %s", filePath)
 		}
 	}
