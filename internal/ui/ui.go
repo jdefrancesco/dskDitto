@@ -44,44 +44,44 @@ func LaunchTUI(dMap *dmap.Dmap) {
 
 	root := tree.GetRoot()
 	if root != nil && len(root.GetChildren()) > 0 {
-		// We want arrow keys to be able to nacigate through the tree.
+		// We want arrow keys to be able to navigate through the tree.
 		tree.SetCurrentNode(root.GetChildren()[0])
 	}
 
-	 // Key bindings for user actions
-	 tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-	 	switch event.Key() {
-	 	case tcell.KeyEsc:
-	 		App.Stop()
-	 	case tcell.KeyRune:
-	 		switch event.Rune() {
-	 		case 'q':
-	 			App.Stop()
+	// Key bindings for user actions
+	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEsc:
+			App.Stop()
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case 'q':
+				App.Stop()
 
-	 		case 'm':
-	 			currentNode := tree.GetCurrentNode()
-	 			if currentNode.GetLevel() != 2 {
-	 				goto Skip
-	 			}
-	 			filePath := currentNode.GetText()
-	 			if _, ok := markedItems[filePath]; !ok {
-	 				markedItems[filePath] = currentNode
-	 				currentNode.SetColor(tcell.ColorRed)
-	 			} else {
-	 				currentNode.SetColor(tcell.ColorWhite)
-	 				delete(markedItems, filePath)
-	 			}
+			case 'm':
+				currentNode := tree.GetCurrentNode()
+				if currentNode.GetLevel() != 2 {
+					goto Skip
+				}
+				filePath := currentNode.GetText()
+				if _, ok := markedItems[filePath]; !ok {
+					markedItems[filePath] = currentNode
+					currentNode.SetColor(tcell.ColorRed)
+				} else {
+					currentNode.SetColor(tcell.ColorWhite)
+					delete(markedItems, filePath)
+				}
 
-	 		case 'd':
-	 			if len(markedItems) == 0 {
-	 				goto Skip
-	 			}
-	 			showDeleteConfirmation(markedItems, tree)
-	 		}
-	 	}
+			case 'd':
+				if len(markedItems) == 0 {
+					goto Skip
+				}
+				showDeleteConfirmation(markedItems, tree)
+			}
+		}
 	Skip:
-	 	return event
-	 })
+		return event
+	})
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		// Expand or collapse the node.
