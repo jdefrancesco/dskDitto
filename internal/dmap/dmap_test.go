@@ -1,16 +1,26 @@
 package dmap
 
 import (
+	"ditto/internal/config"
 	"ditto/internal/dfs"
+	"ditto/internal/dsklog"
 	"fmt"
 	"testing"
 )
+
+// setupLogging initializes the logger and other necessary components
+func setupLogging() {
+	// Initialize the logger to prevent nil pointer dereference
+	dsklog.InitializeDlogger("/dev/null")
+}
 
 // Test Dmap type.. Eventually I should make these tests far more robust.
 // For now, lets just get things working so I can see all the pieces in place.
 func TestNewDmap(t *testing.T) {
 
-	dmap, err := NewDmap()
+	setupLogging()
+
+	dmap, err := NewDmap(config.Config{})
 	if err != nil {
 		t.Errorf("Couldn't create new dmap: %s", err)
 	}
@@ -84,7 +94,7 @@ func FuzzDmapAdd(f *testing.F) {
 		}
 
 		// Create a new Dmap for each test
-		dm, err := NewDmap()
+		dm, err := NewDmap(config.Config{})
 		if err != nil {
 			t.Fatalf("Failed to create Dmap: %v", err)
 		}

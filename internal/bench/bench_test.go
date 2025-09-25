@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"ditto/internal/config"
 	"ditto/internal/dfs"
 	"ditto/internal/dmap"
 	"ditto/internal/dsklog"
@@ -120,7 +121,7 @@ func BenchmarkMonitorLoop(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		// Create a new dmap for each iteration
-		dMap, err := dmap.NewDmap()
+		dMap, err := dmap.NewDmap(config.Config{})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -175,7 +176,7 @@ func BenchmarkDmapOperations(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		dMap, err := dmap.NewDmap()
+		dMap, err := dmap.NewDmap(config.Config{})
 		if err != nil {
 			b.Fatal(err)
 		}

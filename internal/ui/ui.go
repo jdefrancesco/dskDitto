@@ -34,6 +34,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		SetBorderColor(tcell.ColorGreen)
 
 	// Add the nodes to the tree.
+	// Each node is composed of a batch of duplicate files.
 	addTreeData(tree, dMap)
 
 	// Map to keep track of marked items
@@ -51,6 +52,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 	// Key bindings for user actions
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
+		// Stop the app. Quit view.
 		case tcell.KeyEsc:
 			App.Stop()
 		case tcell.KeyRune:
@@ -58,6 +60,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 			case 'q':
 				App.Stop()
 
+			// mark/unmark current file for deletion
 			case 'm':
 				currentNode := tree.GetCurrentNode()
 				if currentNode.GetLevel() != 2 {

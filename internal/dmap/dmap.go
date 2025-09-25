@@ -9,7 +9,9 @@
 package dmap
 
 import (
+	"ditto/internal/config"
 	"ditto/internal/dfs"
+	"ditto/internal/dsklog"
 	"encoding/hex"
 	"fmt"
 
@@ -33,30 +35,39 @@ func SHA256HashFromHex(hexStr string) (SHA256Hash, error) {
 	return hash, nil
 }
 
-const mapInitSize = 256
+// Initial size of our map. This will grow, but reasonable starting size helps performance.
+const mapInitSize = 4096
 
 // Dmap structure will hold our file duplication data.
 // It is the primary data structure that will house the results
 // that will eventually be returned to the user.
-// TODO: Add ClusterCount functions
 type Dmap struct {
+	// Primary map structure.
 	filesMap map[SHA256Hash][]string
 
 	// Files deffered for reasons such as size are stored here for later processing.
 	deferredFiles []string
 	// Number of files in our map.
-	fileCount    uint
-	clusterCount uint // Number of files dup clusters.
+	fileCount uint
+	// Batches of duplicate files.
+	// batchCount   uint
+	ignoreEmpty  bool
+	skipSymLinks bool
 }
 
 // NewDmap returns a new Dmap structure.
-func NewDmap() (*Dmap, error) {
+func NewDmap(cfg config.Config) (*Dmap, error) {
 
 	dmap := &Dmap{
-		fileCount: 0,
+		fileCount:    0,
+		ignoreEmpty:  cfg.SkipEmpty,
+		skipSymLinks: cfg.SkipSymLinks,
 	}
 	// Initialize our map.
 	dmap.filesMap = make(map[SHA256Hash][]string, mapInitSize)
+	dsklog.Dlogger.Debug("Dmap created with initial size: ", mapInitSize)
+	dsklog.Dlogger.Debug("Skipping empty files: ", cfg.SkipEmpty)
+	dsklog.Dlogger.Debug("Skipping symbolic links: ", cfg.SkipSymLinks)
 
 	return dmap, nil
 }

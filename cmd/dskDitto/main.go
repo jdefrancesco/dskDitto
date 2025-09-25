@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"ditto/internal/config"
 	"ditto/internal/dfs"
 	"ditto/internal/dmap"
 	"ditto/internal/dsklog"
@@ -19,6 +20,9 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
 )
+
+// Version
+const ver = "0.0.1"
 
 func init() {
 
@@ -51,9 +55,6 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 	}
 }
 
-// Version
-const ver = "0.0.1"
-
 func main() {
 
 	// Initialize logger
@@ -77,13 +78,14 @@ func main() {
 
 	// Parse command flags.
 	var (
-		flNoBanner    = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
-		flShowVersion = flag.Bool("version", false, "Display version")
-		flCpuProfile  = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
-		flTimeOnly    = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
-		flMaxFileSize = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
-		flTextOutput  = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
-		// flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
+		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
+		flShowVersion  = flag.Bool("version", false, "Display version")
+		flCpuProfile   = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
+		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
+		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
+		flTextOutput   = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
+		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
+		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
 	flag.Parse()
 
@@ -122,7 +124,11 @@ func main() {
 	}
 
 	// Dmap stores duplicate file information. Failure is fatal.
-	dMap, err := dmap.NewDmap()
+	dMap, err := dmap.NewDmap(config.Config{
+		SkipEmpty:    *flIgnoreEmpty,
+		SkipSymLinks: *flSkipSymLinks,
+	})
+
 	if err != nil {
 		dsklog.Dlogger.Fatal("Failed to make new Dmap: ", err)
 		os.Exit(1)
@@ -142,7 +148,7 @@ func main() {
 	infoSpinner, _ := pterm.DefaultSpinner.Start()
 
 	// Number of files we need to process.
-	var nfiles int64
+	var nfiles uint
 
 MainLoop:
 	for {

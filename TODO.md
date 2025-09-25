@@ -2,12 +2,9 @@
 
 * Refactor ShowResults to use a single function for all output. The format will depend on output flag we pass it.
 
-1. Add skip zero size files
+1. Add skip zero size files 
 2. Handle symlinks similar to duff
 3. Decide if we want to process dotfiles (hidden)  by default or make it an option. duff skips.
-4. Add --excess option. This lists all but one file of a duplicate cluster for possible removal by another tool like rm etc..
-6. Clean-up various show dmap logic.
-
 ---
 
 * Update README.md with modern screenshots and examples.
