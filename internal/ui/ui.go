@@ -36,7 +36,6 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		SetBorderColor(tcell.ColorGreen)
 
 	// Add the nodes to the tree.
-	// Each node is composed of a batch of duplicate files.
 	addTreeData(tree, dMap)
 
 	// Map to keep track of marked items
@@ -119,11 +118,9 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 	}
 
 	// Add the hash as root node and the files as children.
-	// BUG(jdefr): Map seems to be getting an empty hash somewhere.
 	for hash, files := range dMap.GetMap() {
 
-		var zeroHash dmap.SHA256Hash
-		if hash == zeroHash {
+		if len(hash) == 0 {
 			continue
 		}
 
@@ -159,6 +156,14 @@ func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, tree *tview.
 	message += "Type the following code and press Enter to confirm deletion:\n\n"
 	message += fmt.Sprintf("[yellow]%s[white]\n\n", GenConfirmationCode())
 
+	// inputField := tview.NewInputField().
+	// 	SetLabel("Confirmation Code: ").
+	// 	SetFieldWidth(10).
+	// 	SetAcceptanceFunc(func(text string, ch rune) bool {
+	// 		return text == GenConfirmationCode()
+	// 	}).
+	// 	SetBackgroundColor(tcell.ColorGray)
+
 	modal := tview.NewModal().
 		SetText(message).
 		AddButtons([]string{"Cancel", "Delete"}).
@@ -178,15 +183,6 @@ func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, tree *tview.
 			return nil
 		}
 
-		switch event.Rune() {
-		case 'y', 'Y':
-			App.SetRoot(tree, true).SetFocus(tree)
-			performDeletion(markedItems, tree)
-			return nil
-		case 'n', 'N':
-			App.SetRoot(tree, true).SetFocus(tree)
-			return nil
-		}
 		// For any other key, let the modal handle it normally (like Tab, Enter)
 		return event
 	})
