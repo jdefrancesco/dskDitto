@@ -143,51 +143,118 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 
 }
 
-// showDeleteConfirmation displays a modal dialog asking for confirmation before deleting files
+// showDeleteConfirmation displays a confirmation prompt requiring a typed code before deleting files.
 func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, tree *tview.TreeView) {
 
-	// Create a modal window with the list of files to be deleted
-	fileList := ""
-	for path := range markedItems {
-		fileList += fmt.Sprintf("• %s\n", filepath.Base(path))
-	}
+	// Get code user must type
+	code := GenConfirmationCode()
 
-	message := fmt.Sprintf("ATTENTION: [bold][red]%d[white] files marked for deletion.\n\n", len(markedItems))
-	message += "Type the following code and press Enter to confirm deletion:\n\n"
-	message += fmt.Sprintf("[yellow]%s[white]\n\n", GenConfirmationCode())
+	// var fileListBuilder strings.Builder
+	// for path := range markedItems {
+	// 	fileListBuilder.WriteString("• ")
+	// 	fileListBuilder.WriteString(filepath.Base(path))
+	// 	fileListBuilder.WriteByte('\n')
+	// }
+	// fileList := strings.TrimSuffix(fileListBuilder.String(), "\n")
 
-	// inputField := tview.NewInputField().
-	// 	SetLabel("Confirmation Code: ").
-	// 	SetFieldWidth(10).
-	// 	SetAcceptanceFunc(func(text string, ch rune) bool {
-	// 		return text == GenConfirmationCode()
-	// 	}).
-	// 	SetBackgroundColor(tcell.ColorGray)
+	infoText := fmt.Sprintf(
+		"[white]Type the confirmation code below to delete [yellow]%d[white] file(s):\n\n[yellow]%s[white]\n",
+		len(markedItems),
+		code,
+	)
+	// if fileList != "" {
+	// 	infoText += fmt.Sprintf("\nMarked files:\n[gray]%s[white]", fileList)
+	// }
 
-	modal := tview.NewModal().
-		SetText(message).
-		AddButtons([]string{"Cancel", "Delete"}).
-		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-			App.SetRoot(tree, true).SetFocus(tree)
-			// If user clicked "Delete" button (index 1)
-			if buttonIndex == 1 {
-				performDeletion(markedItems, tree)
+	// Information view
+	infoView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetWrap(true).
+		SetScrollable(false).
+		SetText(infoText)
+
+	infoView.SetLabel("")
+	infoView.SetDisabled(true)
+
+	// Error view
+	errorView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetWrap(true).
+		SetScrollable(false).
+		SetTextAlign(tview.AlignCenter).
+		SetText("")
+
+	errorView.SetLabel("")
+	errorView.SetDisabled(true)
+	errorView.SetSize(1, 0)
+
+	inputField := tview.NewInputField().
+		SetLabel("Code: ").
+		SetFieldWidth(len(code)).
+		SetAcceptanceFunc(func(text string, ch rune) bool {
+			if ch == 0 {
+				return true
 			}
+			if len(text) >= len(code) {
+				return false
+			}
+			if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+				return true
+			}
+			return false
 		})
 
-	// Set up key capture for the modal to handle 'y' key and Escape
-	modal.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Key() {
+	returnToTree := func() {
+		App.SetRoot(tree, true).SetFocus(tree)
+	}
+
+	confirmDeletion := func() {
+		if inputField.GetText() != code {
+			errorView.SetText("[red]Incorrect code. Try again.")
+			inputField.SetText("")
+			App.SetFocus(inputField)
+			App.Draw()
+			return
+		}
+		returnToTree()
+		performDeletion(markedItems, tree)
+	}
+
+	inputField.SetDoneFunc(func(key tcell.Key) {
+		switch key {
+		case tcell.KeyEnter:
+			confirmDeletion()
 		case tcell.KeyEscape:
-			App.SetRoot(tree, true).SetFocus(tree)
+			returnToTree()
+		}
+	})
+
+	form := tview.NewForm()
+	form.AddFormItem(infoView).
+		AddFormItem(errorView).
+		AddFormItem(inputField).
+		AddButton("Delete", confirmDeletion).
+		AddButton("Cancel", returnToTree).
+		SetButtonsAlign(tview.AlignCenter)
+	form.SetBorder(true)
+	form.SetTitle("Confirm Deletion")
+	form.SetCancelFunc(returnToTree)
+	form.SetFocus(2) // focus the code field when the form gains focus
+
+	layout := tview.NewGrid().
+		SetRows(0, 0, 0).
+		SetColumns(0, 60, 0).
+		AddItem(form, 1, 1, 1, 1, 0, 0, true)
+
+	layout.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			returnToTree()
 			return nil
 		}
-
-		// For any other key, let the modal handle it normally (like Tab, Enter)
 		return event
 	})
 
-	App.SetRoot(modal, true).SetFocus(modal)
+	App.SetRoot(layout, true).SetFocus(form)
 }
 
 // performDeletion actually deletes the marked files
