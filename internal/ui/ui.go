@@ -155,14 +155,15 @@ func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, tree *tview.
 		fileList += fmt.Sprintf("• %s\n", filepath.Base(path))
 	}
 
-	message := fmt.Sprintf("Are you sure you want to delete %d file(s)?\n\n%s\nPress 'y' to confirm, any other key to cancel.",
-		len(markedItems), fileList)
+	message := fmt.Sprintf("ATTENTION: [bold][red]%d[white] files marked for deletion.\n\n", len(markedItems))
+	message += "Type the following code and press Enter to confirm deletion:\n\n"
+	message += fmt.Sprintf("[yellow]%s[white]\n\n", GenConfirmationCode())
+
 	modal := tview.NewModal().
 		SetText(message).
 		AddButtons([]string{"Cancel", "Delete"}).
 		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 			App.SetRoot(tree, true).SetFocus(tree)
-
 			// If user clicked "Delete" button (index 1)
 			if buttonIndex == 1 {
 				performDeletion(markedItems, tree)
