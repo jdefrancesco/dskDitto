@@ -2,8 +2,10 @@ package ui
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"time"
 
 	"ditto/internal/dfs"
 	"ditto/internal/dmap"
@@ -228,4 +230,23 @@ func autoMarkDuplicates(tree *tview.TreeView, markedItems map[string]*tview.Tree
 			dsklog.Dlogger.Infof("Auto-marked file for deletion: %s", filePath)
 		}
 	}
+}
+
+// GenConfirmationCode generates a random alphanumeric confirmation code
+// user will need to type to confirm the deletion of files.
+func GenConfirmationCode() string {
+
+	const kAlnum = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	// #nosec G404 -- used intentionally. Not being used for crypto just UX.
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	length := r.Intn(4) + 5 // Random length between 5 and 8
+	code := make([]byte, length)
+
+	for i := range code {
+		code[i] = kAlnum[r.Intn(len(kAlnum))]
+	}
+
+	return string(code)
+
 }
