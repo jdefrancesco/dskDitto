@@ -24,11 +24,13 @@ var App *tview.Application = tview.NewApplication()
 // LaunchTUI launches the TUI.
 func LaunchTUI(dMap *dmap.Dmap) {
 
+	// Create the tree view.
 	tree := tview.NewTreeView().
 		SetRoot(tview.NewTreeNode("Duplicates").
 			SetColor(tcell.ColorGreen)).
 		SetTopLevel(0)
 
+	// Border styling and title
 	tree.SetBorder(true).
 		SetBorderPadding(0, 0, 1, 1).
 		SetTitleColor(tcell.ColorDeepSkyBlue).
@@ -42,6 +44,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 	markedItems := make(map[string]*tview.TreeNode)
 
 	// Auto-mark all but the first file in each duplicate group for deletion
+	// This is supposed to be a UX convenience feature.
 	autoMarkDuplicates(tree, markedItems)
 
 	root := tree.GetRoot()
@@ -87,8 +90,8 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		return event
 	})
 
+	// Expand or collapse the node.
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
-		// Expand or collapse the node.
 		if node.IsExpanded() {
 			node.Collapse()
 		} else {

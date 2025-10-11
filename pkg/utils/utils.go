@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"unicode"
 )
 
 // Our size constants. Powers of two!
@@ -34,4 +35,9 @@ func DisplaySize(bytes uint64) string {
 	default:
 		return fmt.Sprintf("%.2f EiB", float64(bytes)/float64(EiB))
 	}
+}
+
+// IsAlphanumeric checks if a rune is alphanumeric (letter or digit)
+func IsAlphanumeric(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
