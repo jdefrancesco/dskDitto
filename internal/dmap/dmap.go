@@ -94,7 +94,8 @@ func (d *Dmap) PrintDmap() {
 		if len(v) < 2 {
 			continue
 		}
-		fmt.Printf("Hash: %s  \n ---> Files: \n", k)
+		hash := fmt.Sprintf("%x", k)
+		fmt.Printf("Hash: %s  \n ---> Files: \n", hash)
 		for i, f := range v {
 			fmt.Printf("\t%d: %s \n", i, f)
 		}
@@ -102,12 +103,12 @@ func (d *Dmap) PrintDmap() {
 	}
 }
 
-// ShowResults will display duplicates held in our Dmap as
+// ShowResultsPretty will display duplicates held in our Dmap as
 // a pretty tree.
 // NOTE: Pterm takes a very long time to render this table for some reason.
 //
 //	The primary method of viewing the results is via the TUI.
-func (d *Dmap) ShowResults() {
+func (d *Dmap) ShowResultsPretty() {
 
 	// Banner
 	var leveledList pterm.LeveledList
@@ -133,7 +134,7 @@ func (d *Dmap) ShowResults() {
 
 // ShowResultsBullet will display duplicates held in our Dmap as
 // a bullet list..
-func (d *Dmap) ShowAllResults() {
+func (d *Dmap) ShowResultsBullet() {
 
 	var bl []pterm.BulletListItem
 	for hash, files := range d.filesMap {
@@ -141,7 +142,8 @@ func (d *Dmap) ShowAllResults() {
 		if len(files) < 2 {
 			continue
 		}
-		pterm.Println(pterm.Green("Hash: ") + pterm.Cyan(hash))
+		h := fmt.Sprintf("%x", hash)
+		pterm.Println(pterm.Green("Hash: ") + pterm.Cyan(h))
 		for _, f := range files {
 			blContent := pterm.BulletListItem{Level: 0, Text: f}
 			bl = append(bl, blContent)

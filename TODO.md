@@ -1,10 +1,10 @@
 # TODO
 
-* Refactor ShowResults to use a single function for all output. The format will depend on output flag we pass it.
 
 1. Add skip zero size files 
 2. Handle symlinks similar to duff
 3. Decide if we want to process dotfiles (hidden)  by default or make it an option. duff skips.
+
 ---
 
 * Update README.md with modern screenshots and examples.

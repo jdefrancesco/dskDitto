@@ -84,6 +84,8 @@ func main() {
 		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput   = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
+		flShowBullets  = flag.Bool("bullets", false, "Show duplicates as formatted bullet list.")
+		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
 		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
@@ -193,6 +195,18 @@ MainLoop:
 	// Dump results to stdout. Useful for scripting.
 	if *flTextOutput {
 		dMap.PrintDmap()
+		os.Exit(0)
+	}
+
+	// Dump pretty using Pterm. Not default because it can be slow for large sets.
+	if *flShowPretty {
+		dMap.ShowResultsPretty()
+		os.Exit(0)
+	}
+
+	// Dump as bullets.
+	if *flShowBullets {
+		dMap.ShowResultsBullet()
 		os.Exit(0)
 	}
 
