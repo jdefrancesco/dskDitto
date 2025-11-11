@@ -41,7 +41,7 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 
 	// The terminal settings might be in a state that messes up
 	// future output. To be safe I reset them.
-	ui.App.Stop()
+	ui.StopTUI()
 
 	switch sig {
 	case syscall.SIGINT:
