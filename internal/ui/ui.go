@@ -5,124 +5,364 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"ditto/internal/dfs"
 	"ditto/internal/dmap"
 	"ditto/internal/dsklog"
-
 	"ditto/pkg/utils"
 
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// Global app instance. We need this to launch the TUI and may also want other
-// TUI components in main.
-var App *tview.Application = tview.NewApplication()
+// Styles using Lip Gloss
+var (
+	titleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("86")).
+			Bold(true).
+			Padding(0, 1)
 
-// LaunchTUI launches the TUI.
+	borderStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("35")).
+			Padding(0, 1)
+
+	normalFileStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252"))
+
+	markedFileStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+
+	selectedStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("240")).
+			Bold(true)
+
+	headerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Bold(true)
+
+	helpStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")).
+			Italic(true)
+)
+
+// TreeNode represents a node in the tree
+type TreeNode struct {
+	Text       string
+	Children   []*TreeNode
+	Expanded   bool
+	Level      int
+	IsFile     bool
+	FilePath   string
+	IsMarked   bool
+	Parent     *TreeNode
+}
+
+// Model holds the state of the TUI
+type Model struct {
+	dMap          *dmap.Dmap
+	root          *TreeNode
+	flatList      []*TreeNode
+	cursor        int
+	markedFiles   map[string]*TreeNode
+	showingDialog bool
+	dialogInput   string
+	dialogCode    string
+	dialogError   string
+	quitting      bool
+}
+
+// Program instance to allow stopping from main
+var Program *tea.Program
+
+// LaunchTUI launches the TUI using Bubble Tea
 func LaunchTUI(dMap *dmap.Dmap) {
+	m := initialModel(dMap)
+	Program = tea.NewProgram(m, tea.WithAltScreen())
 
-	// Create the tree view.
-	tree := tview.NewTreeView().
-		SetRoot(tview.NewTreeNode("Duplicates").
-			SetColor(tcell.ColorGreen)).
-		SetTopLevel(0)
-
-	// Border styling and title
-	tree.SetBorder(true).
-		SetBorderPadding(0, 0, 1, 1).
-		SetTitleColor(tcell.ColorDeepSkyBlue).
-		SetTitle("dskDitto: Interactive Duplicate Management [m=mark, d=delete, q=quit]").
-		SetBorderColor(tcell.ColorGreen)
-
-	// Add the nodes to the tree.
-	addTreeData(tree, dMap)
-
-	// Map to keep track of marked items
-	markedItems := make(map[string]*tview.TreeNode)
-
-	// Auto-mark all but the first file in each duplicate group for deletion
-	// This is supposed to be a UX convenience feature.
-	autoMarkDuplicates(tree, markedItems)
-
-	root := tree.GetRoot()
-	if root != nil && len(root.GetChildren()) > 0 {
-		// We want arrow keys to be able to navigate through the tree.
-		tree.SetCurrentNode(root.GetChildren()[0])
-	}
-
-	// Key bindings for user actions
-	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Key() {
-		// Stop the app. Quit view.
-		case tcell.KeyEsc:
-			App.Stop()
-		case tcell.KeyRune:
-			switch event.Rune() {
-			case 'q':
-				App.Stop()
-
-			// mark/unmark current file for deletion
-			case 'm':
-				currentNode := tree.GetCurrentNode()
-				if currentNode.GetLevel() != 2 {
-					goto Skip
-				}
-				filePath := currentNode.GetText()
-				if _, ok := markedItems[filePath]; !ok {
-					markedItems[filePath] = currentNode
-					currentNode.SetColor(tcell.ColorRed)
-				} else {
-					currentNode.SetColor(tcell.ColorWhite)
-					delete(markedItems, filePath)
-				}
-
-			case 'd':
-				if len(markedItems) == 0 {
-					goto Skip
-				}
-				showDeleteConfirmation(markedItems, tree)
-			}
-		}
-	Skip:
-		return event
-	})
-
-	// Expand or collapse the node.
-	tree.SetSelectedFunc(func(node *tview.TreeNode) {
-		if node.IsExpanded() {
-			node.Collapse()
-		} else {
-			node.Expand()
-		}
-	})
-
-	// Launch the TUI.
-	if err := App.SetRoot(tree, true).
-		EnableMouse(true).
-		SetFocus(tree).
-		Run(); err != nil {
-		panic(err)
+	if _, err := Program.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)
+		os.Exit(1)
 	}
 }
 
-// addTreeData adds the duplicate file information to the tree.
-func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
+// initialModel creates the initial model for the TUI
+func initialModel(dMap *dmap.Dmap) Model {
+	root := buildTree(dMap)
+	markedFiles := make(map[string]*TreeNode)
+	
+	// Auto-mark all but the first file in each duplicate group
+	autoMarkFiles(root, markedFiles)
+	
+	m := Model{
+		dMap:        dMap,
+		root:        root,
+		markedFiles: markedFiles,
+		cursor:      0,
+	}
+	
+	// Build flat list for navigation
+	m.rebuildFlatList()
+	
+	return m
+}
 
-	// Ensure tree and dMap are not nil
-	if tree == nil || dMap == nil {
-		dsklog.Dlogger.Debug("tree or dMap is nil")
+// Init is called when the program starts
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles messages and updates the model
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.showingDialog {
+		return m.updateDialog(msg)
 	}
 
-	if tree.GetRoot() == nil {
-		tree.SetRoot(tview.NewTreeNode("Root"))
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "esc":
+			m.quitting = true
+			return m, tea.Quit
+
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+
+		case "down", "j":
+			if m.cursor < len(m.flatList)-1 {
+				m.cursor++
+			}
+
+		case "enter", " ":
+			// Toggle expand/collapse
+			if m.cursor < len(m.flatList) {
+				node := m.flatList[m.cursor]
+				if !node.IsFile && len(node.Children) > 0 {
+					node.Expanded = !node.Expanded
+					m.rebuildFlatList()
+				}
+			}
+
+		case "m":
+			// Mark/unmark file
+			if m.cursor < len(m.flatList) {
+				node := m.flatList[m.cursor]
+				if node.IsFile {
+					if _, ok := m.markedFiles[node.FilePath]; ok {
+						delete(m.markedFiles, node.FilePath)
+						node.IsMarked = false
+					} else {
+						m.markedFiles[node.FilePath] = node
+						node.IsMarked = true
+					}
+				}
+			}
+
+		case "d":
+			// Show delete confirmation
+			if len(m.markedFiles) > 0 {
+				m.showingDialog = true
+				m.dialogCode = GenConfirmationCode()
+				m.dialogInput = ""
+				m.dialogError = ""
+			}
+		}
 	}
 
-	// Add the hash as root node and the files as children.
+	return m, nil
+}
+
+// updateDialog handles updates when the delete confirmation dialog is shown
+func (m Model) updateDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			m.showingDialog = false
+			m.dialogInput = ""
+			m.dialogError = ""
+
+		case "enter":
+			if m.dialogInput == m.dialogCode {
+				// Perform deletion
+				performDeletion(m.markedFiles)
+				m.showingDialog = false
+				m.dialogInput = ""
+				m.dialogError = ""
+				// Rebuild flat list to show deleted files
+				m.rebuildFlatList()
+			} else {
+				m.dialogError = "Incorrect code. Try again."
+				m.dialogInput = ""
+			}
+
+		case "backspace":
+			if len(m.dialogInput) > 0 {
+				m.dialogInput = m.dialogInput[:len(m.dialogInput)-1]
+			}
+
+		default:
+			// Add character to input if it's alphanumeric and within length
+			if len(msg.String()) == 1 && len(m.dialogInput) < len(m.dialogCode) {
+				ch := msg.String()[0]
+				if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+					m.dialogInput += msg.String()
+				}
+			}
+		}
+	}
+
+	return m, nil
+}
+
+// View renders the UI
+func (m Model) View() string {
+	if m.quitting {
+		return ""
+	}
+
+	if m.showingDialog {
+		return m.renderDialog()
+	}
+
+	var b strings.Builder
+
+	// Title
+	title := titleStyle.Render("dskDitto: Interactive Duplicate Management")
+	help := helpStyle.Render("[m=mark, d=delete, q=quit, ↑↓=navigate, enter=expand/collapse]")
+	b.WriteString(title + "\n")
+	b.WriteString(help + "\n\n")
+
+	// Render tree
+	for i, node := range m.flatList {
+		b.WriteString(m.renderNode(node, i == m.cursor))
+		b.WriteString("\n")
+	}
+
+	// Footer with marked count
+	if len(m.markedFiles) > 0 {
+		footer := helpStyle.Render(fmt.Sprintf("\n%d file(s) marked for deletion", len(m.markedFiles)))
+		b.WriteString(footer)
+	}
+
+	return borderStyle.Render(b.String())
+}
+
+// renderNode renders a single tree node
+func (m Model) renderNode(node *TreeNode, selected bool) string {
+	indent := strings.Repeat("  ", node.Level)
+	
+	var prefix string
+	if !node.IsFile {
+		if node.Expanded {
+			prefix = "▼ "
+		} else {
+			prefix = "▶ "
+		}
+	} else {
+		prefix = "  "
+	}
+
+	text := indent + prefix + node.Text
+
+	var style lipgloss.Style
+	if node.IsFile && node.IsMarked {
+		style = markedFileStyle
+	} else if node.IsFile {
+		style = normalFileStyle
+	} else {
+		style = headerStyle
+	}
+
+	if selected {
+		style = style.Inherit(selectedStyle)
+	}
+
+	return style.Render(text)
+}
+
+// renderDialog renders the delete confirmation dialog
+func (m Model) renderDialog() string {
+	var b strings.Builder
+
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(lipgloss.Color("196")).
+		Padding(1, 2).
+		Width(60)
+
+	b.WriteString(fmt.Sprintf("Type the confirmation code below to delete %d file(s):\n\n", len(m.markedFiles)))
+	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true).Render(m.dialogCode))
+	b.WriteString("\n\n")
+	b.WriteString(fmt.Sprintf("Code: %s\n", m.dialogInput))
+
+	if m.dialogError != "" {
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(m.dialogError))
+	}
+
+	b.WriteString("\n\n")
+	b.WriteString(helpStyle.Render("[enter=confirm, esc=cancel]"))
+
+	return lipgloss.Place(
+		80, 24,
+		lipgloss.Center, lipgloss.Center,
+		dialogStyle.Render(b.String()),
+	)
+}
+
+// rebuildFlatList rebuilds the flat list of visible nodes for navigation
+func (m *Model) rebuildFlatList() {
+	m.flatList = nil
+	m.flattenTree(m.root)
+	
+	// Ensure cursor is within bounds
+	if m.cursor >= len(m.flatList) {
+		m.cursor = len(m.flatList) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+}
+
+// flattenTree recursively flattens the tree into a list
+func (m *Model) flattenTree(node *TreeNode) {
+	if node == nil {
+		return
+	}
+	
+	// Don't add the root node itself
+	if node.Level >= 0 && node.Text != "Root" {
+		m.flatList = append(m.flatList, node)
+	}
+	
+	if node.Expanded || node.Level < 0 {
+		for _, child := range node.Children {
+			m.flattenTree(child)
+		}
+	}
+}
+
+// buildTree builds the tree structure from the duplicate map
+func buildTree(dMap *dmap.Dmap) *TreeNode {
+	root := &TreeNode{
+		Text:     "Root",
+		Level:    -1,
+		Expanded: true,
+	}
+
+	if dMap == nil {
+		dsklog.Dlogger.Debug("dMap is nil")
+		return root
+	}
+
+	// Add the hash as parent node and the files as children
 	for hash, files := range dMap.GetMap() {
-
 		if len(hash) == 0 {
 			continue
 		}
@@ -134,167 +374,65 @@ func addTreeData(tree *tview.TreeView, dMap *dmap.Dmap) {
 			// Create header with relevant information - display first 8 characters of hex hash
 			hashHex := fmt.Sprintf("%x", hash[:4]) // Show first 4 bytes as 8 hex chars
 			header := fmt.Sprintf(fmt_str, hashHex, len(files), utils.DisplaySize(totalSize))
-			dupSet := tview.NewTreeNode(header).SetSelectable(true)
-			// Add our children under header.
+			
+			groupNode := &TreeNode{
+				Text:     header,
+				Level:    0,
+				Expanded: true,
+				IsFile:   false,
+				Parent:   root,
+			}
+
+			// Add files as children
 			for _, file := range files {
-				dupSet.AddChild(tview.NewTreeNode(file)).
-					SetColor(tcell.ColorLightGreen)
+				fileNode := &TreeNode{
+					Text:     file,
+					Level:    1,
+					IsFile:   true,
+					FilePath: file,
+					Parent:   groupNode,
+				}
+				groupNode.Children = append(groupNode.Children, fileNode)
 			}
-			tree.GetRoot().AddChild(dupSet)
+
+			root.Children = append(root.Children, groupNode)
 		}
 	}
 
-}
-
-// showDeleteConfirmation displays a confirmation prompt requiring a typed code before deleting files.
-func showDeleteConfirmation(markedItems map[string]*tview.TreeNode, tree *tview.TreeView) {
-
-	// Get code user must type
-	code := GenConfirmationCode()
-
-	// var fileListBuilder strings.Builder
-	// for path := range markedItems {
-	// 	fileListBuilder.WriteString("• ")
-	// 	fileListBuilder.WriteString(filepath.Base(path))
-	// 	fileListBuilder.WriteByte('\n')
-	// }
-	// fileList := strings.TrimSuffix(fileListBuilder.String(), "\n")
-
-	infoText := fmt.Sprintf(
-		"[white]Type the confirmation code below to delete [yellow]%d[white] file(s):\n\n[yellow]%s[white]\n",
-		len(markedItems),
-		code,
-	)
-	// if fileList != "" {
-	// 	infoText += fmt.Sprintf("\nMarked files:\n[gray]%s[white]", fileList)
-	// }
-
-	// Information view
-	infoView := tview.NewTextView().
-		SetDynamicColors(true).
-		SetWrap(true).
-		SetScrollable(false).
-		SetText(infoText)
-
-	infoView.SetLabel("")
-	infoView.SetDisabled(true)
-
-	// Error view
-	errorView := tview.NewTextView().
-		SetDynamicColors(true).
-		SetWrap(true).
-		SetScrollable(false).
-		SetTextAlign(tview.AlignCenter).
-		SetText("")
-
-	errorView.SetLabel("")
-	errorView.SetDisabled(true)
-	errorView.SetSize(1, 0)
-
-	inputField := tview.NewInputField().
-		SetLabel("Code: ").
-		SetFieldWidth(len(code)).
-		SetAcceptanceFunc(func(text string, ch rune) bool {
-			if ch == 0 {
-				return true
-			}
-			if len(text) >= len(code) {
-				return false
-			}
-			if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
-				return true
-			}
-			return false
-		})
-
-	returnToTree := func() {
-		App.SetRoot(tree, true).SetFocus(tree)
-	}
-
-	confirmDeletion := func() {
-		if inputField.GetText() != code {
-			errorView.SetText("[red]Incorrect code. Try again.")
-			inputField.SetText("")
-			App.SetFocus(inputField)
-			App.Draw()
-			return
-		}
-		returnToTree()
-		performDeletion(markedItems, tree)
-	}
-
-	inputField.SetDoneFunc(func(key tcell.Key) {
-		switch key {
-		case tcell.KeyEnter:
-			confirmDeletion()
-		case tcell.KeyEscape:
-			returnToTree()
-		}
-	})
-
-	form := tview.NewForm()
-	form.AddFormItem(infoView).
-		AddFormItem(errorView).
-		AddFormItem(inputField).
-		AddButton("Delete", confirmDeletion).
-		AddButton("Cancel", returnToTree).
-		SetButtonsAlign(tview.AlignCenter)
-	form.SetBorder(true)
-	form.SetTitle("Confirm Deletion")
-	form.SetCancelFunc(returnToTree)
-	form.SetFocus(2) // focus the code field when the form gains focus
-
-	layout := tview.NewGrid().
-		SetRows(0, 0, 0).
-		SetColumns(0, 60, 0).
-		AddItem(form, 1, 1, 1, 1, 0, 0, true)
-
-	layout.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyEscape {
-			returnToTree()
-			return nil
-		}
-		return event
-	})
-
-	App.SetRoot(layout, true).SetFocus(form)
+	return root
 }
 
 // performDeletion actually deletes the marked files
-func performDeletion(markedItems map[string]*tview.TreeNode, tree *tview.TreeView) {
-	for path, node := range markedItems {
+func performDeletion(markedFiles map[string]*TreeNode) {
+	for path, node := range markedFiles {
 		err := os.Remove(path)
 		if err != nil {
 			dsklog.Dlogger.Errorf("Failed to delete file %s: %v", path, err)
-			node.SetColor(tcell.ColorGray).SetText("[ERROR] " + filepath.Base(path))
+			node.Text = "[ERROR] " + filepath.Base(path)
 		} else {
 			dsklog.Dlogger.Infof("Successfully deleted file: %s", path)
-			node.SetColor(tcell.ColorGray).SetText("[DELETED] " + filepath.Base(path))
+			node.Text = "[DELETED] " + filepath.Base(path)
 		}
 	}
-	App.Draw()
 }
 
-// autoMarkDuplicates automatically marks all but the first file in each duplicate group for deletion
-func autoMarkDuplicates(tree *tview.TreeView, markedItems map[string]*tview.TreeNode) {
-	root := tree.GetRoot()
+// autoMarkFiles automatically marks all but the first file in each duplicate group for deletion
+func autoMarkFiles(root *TreeNode, markedFiles map[string]*TreeNode) {
 	if root == nil {
 		return
 	}
 
-	for _, groupNode := range root.GetChildren() {
-		children := groupNode.GetChildren()
-		if len(children) <= 1 {
+	for _, groupNode := range root.Children {
+		if len(groupNode.Children) <= 1 {
 			continue
 		}
-		for i, childNode := range children {
+		for i, fileNode := range groupNode.Children {
 			if i == 0 {
 				continue
 			}
-			filePath := childNode.GetText()
-			markedItems[filePath] = childNode
-			childNode.SetColor(tcell.ColorRed)
-			dsklog.Dlogger.Infof("Auto-marked file for deletion: %s", filePath)
+			markedFiles[fileNode.FilePath] = fileNode
+			fileNode.IsMarked = true
+			dsklog.Dlogger.Infof("Auto-marked file for deletion: %s", fileNode.FilePath)
 		}
 	}
 }
