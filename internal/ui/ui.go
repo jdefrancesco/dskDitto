@@ -17,6 +17,7 @@ import (
 	"ditto/pkg/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // LaunchTUI builds and runs the Bubble Tea program that visualizes duplicate files.
@@ -47,6 +48,37 @@ func StopTUI() {
 var (
 	programMu      sync.Mutex
 	currentProgram *tea.Program
+)
+
+var (
+	titleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#5DFDCB")).
+			Bold(true).
+			PaddingBottom(1)
+	helpStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
+	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#5DFDCB")).Bold(true)
+	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
+	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#EAB308")).Bold(true)
+	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
+	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
+	selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
+	markedStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FB7185")).Bold(true)
+	unmarkedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
+	statusDeletedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
+	statusErrorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+	statusInfoStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA"))
+	footerStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	resultStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
+	emptyStateStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8")).Italic(true)
+
+	confirmPanelStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("#5DFDCB")).
+				Padding(1, 2)
+	confirmCodeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
+	confirmInputStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E2E8F0"))
+	errorTextStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
 )
 
 func setCurrentProgram(p *tea.Program) {
@@ -230,71 +262,51 @@ func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) renderTreeView() string {
-	var b strings.Builder
+	width := m.effectiveWidth()
+	divider := dividerStyle.Render(strings.Repeat("─", width))
 
-	title := "dskDitto: Interactive Duplicate Management [enter=expand/collapse, m=mark, d=delete, q=quit]"
-	b.WriteString(title)
-	b.WriteString("\n")
-	b.WriteString(strings.Repeat("-", min(len(title), 80)))
-	b.WriteString("\n\n")
+	var sections []string
+	sections = append(sections,
+		titleStyle.Render("dskDitto • Interactive Duplicate Management"),
+		helpStyle.Render("enter expand/collapse • m mark files • d delete marked • q quit"))
+	sections = append(sections, divider)
 
 	if len(m.visible) == 0 {
-		b.WriteString("No duplicate groups found. Press q to exit.\n")
-		return b.String()
-	}
-
-	for i, ref := range m.visible {
-		selected := i == m.cursor
-		switch ref.typ {
-		case nodeGroup:
-			group := m.groups[ref.group]
-			indicator := "[+]"
-			if group.Expanded {
-				indicator = "[-]"
-			}
-			cursor := " "
-			if selected {
-				cursor = ">"
-			}
-			fmt.Fprintf(&b, "%s %s %s\n", cursor, indicator, group.Title)
-		case nodeFile:
-			entry := m.groups[ref.group].Files[ref.file]
-			cursor := " "
-			if selected {
-				cursor = ">"
-			}
-			mark := "[ ]"
-			if entry.Marked {
-				mark = "[x]"
-			}
-			fmt.Fprintf(&b, "%s     %s %s%s\n", cursor, mark, entry.Path, formatFileStatus(entry))
+		sections = append(sections, emptyStateStyle.Render("No duplicate groups found. Press q to exit."))
+	} else {
+		for i, ref := range m.visible {
+			sections = append(sections, m.renderNodeLine(ref, i == m.cursor))
 		}
 	}
 
-	fmt.Fprintf(&b, "\nMarked files: %d", m.countMarked())
+	sections = append(sections, divider)
+	sections = append(sections, footerStyle.Render(fmt.Sprintf("Marked files: %d", m.countMarked())))
 	if m.deleteResult != "" {
-		fmt.Fprintf(&b, "\n%s", m.deleteResult)
+		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
-	b.WriteString("\nPress Esc or q to exit.")
+	sections = append(sections, footerStyle.Render("Esc/q exit • Arrow keys navigate • m toggle selection"))
 
-	return b.String()
+	return strings.Join(sections, "\n")
 }
 
 func (m *model) renderConfirmView() string {
-	var b strings.Builder
-
-	b.WriteString("Confirm Deletion\n")
-	b.WriteString(strings.Repeat("-", 80))
-	b.WriteString("\n\n")
-	fmt.Fprintf(&b, "You are about to delete %d file(s).\n", m.countMarked())
-	fmt.Fprintf(&b, "Confirmation code: %s\n", m.confirmCode)
-	fmt.Fprintf(&b, "Input: %s\n", m.confirmInput)
-	if m.confirmError != "" {
-		fmt.Fprintf(&b, "\n%s\n", m.confirmError)
+	width := m.effectiveWidth()
+	content := []string{
+		titleStyle.Render("Confirm Deletion"),
+		statusInfoStyle.Render(fmt.Sprintf("You are about to delete %d file(s).", m.countMarked())),
+		"",
+		fmt.Sprintf("Confirmation code: %s", confirmCodeStyle.Render(m.confirmCode)),
+		fmt.Sprintf("Your input: %s", confirmInputStyle.Render(m.confirmInput)),
 	}
-	b.WriteString("\nEnter to confirm, Esc to cancel.")
 
-	return b.String()
+	if m.confirmError != "" {
+		content = append(content, "", errorTextStyle.Render(m.confirmError))
+	}
+
+	content = append(content, "", footerStyle.Render("Enter confirms • Esc cancels"))
+	panel := confirmPanelStyle.Width(min(width, 80)).Render(strings.Join(content, "\n"))
+	renderWidth := max(width, lipgloss.Width(panel))
+	return lipgloss.Place(renderWidth, lipgloss.Height(panel), lipgloss.Center, lipgloss.Center, panel)
 }
 
 func (m *model) moveCursor(delta int) {
@@ -463,17 +475,65 @@ func (m *model) rebuildVisibleNodes() {
 	}
 }
 
+func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
+	cursor := cursorInactiveStyle.Render("  ")
+	if selected {
+		cursor = cursorActiveStyle.Render("▸ ")
+	}
+
+	var content string
+	switch ref.typ {
+	case nodeGroup:
+		group := m.groups[ref.group]
+		indicator := groupCollapsedStyle.Render("▸")
+		if group.Expanded {
+			indicator = groupStyle.Render("▾")
+		}
+		body := lipgloss.JoinHorizontal(lipgloss.Left, indicator, " ", groupStyle.Render(group.Title))
+		content = body
+	case nodeFile:
+		entry := m.groups[ref.group].Files[ref.file]
+		mark := unmarkedStyle.Render("□")
+		if entry.Marked {
+			mark = markedStyle.Render("■")
+		}
+		body := lipgloss.JoinHorizontal(lipgloss.Left,
+			"  "+mark,
+			fileStyle.Render(entry.Path),
+			formatFileStatus(entry),
+		)
+		content = body
+	}
+
+	line := lipgloss.JoinHorizontal(lipgloss.Left, cursor, content)
+	if selected {
+		return selectedLineStyle.Render(line)
+	}
+	return line
+}
+
 func formatFileStatus(entry *fileEntry) string {
 	switch entry.Status {
 	case fileStatusDeleted:
-		return " [DELETED]"
+		return " " + statusDeletedStyle.Render("DELETED")
 	case fileStatusError:
 		if entry.Message != "" {
-			return " [ERROR: " + entry.Message + "]"
+			return " " + statusErrorStyle.Render("ERROR: "+entry.Message)
 		}
-		return " [ERROR]"
+		return " " + statusErrorStyle.Render("ERROR")
 	default:
 		return ""
+	}
+}
+
+func (m *model) effectiveWidth() int {
+	switch {
+	case m.width <= 0:
+		return 80
+	case m.width > 120:
+		return 120
+	default:
+		return m.width
 	}
 }
 
@@ -522,6 +582,13 @@ func GenConfirmationCode() string {
 
 func min(a, b int) int {
 	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
 		return a
 	}
 	return b
