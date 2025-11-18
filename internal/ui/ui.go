@@ -50,11 +50,13 @@ var (
 	currentProgram *tea.Program
 )
 
+// Color scheme for lip gloss.
 var (
 	titleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#5DFDCB")).
 			Bold(true).
 			PaddingBottom(1)
+
 	helpStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
 	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#5DFDCB")).Bold(true)
@@ -76,6 +78,7 @@ var (
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("#5DFDCB")).
 				Padding(1, 2)
+
 	confirmCodeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
 	confirmInputStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E2E8F0"))
 	errorTextStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
@@ -209,6 +212,7 @@ func (m *model) View() string {
 	return m.renderTreeView()
 }
 
+// handleTreeKeys allows user to navigate the TUI.
 func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "esc", "q":
@@ -231,6 +235,8 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleConfirmKeys ensures the user doesn't shoot themselves in the foot. The files will
+// be removed only if they type the code correctly.
 func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -261,6 +267,7 @@ func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// renderTreeView draws primary tree table the user will interact with.
 func (m *model) renderTreeView() string {
 	width := m.effectiveWidth()
 	divider := dividerStyle.Render(strings.Repeat("─", width))
@@ -309,6 +316,7 @@ func (m *model) renderConfirmView() string {
 	return lipgloss.Place(renderWidth, lipgloss.Height(panel), lipgloss.Center, lipgloss.Center, panel)
 }
 
+// moveCursor moves the indicator on the left of the listed items.
 func (m *model) moveCursor(delta int) {
 	if len(m.visible) == 0 {
 		m.cursor = 0
@@ -380,6 +388,8 @@ func (m *model) toggleCurrentFileMark() {
 	m.deleteResult = ""
 }
 
+// startConfirmationPrompt is modal window to tell user what is about to happen
+// and asking them to confirm moving forward with file removal
 func (m *model) startConfirmationPrompt() {
 	if m.countMarked() == 0 {
 		return
@@ -391,6 +401,7 @@ func (m *model) startConfirmationPrompt() {
 	m.mode = modeConfirm
 }
 
+// processDeletion actually removes the duplicate files.
 func (m *model) processDeletion() {
 	m.mode = modeTree
 	m.confirmInput = ""
@@ -580,16 +591,3 @@ func GenConfirmationCode() string {
 	return string(code)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
