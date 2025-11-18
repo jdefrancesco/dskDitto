@@ -55,18 +55,18 @@ var (
 var (
 	headerBG   = lipgloss.Color("#47484aff")
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#41ed5e93")).
+			Foreground(lipgloss.Color("#7fe02aaf")).
 			Background(headerBG).
-			Bold(false).
+			Bold(true).
 			PaddingBottom(0)
 
 	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
-	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#5DFDCB")).Bold(true)
+	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#df5353ff")).Bold(true)
 	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
 	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#EAB308")).Bold(true)
 	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
 	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
-	selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
+	// selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
 	// Files marked for removal are green.
 	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#86fb71ff")).Bold(true)
 	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
@@ -384,7 +384,7 @@ func (m *model) renderTreeView() string {
 	if m.deleteResult != "" {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
-	sections = append(sections, footerStyle.Render("enter expand/collapse • arrow keys navigate • m toggle selection • d delete marked files • esc/q exit "))
+	sections = append(sections, footerStyle.Render("enter expand/collapse • arrow keys navigate • m toggle selection • s select all • u clear selection • d delete marked • esc/q exit"))
 
 	return strings.Join(sections, "\n")
 }
@@ -728,9 +728,6 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 	}
 
 	line := lipgloss.JoinHorizontal(lipgloss.Left, cursor, content)
-	if selected {
-		return selectedLineStyle.Render(line)
-	}
 	return line
 }
 

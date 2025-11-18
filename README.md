@@ -14,9 +14,24 @@ See TODO.txt
 
 ## Screenshots
 
-![dskDitto-1](./ss/dskDitto-ss-one.png)
 
-![dslDotto-2](./ss/dskDitto-ss-two.png)
+### `dskDitto` invoked with only to show duplicates as table.
+
+![dskDitto-0](./ss/ss-pretty.png)
+
+### `dskDitto` has awesome TUI for interactively choosing files to remove or keep.
+
+![dskDitto-1](./ss/ss-tui.png)
+
+### `dskDitto` confirmation window ensures you don't shoot yourself in foot!
+
+![dskDitto-2](./ss/ss-confirm.png)
+
+### `dskDitto` screen shots (older)
+
+![dskDitto-3](./ss/dskDitto-ss-one.png)
+
+![dslDotto-4](./ss/dskDitto-ss-two.png)
 
 ## Building
 
