@@ -53,12 +53,13 @@ var (
 
 // Color scheme for lip gloss.
 var (
+	headerBG   = lipgloss.Color("#0B1220")
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#B8BB26")).
+			Foreground(lipgloss.Color("#FBBF24")).
+			Background(headerBG).
 			Bold(true).
-			PaddingBottom(1)
+			PaddingBottom(0)
 
-	helpStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
 	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#5DFDCB")).Bold(true)
 	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
@@ -343,11 +344,10 @@ func (m *model) renderTreeView() string {
 	divider := dividerStyle.Render(strings.Repeat("─", width))
 
 	var sections []string
-	title := "[dskDitto] • Interactive Duplicate Removal Menu"
+	title := "dskDitto • Interactive Duplicate Management"
 	// Ensure header lines never wrap off-screen on narrow terminals.
 	sections = append(sections,
-		titleStyle.Render(runewidth.Truncate(title, width, "…")))
-	// helpStyle.Render(runewidth.Truncate(help, width, "…")))
+		titleStyle.Width(width).Render(runewidth.Truncate(title, width, "…")))
 	sections = append(sections, divider)
 
 	if len(m.visible) == 0 {
@@ -742,9 +742,9 @@ func (m *model) listAreaHeight() int {
 	if h <= 0 {
 		h = 24
 	}
-	// Static rows: title (1) + help (1) + top divider (1) + bottom divider (1)
-	// + marked footer (1) + instructions (1) = 6
-	reserved := 6
+	// Static rows: title (1) + top divider (1) + bottom divider (1)
+	// + marked footer (1) + instructions (1) = 5
+	reserved := 5
 	if m.deleteResult != "" {
 		reserved++ // extra line when we show the deletion result
 	}
@@ -753,8 +753,8 @@ func (m *model) listAreaHeight() int {
 
 // listTopOffset returns the number of rows occupied above the list.
 func (m *model) listTopOffset() int {
-	// title (1) + help (1) + top divider (1)
-	return 3
+	// title (1) + top divider (1)
+	return 2
 }
 
 // adjustScroll ensures the scroll offset keeps the cursor within the viewport
