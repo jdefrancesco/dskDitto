@@ -144,6 +144,7 @@ type model struct {
 	groups  []*duplicateGroup
 	visible []nodeRef
 	cursor  int
+	scroll  int
 
 	mode viewMode
 
@@ -201,6 +202,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.adjustScroll()
 	}
 	return m, nil
 }
@@ -214,6 +216,7 @@ func (m *model) View() string {
 
 // handleTreeKeys allows user to navigate the TUI.
 func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Prefer string-based matching for common keys.
 	switch msg.String() {
 	case "ctrl+c", "esc", "q":
 		return m, tea.Quit
@@ -225,12 +228,23 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.collapseCurrentGroup()
 	case "right", "l":
 		m.expandCurrentGroup()
+	case "pgup":
+		m.pageMove(-1)
+	case "pgdown", "pgdn":
+		m.pageMove(1)
 	case "enter":
 		m.toggleCurrentGroup()
 	case "m":
 		m.toggleCurrentFileMark()
 	case "d":
 		m.startConfirmationPrompt()
+	}
+	// Also catch PageUp/PageDown by key type for wider terminal support.
+	switch msg.Type {
+	case tea.KeyPgUp:
+		m.pageMove(-1)
+	case tea.KeyPgDown:
+		m.pageMove(1)
 	}
 	return m, nil
 }
@@ -281,7 +295,21 @@ func (m *model) renderTreeView() string {
 	if len(m.visible) == 0 {
 		sections = append(sections, emptyStateStyle.Render("No duplicate groups found. Press q to exit."))
 	} else {
-		for i, ref := range m.visible {
+		// Render only the portion of the list that fits in the viewport.
+		contentH := m.listAreaHeight()
+		if contentH < 1 {
+			contentH = 1
+		}
+		start := m.scroll
+		if start < 0 {
+			start = 0
+		}
+		end := start + contentH
+		if end > len(m.visible) {
+			end = len(m.visible)
+		}
+		for i := start; i < end; i++ {
+			ref := m.visible[i]
 			sections = append(sections, m.renderNodeLine(ref, i == m.cursor))
 		}
 	}
@@ -330,6 +358,30 @@ func (m *model) moveCursor(delta int) {
 	if m.cursor >= len(m.visible) {
 		m.cursor = len(m.visible) - 1
 	}
+	m.adjustScroll()
+}
+
+// pageMove moves the cursor up or down by one viewport height and adjusts scroll.
+func (m *model) pageMove(direction int) {
+	if len(m.visible) == 0 {
+		return
+	}
+	amount := m.listAreaHeight()
+	if amount < 1 {
+		amount = 1
+	}
+	if direction < 0 {
+		m.cursor -= amount
+	} else {
+		m.cursor += amount
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor >= len(m.visible) {
+		m.cursor = len(m.visible) - 1
+	}
+	m.adjustScroll()
 }
 
 func (m *model) currentNode() *nodeRef {
@@ -476,6 +528,7 @@ func (m *model) rebuildVisibleNodes() {
 	}
 	if len(m.visible) == 0 {
 		m.cursor = 0
+		m.scroll = 0
 		return
 	}
 	if m.cursor >= len(m.visible) {
@@ -484,6 +537,7 @@ func (m *model) rebuildVisibleNodes() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
+	m.adjustScroll()
 }
 
 func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
@@ -548,6 +602,68 @@ func (m *model) effectiveWidth() int {
 	}
 }
 
+// listAreaHeight returns how many rows are available to render the list
+// given the current terminal height and static header/footer rows.
+func (m *model) listAreaHeight() int {
+	h := m.height
+	if h <= 0 {
+		h = 24
+	}
+	// Static rows: title (1) + help (1) + top divider (1) + bottom divider (1)
+	// + marked footer (1) + instructions (1) = 6
+	reserved := 6
+	if m.deleteResult != "" {
+		reserved++ // extra line when we show the deletion result
+	}
+	return max(1, h-reserved)
+}
+
+// adjustScroll ensures the scroll offset keeps the cursor within the viewport
+// and clamps both cursor and scroll to valid ranges.
+func (m *model) adjustScroll() {
+	if len(m.visible) == 0 || m.mode != modeTree {
+		m.scroll = 0
+		return
+	}
+	contentH := m.listAreaHeight()
+	if contentH < 1 {
+		contentH = 1
+	}
+
+	// Clamp cursor to valid range.
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor >= len(m.visible) {
+		m.cursor = len(m.visible) - 1
+	}
+
+	// Clamp scroll to [0, maxScroll].
+	maxScroll := len(m.visible) - contentH
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+
+	// Ensure cursor is visible inside [scroll, scroll+contentH-1].
+	if m.cursor < m.scroll {
+		m.scroll = m.cursor
+	} else if m.cursor >= m.scroll+contentH {
+		m.scroll = m.cursor - contentH + 1
+		if m.scroll < 0 {
+			m.scroll = 0
+		}
+		if m.scroll > maxScroll {
+			m.scroll = maxScroll
+		}
+	}
+}
+
 func formatGroupTitle(hash dmap.SHA256Hash, files []string) string {
 	if len(files) == 0 {
 		return "Empty group"
@@ -590,4 +706,3 @@ func GenConfirmationCode() string {
 	}
 	return string(code)
 }
-
