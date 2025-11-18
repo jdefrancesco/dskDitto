@@ -18,6 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	runewidth "github.com/mattn/go-runewidth"
 )
 
 // LaunchTUI builds and runs the Bubble Tea program that visualizes duplicate files.
@@ -27,7 +28,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 		return
 	}
 
-	program := tea.NewProgram(newModel(dMap), tea.WithAltScreen())
+	program := tea.NewProgram(newModel(dMap), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	setCurrentProgram(program)
 	defer clearCurrentProgram(program)
 
@@ -53,7 +54,7 @@ var (
 // Color scheme for lip gloss.
 var (
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#5DFDCB")).
+			Foreground(lipgloss.Color("#B8BB26")).
 			Bold(true).
 			PaddingBottom(1)
 
@@ -65,14 +66,15 @@ var (
 	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
 	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
 	selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
-	markedStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FB7185")).Bold(true)
-	unmarkedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
-	statusDeletedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
-	statusErrorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
-	statusInfoStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA"))
-	footerStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	resultStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
-	emptyStateStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8")).Italic(true)
+	// Files marked for removal are green.
+	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#86fb71ff")).Bold(true)
+	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
+	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
+	statusErrorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+	statusInfoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA"))
+	footerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	resultStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
+	emptyStateStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8")).Italic(true)
 
 	confirmPanelStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
@@ -146,6 +148,10 @@ type model struct {
 	cursor  int
 	scroll  int
 
+	// double-click tracking
+	lastClickIdx int
+	lastClickAt  time.Time
+
 	mode viewMode
 
 	confirmCode  string
@@ -199,6 +205,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleConfirmKeys(msg)
 		}
 		return m.handleTreeKeys(msg)
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -232,6 +240,10 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pageMove(-1)
 	case "pgdown", "pgdn":
 		m.pageMove(1)
+	case "ctrl+u":
+		m.halfPageMove(-1)
+	case "ctrl+d":
+		m.halfPageMove(1)
 	case "enter":
 		m.toggleCurrentGroup()
 	case "m":
@@ -245,6 +257,50 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pageMove(-1)
 	case tea.KeyPgDown:
 		m.pageMove(1)
+	}
+	return m, nil
+}
+
+// handleMouse supports scroll wheel and selecting a row by clicking.
+func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.mode != modeTree {
+		return m, nil
+	}
+	switch msg.Type {
+	case tea.MouseWheelUp:
+		// Scroll up a few lines per tick.
+		m.moveCursor(-3)
+	case tea.MouseWheelDown:
+		m.moveCursor(3)
+	case tea.MouseLeft:
+		// Map Y position to list row.
+		row := msg.Y - m.listTopOffset()
+		if row >= 0 && row < m.listAreaHeight() {
+			idx := m.scroll + row
+			if idx >= 0 && idx < len(m.visible) {
+				// Detect double-click on the same row within a short threshold
+				const dbl = 350 * time.Millisecond
+				now := time.Now()
+				if idx == m.lastClickIdx && now.Sub(m.lastClickAt) <= dbl {
+					// Double-click: toggle group if clicking on a group header
+					ref := m.visible[idx]
+					if ref.typ == nodeGroup {
+						// Keep cursor on the group and toggle expansion
+						m.cursor = idx
+						m.toggleCurrentGroup()
+					}
+					// Reset to avoid repeated toggles on subsequent events
+					m.lastClickIdx = -1
+					m.lastClickAt = time.Time{}
+				} else {
+					// Single click: move cursor and record for potential double-click
+					m.cursor = idx
+					m.adjustScroll()
+					m.lastClickIdx = idx
+					m.lastClickAt = now
+				}
+			}
+		}
 	}
 	return m, nil
 }
@@ -287,9 +343,11 @@ func (m *model) renderTreeView() string {
 	divider := dividerStyle.Render(strings.Repeat("─", width))
 
 	var sections []string
+	title := "[dskDitto] • Interactive Duplicate Removal Menu"
+	// Ensure header lines never wrap off-screen on narrow terminals.
 	sections = append(sections,
-		titleStyle.Render("dskDitto • Interactive Duplicate Management"),
-		helpStyle.Render("enter expand/collapse • m mark files • d delete marked • q quit"))
+		titleStyle.Render(runewidth.Truncate(title, width, "…")))
+	// helpStyle.Render(runewidth.Truncate(help, width, "…")))
 	sections = append(sections, divider)
 
 	if len(m.visible) == 0 {
@@ -319,7 +377,7 @@ func (m *model) renderTreeView() string {
 	if m.deleteResult != "" {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
-	sections = append(sections, footerStyle.Render("Esc/q exit • Arrow keys navigate • m toggle selection"))
+	sections = append(sections, footerStyle.Render("enter expand/collapse • arrow keys navigate • m toggle selection • d delete marked files • esc/q exit "))
 
 	return strings.Join(sections, "\n")
 }
@@ -367,6 +425,29 @@ func (m *model) pageMove(direction int) {
 		return
 	}
 	amount := m.listAreaHeight()
+	if amount < 1 {
+		amount = 1
+	}
+	if direction < 0 {
+		m.cursor -= amount
+	} else {
+		m.cursor += amount
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor >= len(m.visible) {
+		m.cursor = len(m.visible) - 1
+	}
+	m.adjustScroll()
+}
+
+// halfPageMove moves the cursor by half the viewport height.
+func (m *model) halfPageMove(direction int) {
+	if len(m.visible) == 0 {
+		return
+	}
+	amount := m.listAreaHeight() / 2
 	if amount < 1 {
 		amount = 1
 	}
@@ -547,6 +628,8 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 	}
 
 	var content string
+	width := m.effectiveWidth()
+	avail := width - lipgloss.Width(cursor)
 	switch ref.typ {
 	case nodeGroup:
 		group := m.groups[ref.group]
@@ -554,7 +637,17 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		if group.Expanded {
 			indicator = groupStyle.Render("▾")
 		}
-		body := lipgloss.JoinHorizontal(lipgloss.Left, indicator, " ", groupStyle.Render(group.Title))
+		// Truncate group title to avoid line wrapping.
+		// Reserve 2 for indicator + space.
+		titleMax := avail - (lipgloss.Width(indicator) + 1)
+		if titleMax < 0 {
+			titleMax = 0
+		}
+		title := group.Title
+		if runewidth.StringWidth(title) > titleMax {
+			title = runewidth.Truncate(title, titleMax, "…")
+		}
+		body := lipgloss.JoinHorizontal(lipgloss.Left, indicator, " ", groupStyle.Render(title))
 		content = body
 	case nodeFile:
 		entry := m.groups[ref.group].Files[ref.file]
@@ -562,10 +655,39 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		if entry.Marked {
 			mark = markedStyle.Render("■")
 		}
+		markStr := "  " + mark
+		// First, estimate a status width budget as a third of available after mark.
+		markW := lipgloss.Width(markStr)
+		baseAvail := avail - markW
+		if baseAvail < 1 {
+			baseAvail = 1
+		}
+		statusBudget := baseAvail / 3
+		if statusBudget < 8 {
+			statusBudget = 8 // ensure status like "DELETED" fits
+		}
+		statusStr := formatFileStatus(entry, statusBudget)
+		// Now compute remaining width for the path and recompute status if needed.
+		used := lipgloss.Width(markStr) + lipgloss.Width(statusStr)
+		pathMax := avail - used
+		if pathMax < 1 {
+			pathMax = 1
+		}
+		path := entry.Path
+		if runewidth.StringWidth(path) > pathMax {
+			path = runewidth.Truncate(path, pathMax, "…")
+		}
+		// Recompute status with the final remaining width after mark+path (in case status was too big).
+		usedAfterPath := lipgloss.Width(markStr) + lipgloss.Width(fileStyle.Render(path))
+		rem := avail - usedAfterPath
+		if rem < 0 {
+			rem = 0
+		}
+		statusStr = formatFileStatus(entry, rem)
 		body := lipgloss.JoinHorizontal(lipgloss.Left,
-			"  "+mark,
-			fileStyle.Render(entry.Path),
-			formatFileStatus(entry),
+			markStr,
+			fileStyle.Render(path),
+			statusStr,
 		)
 		content = body
 	}
@@ -577,15 +699,26 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 	return line
 }
 
-func formatFileStatus(entry *fileEntry) string {
+func formatFileStatus(entry *fileEntry, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
 	switch entry.Status {
 	case fileStatusDeleted:
-		return " " + statusDeletedStyle.Render("DELETED")
-	case fileStatusError:
-		if entry.Message != "" {
-			return " " + statusErrorStyle.Render("ERROR: "+entry.Message)
+		text := "DELETED"
+		if runewidth.StringWidth(text) > maxWidth {
+			text = runewidth.Truncate(text, maxWidth, "…")
 		}
-		return " " + statusErrorStyle.Render("ERROR")
+		return " " + statusDeletedStyle.Render(text)
+	case fileStatusError:
+		text := "ERROR"
+		if entry.Message != "" {
+			text = "ERROR: " + entry.Message
+		}
+		if runewidth.StringWidth(text) > maxWidth {
+			text = runewidth.Truncate(text, maxWidth, "…")
+		}
+		return " " + statusErrorStyle.Render(text)
 	default:
 		return ""
 	}
@@ -616,6 +749,12 @@ func (m *model) listAreaHeight() int {
 		reserved++ // extra line when we show the deletion result
 	}
 	return max(1, h-reserved)
+}
+
+// listTopOffset returns the number of rows occupied above the list.
+func (m *model) listTopOffset() int {
+	// title (1) + help (1) + top divider (1)
+	return 3
 }
 
 // adjustScroll ensures the scroll offset keeps the cursor within the viewport
