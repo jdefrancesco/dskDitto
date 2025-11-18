@@ -53,7 +53,7 @@ var (
 
 // Color scheme for lip gloss.
 var (
-	headerBG   = lipgloss.Color("#0B1220")
+	headerBG   = lipgloss.Color("#47484aff")
 	titleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FBBF24")).
 			Background(headerBG).
