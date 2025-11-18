@@ -55,9 +55,9 @@ var (
 var (
 	headerBG   = lipgloss.Color("#47484aff")
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FBBF24")).
+			Foreground(lipgloss.Color("#41ed5e93")).
 			Background(headerBG).
-			Bold(true).
+			Bold(false).
 			PaddingBottom(0)
 
 	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
@@ -130,6 +130,7 @@ type fileEntry struct {
 	Message string
 }
 
+// These are batches of file dups
 type duplicateGroup struct {
 	Hash     dmap.SHA256Hash
 	Title    string
@@ -138,11 +139,13 @@ type duplicateGroup struct {
 }
 
 type nodeRef struct {
+	// typ tracks the classification of the current node within the UI layer.
 	typ   nodeType
 	group int
 	file  int
 }
 
+// model struct for Bubble Tea
 type model struct {
 	groups  []*duplicateGroup
 	visible []nodeRef
@@ -199,6 +202,7 @@ func (m *model) Init() tea.Cmd {
 	return nil
 }
 
+// Update our Bubble Tea view
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -245,6 +249,10 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.halfPageMove(-1)
 	case "ctrl+d":
 		m.halfPageMove(1)
+	case "a", "A", "ctrl+a":
+		m.markAllFiles()
+	case "u", "U":
+		m.unmarkAllFiles()
 	case "enter":
 		m.toggleCurrentGroup()
 	case "m":
@@ -345,7 +353,6 @@ func (m *model) renderTreeView() string {
 
 	var sections []string
 	title := "dskDitto • Interactive Duplicate Management"
-	// Ensure header lines never wrap off-screen on narrow terminals.
 	sections = append(sections,
 		titleStyle.Width(width).Render(runewidth.Truncate(title, width, "…")))
 	sections = append(sections, divider)
@@ -373,7 +380,7 @@ func (m *model) renderTreeView() string {
 	}
 
 	sections = append(sections, divider)
-	sections = append(sections, footerStyle.Render(fmt.Sprintf("Marked files: %d", m.countMarked())))
+	sections = append(sections, footerStyle.Render(fmt.Sprintf("marked files: %d", m.countMarked())))
 	if m.deleteResult != "" {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
@@ -382,6 +389,9 @@ func (m *model) renderTreeView() string {
 	return strings.Join(sections, "\n")
 }
 
+// renderConfirmView is our modal box that prevents the user from "shooting themelves in the foot"
+// In order to delete files they have selected, they must first enter small code. Dunno how far or useful
+// this type of thing really is but it satisfies my OCD for time being.
 func (m *model) renderConfirmView() string {
 	width := m.effectiveWidth()
 	content := []string{
@@ -443,6 +453,7 @@ func (m *model) pageMove(direction int) {
 }
 
 // halfPageMove moves the cursor by half the viewport height.
+// Ctrl+D/U will let the user navigate by half page up or down.
 func (m *model) halfPageMove(direction int) {
 	if len(m.visible) == 0 {
 		return
@@ -521,6 +532,29 @@ func (m *model) toggleCurrentFileMark() {
 	m.deleteResult = ""
 }
 
+// markAllFiles marks every non-deleted file in all groups.
+func (m *model) markAllFiles() {
+	for _, group := range m.groups {
+		for _, entry := range group.Files {
+			if entry.Status == fileStatusDeleted {
+				continue
+			}
+			entry.Marked = true
+		}
+	}
+	m.deleteResult = ""
+}
+
+// unmarkAllFiles clears the marked flag for every file.
+func (m *model) unmarkAllFiles() {
+	for _, group := range m.groups {
+		for _, entry := range group.Files {
+			entry.Marked = false
+		}
+	}
+	m.deleteResult = ""
+}
+
 // startConfirmationPrompt is modal window to tell user what is about to happen
 // and asking them to confirm moving forward with file removal
 func (m *model) startConfirmationPrompt() {
@@ -573,6 +607,7 @@ func (m *model) processDeletion() {
 	}
 }
 
+// markedEntries return a slice of files selected (marked) for removal.
 func (m *model) markedEntries() []*fileEntry {
 	var entries []*fileEntry
 	for _, group := range m.groups {
