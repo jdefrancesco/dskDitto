@@ -1,12 +1,12 @@
 package dwalk
 
 import (
-	"context"
 	"ditto/internal/dfs"
 	"ditto/internal/dsklog"
 	"fmt"
 	"testing"
 	"time"
+	"context"
 )
 
 // Test basic walking...
@@ -46,9 +46,6 @@ loop:
 		}
 	}
 
-	// if nfiles != 5 {
-	// 	t.Errorf("want 12 files. got %d\n", nfiles)
-	// }
 	fmt.Printf("%d files\n", nfiles)
 
 }

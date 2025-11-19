@@ -161,7 +161,7 @@ func BenchmarkDmapOperations(b *testing.B) {
 	var testFiles []*dfs.Dfile
 	for i := range 1000 {
 		testFile := filepath.Join(tmpDir, fmt.Sprintf("testfile%d.txt", i))
-		data := []byte(fmt.Sprintf("test data %d", i))
+		data := fmt.Appendf(nil, "test data %d", i)
 		if err := os.WriteFile(testFile, data, 0644); err != nil {
 			b.Fatal(err)
 		}

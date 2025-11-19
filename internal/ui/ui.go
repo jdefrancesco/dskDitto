@@ -361,18 +361,9 @@ func (m *model) renderTreeView() string {
 		sections = append(sections, emptyStateStyle.Render("No duplicate groups found. Press q to exit."))
 	} else {
 		// Render only the portion of the list that fits in the viewport.
-		contentH := m.listAreaHeight()
-		if contentH < 1 {
-			contentH = 1
-		}
-		start := m.scroll
-		if start < 0 {
-			start = 0
-		}
-		end := start + contentH
-		if end > len(m.visible) {
-			end = len(m.visible)
-		}
+		contentH := max(m.listAreaHeight(), 1)
+		start := max(m.scroll, 0)
+		end := min(start+contentH, len(m.visible))
 		for i := start; i < end; i++ {
 			ref := m.visible[i]
 			sections = append(sections, m.renderNodeLine(ref, i == m.cursor))
@@ -434,10 +425,7 @@ func (m *model) pageMove(direction int) {
 	if len(m.visible) == 0 {
 		return
 	}
-	amount := m.listAreaHeight()
-	if amount < 1 {
-		amount = 1
-	}
+	amount := max(m.listAreaHeight(), 1)
 	if direction < 0 {
 		m.cursor -= amount
 	} else {
@@ -458,10 +446,7 @@ func (m *model) halfPageMove(direction int) {
 	if len(m.visible) == 0 {
 		return
 	}
-	amount := m.listAreaHeight() / 2
-	if amount < 1 {
-		amount = 1
-	}
+	amount := max(m.listAreaHeight()/2, 1)
 	if direction < 0 {
 		m.cursor -= amount
 	} else {
@@ -674,10 +659,7 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		}
 		// Truncate group title to avoid line wrapping.
 		// Reserve 2 for indicator + space.
-		titleMax := avail - (lipgloss.Width(indicator) + 1)
-		if titleMax < 0 {
-			titleMax = 0
-		}
+		titleMax := max(avail-(lipgloss.Width(indicator)+1), 0)
 		title := group.Title
 		if runewidth.StringWidth(title) > titleMax {
 			title = runewidth.Truncate(title, titleMax, "…")
@@ -693,31 +675,21 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		markStr := "  " + mark
 		// First, estimate a status width budget as a third of available after mark.
 		markW := lipgloss.Width(markStr)
-		baseAvail := avail - markW
-		if baseAvail < 1 {
-			baseAvail = 1
-		}
-		statusBudget := baseAvail / 3
-		if statusBudget < 8 {
-			statusBudget = 8 // ensure status like "DELETED" fits
-		}
+		baseAvail := max(avail-markW, 1)
+		statusBudget := max(baseAvail/3,
+			// ensure status like "DELETED" fits
+			8)
 		statusStr := formatFileStatus(entry, statusBudget)
 		// Now compute remaining width for the path and recompute status if needed.
 		used := lipgloss.Width(markStr) + lipgloss.Width(statusStr)
-		pathMax := avail - used
-		if pathMax < 1 {
-			pathMax = 1
-		}
+		pathMax := max(avail-used, 1)
 		path := entry.Path
 		if runewidth.StringWidth(path) > pathMax {
 			path = runewidth.Truncate(path, pathMax, "…")
 		}
 		// Recompute status with the final remaining width after mark+path (in case status was too big).
 		usedAfterPath := lipgloss.Width(markStr) + lipgloss.Width(fileStyle.Render(path))
-		rem := avail - usedAfterPath
-		if rem < 0 {
-			rem = 0
-		}
+		rem := max(avail-usedAfterPath, 0)
 		statusStr = formatFileStatus(entry, rem)
 		body := lipgloss.JoinHorizontal(lipgloss.Left,
 			markStr,
@@ -791,15 +763,13 @@ func (m *model) listTopOffset() int {
 
 // adjustScroll ensures the scroll offset keeps the cursor within the viewport
 // and clamps both cursor and scroll to valid ranges.
+// TODO: Refactor to use min/max
 func (m *model) adjustScroll() {
 	if len(m.visible) == 0 || m.mode != modeTree {
 		m.scroll = 0
 		return
 	}
-	contentH := m.listAreaHeight()
-	if contentH < 1 {
-		contentH = 1
-	}
+	contentH := max(m.listAreaHeight(), 1)
 
 	// Clamp cursor to valid range.
 	if m.cursor < 0 {
@@ -810,10 +780,7 @@ func (m *model) adjustScroll() {
 	}
 
 	// Clamp scroll to [0, maxScroll].
-	maxScroll := len(m.visible) - contentH
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(len(m.visible)-contentH, 0)
 	if m.scroll < 0 {
 		m.scroll = 0
 	}
@@ -825,13 +792,8 @@ func (m *model) adjustScroll() {
 	if m.cursor < m.scroll {
 		m.scroll = m.cursor
 	} else if m.cursor >= m.scroll+contentH {
-		m.scroll = m.cursor - contentH + 1
-		if m.scroll < 0 {
-			m.scroll = 0
-		}
-		if m.scroll > maxScroll {
-			m.scroll = maxScroll
-		}
+		m.scroll = max(m.cursor-contentH+1, 0)
+		m.scroll = min(m.scroll, maxScroll)
 	}
 }
 

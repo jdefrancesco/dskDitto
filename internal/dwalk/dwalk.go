@@ -155,12 +155,6 @@ func getOptimalConcurrency() int {
 	numCPU := runtime.NumCPU()
 	// For directory reading, use 2-4x CPU count as it's mostly I/O bound
 	// But cap it to avoid creating too many goroutines
-	optimal := numCPU * 3
-	if optimal > 100 {
-		optimal = 100
-	}
-	if optimal < 20 {
-		optimal = 20
-	}
+	optimal := max(20, min(numCPU*3, 100))
 	return optimal
 }
