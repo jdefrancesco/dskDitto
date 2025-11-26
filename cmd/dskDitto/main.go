@@ -107,7 +107,7 @@ func main() {
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flSkipHidden   = flag.Bool("no-hidden", true, "Skip hidden files and directories (dotfiles).")
 		flMinDups      = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
-		flRemove       = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
+		flKeep         = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
 	)
 	flag.Parse()
 
@@ -161,8 +161,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	removeKeep := *flRemove
-	if removeKeep == 0 {
+	keepCount := *flKeep
+	if keepCount == 0 {
 		// Leave as zero to indicate no removal requested.
 	}
 
@@ -233,9 +233,9 @@ MainLoop:
 	pterm.Success.Println(finalInfo)
 
 	// Zero value for moveKeep means don't remove anything..
-	if removeKeep > 0 {
-		removedPaths, removeErr := dMap.RemoveDuplicates(removeKeep)
-		fmt.Printf("Removed %d duplicate files, kept %d per group.\n", len(removedPaths), removeKeep)
+	if keepCount > 0 {
+		removedPaths, removeErr := dMap.RemoveDuplicates(keepCount)
+		fmt.Printf("Removed %d duplicate files, kept %d per group.\n", len(removedPaths), keepCount)
 		if removeErr != nil {
 			fmt.Fprintf(os.Stderr, "Removal completed with errors: %v\n", removeErr)
 			os.Exit(1)
