@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"ditto/internal/dfs"
-	"ditto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/dfs"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
 	"golang.org/x/sync/semaphore"
 )

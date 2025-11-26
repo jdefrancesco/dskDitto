@@ -10,11 +10,11 @@ import (
 	"time"
 	"unicode"
 
-	"ditto/internal/dfs"
-	"ditto/internal/dmap"
-	"ditto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/dfs"
+	"github.com/jdefrancesco/dskDitto/internal/dmap"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
-	"ditto/pkg/utils"
+	"github.com/jdefrancesco/dskDitto/pkg/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

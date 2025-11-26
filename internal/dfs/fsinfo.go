@@ -3,11 +3,12 @@
 package dfs
 
 import (
-	"ditto/internal/dsklog"
 	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
 	sigar "github.com/cloudfoundry/gosigar"
 )

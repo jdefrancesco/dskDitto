@@ -11,11 +11,11 @@ import (
 	"sync"
 	"testing"
 
-	"ditto/internal/config"
-	"ditto/internal/dfs"
-	"ditto/internal/dmap"
-	"ditto/internal/dsklog"
-	"ditto/internal/dwalk"
+	"github.com/jdefrancesco/dskDitto/internal/config"
+	"github.com/jdefrancesco/dskDitto/internal/dfs"
+	"github.com/jdefrancesco/dskDitto/internal/dmap"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/dwalk"
 )
 
 var benchmarkInit sync.Once

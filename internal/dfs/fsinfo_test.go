@@ -1,10 +1,11 @@
 package dfs
 
 import (
-	"ditto/internal/dsklog"
 	_ "fmt"
 	"os"
 	"testing"
+
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 )
 
 // Need to initialize logger

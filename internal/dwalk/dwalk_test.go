@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"ditto/internal/dfs"
-	"ditto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/dfs"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 )
 
 // Test basic walking...

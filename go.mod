@@ -1,4 +1,4 @@
-module ditto
+module github.com/jdefrancesco/dskDitto
 
 go 1.24.0
 

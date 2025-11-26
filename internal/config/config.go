@@ -1,6 +1,6 @@
 package config
 
-import "ditto/internal/dfs"
+import "github.com/jdefrancesco/dskDitto/internal/dfs"
 
 type Config struct {
 	// Skip over empty files.

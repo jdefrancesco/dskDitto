@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"ditto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
 	"lukechampine.com/blake3"
 )

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ditto/internal/config"
-	"ditto/internal/dfs"
-	"ditto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/config"
+	"github.com/jdefrancesco/dskDitto/internal/dfs"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 )
 
 // setupLogging initializes the logger and other necessary components
