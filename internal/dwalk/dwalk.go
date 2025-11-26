@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"ditto/internal/dfs"
@@ -28,12 +29,13 @@ type DWalk struct {
 	// Channel used to communicate with main monitor goroutine.
 	dFiles        chan<- *dfs.Dfile
 	sem           *semaphore.Weighted
+	skipHidden    bool
 	hashAlgorithm dfs.HashAlgorithm
 }
 
 // NewDWalker returns a new DWalk instance that accepts a root directory, wait group, and
 // channel dFiles over which we pass file names along with their hash for monitor loop.
-func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, algo dfs.HashAlgorithm) *DWalk {
+func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, algo dfs.HashAlgorithm, skipHidden bool) *DWalk {
 
 	if algo == "" {
 		algo = dfs.HashSHA256
@@ -42,6 +44,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, algo dfs.HashAlgori
 	walker := &DWalk{
 		rootDirs:      rootDirs,
 		dFiles:        dFiles,
+		skipHidden:    skipHidden,
 		hashAlgorithm: algo,
 	}
 
@@ -94,16 +97,23 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 	}
 
 	for _, entry := range dirEntries(ctx, dir, d) {
+		// Handle processing of dotfiles (hidden)
+		name := entry.Name()
+		if d.skipHidden && strings.HasPrefix(name, ".") {
+			dsklog.Dlogger.Debugf("Skipping hidden entry: %s", filepath.Join(dir, name))
+			continue
+		}
+
 		if entry.IsDir() {
 			d.wg.Add(1)
-			subDir := filepath.Join(dir, entry.Name())
+			subDir := filepath.Join(dir, name)
 			go walkDir(ctx, subDir, d, d.dFiles, minFileSize, maxFileSize)
 			continue
 		}
 
 		info, err := entry.Info()
 		if err != nil {
-			dsklog.Dlogger.Debugf("Error getting file info for %s: %v", entry.Name(), err)
+			dsklog.Dlogger.Debugf("Error getting file info for %s: %v", name, err)
 			continue
 		}
 
@@ -113,17 +123,18 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			continue
 		}
 
+		// Check file size properties the user set.
 		fileSize := uint(max(info.Size(), 0)) // #nosec G115
 		if minFileSize > 0 && fileSize < minFileSize {
-			dsklog.Dlogger.Debugf("File %s smaller than minimum. Skipping", entry.Name())
+			dsklog.Dlogger.Debugf("File %s smaller than minimum. Skipping", name)
 			continue
 		}
 		if maxFileSize > 0 && fileSize >= maxFileSize {
-			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", entry.Name())
+			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", name)
 			continue
 		}
 
-		absFileName := filepath.Join(dir, entry.Name())
+		absFileName := filepath.Join(dir, name)
 		if !dfs.CheckFilePerms(absFileName) {
 			dsklog.Dlogger.Debugf("Cannot access file. Invalid permissions: %s", absFileName)
 			continue

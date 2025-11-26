@@ -92,7 +92,7 @@ func main() {
 		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
 		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
-		flHashAlgo     = flag.String("hash", string(dfs.HashSHA256), "Hash algorithm to use (sha256 or blake3).")
+		flSkipHidden   = flag.Bool("no-hidden", true, "Skip hidden files and directories (dotfiles).")
 	)
 	flag.Parse()
 
@@ -115,6 +115,7 @@ func main() {
 		showVersion()
 	}
 
+	// TODO: Refactor and pull this out into proper package.
 	var MinFileSize uint = 0
 	if *flMinFileSize != 0 {
 		MinFileSize = *flMinFileSize
@@ -131,12 +132,8 @@ func main() {
 
 	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
-	hashAlgo, err := dfs.ParseHashAlgorithm(*flHashAlgo)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid hash algorithm %q: %v\n", *flHashAlgo, err)
-		os.Exit(1)
-	}
-
+	// Keep SHA256 for now since BLAKE3 implementation is abysmal...
+	hashAlgo := dfs.HashSHA256
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
@@ -146,6 +143,7 @@ func main() {
 	dMap, err := dmap.NewDmap(config.Config{
 		SkipEmpty:     *flIgnoreEmpty,
 		SkipSymLinks:  *flSkipSymLinks,
+		SkipHidden:    *flSkipHidden,
 		MinFileSize:   MinFileSize,
 		MaxFileSize:   MaxFileSize,
 		HashAlgorithm: hashAlgo,
@@ -160,7 +158,7 @@ func main() {
 	// Use buffered channel to allow async file discovery and processing
 	dFiles := make(chan *dfs.Dfile, 1000)
 
-	walker := dwalk.NewDWalker(rootDirs, dFiles, hashAlgo)
+	walker := dwalk.NewDWalker(rootDirs, dFiles, hashAlgo, *flSkipHidden)
 	walker.Run(ctx, MinFileSize, MaxFileSize)
 
 	start := time.Now()

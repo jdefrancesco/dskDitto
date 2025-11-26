@@ -9,6 +9,8 @@ type Config struct {
 	SkipSymLinks bool
 	// Ignore Hard Links.
 	SkipHardLinks bool
+	// SkipHidden controls whether hidden dotfiles and directories are skipped.
+	SkipHidden bool
 	// File size limits.
 	MinFileSize uint
 	MaxFileSize uint

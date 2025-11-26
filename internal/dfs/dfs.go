@@ -119,11 +119,7 @@ func (d *Dfile) hashFile() error {
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", d.fileName, err)
 	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			dsklog.Dlogger.Debug("Error closing file.")
-		}
-	}()
+	defer f.Close()
 
 	h, err := newHash(d.algo)
 	if err != nil {
