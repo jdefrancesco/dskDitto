@@ -43,7 +43,8 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --ignore-empty             Ignore empty files (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --no-hidden                Skip hidden dotfiles and directories (default true).\n")
-		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n\n")
+		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
+		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n\n")
 		fmt.Fprintf(os.Stderr, "Notes:\n")
 		fmt.Fprintf(os.Stderr, "  Display-oriented options like --pretty only render results; no files are removed.\n")
 	}
@@ -106,6 +107,7 @@ func main() {
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flSkipHidden   = flag.Bool("no-hidden", true, "Skip hidden files and directories (dotfiles).")
 		flMinDups      = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
+		flRemove       = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
 	)
 	flag.Parse()
 
@@ -157,6 +159,11 @@ func main() {
 	if minDups < 2 {
 		fmt.Fprintf(os.Stderr, "invalid duplicate threshold %d; must be at least 2\n", minDups)
 		os.Exit(1)
+	}
+
+	removeKeep := *flRemove
+	if removeKeep == 0 {
+		// Leave as zero to indicate no removal requested.
 	}
 
 	dMap, err := dmap.NewDmap(config.Config{
@@ -224,6 +231,17 @@ MainLoop:
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
 		pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
+
+	// Zero value for moveKeep means don't remove anything..
+	if removeKeep > 0 {
+		removedPaths, removeErr := dMap.RemoveDuplicates(removeKeep)
+		fmt.Printf("Removed %d duplicate files, kept %d per group.\n", len(removedPaths), removeKeep)
+		if removeErr != nil {
+			fmt.Fprintf(os.Stderr, "Removal completed with errors: %v\n", removeErr)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// Stop profiling after this point. Profile data should now be
 	// written to disk.

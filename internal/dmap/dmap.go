@@ -9,11 +9,15 @@
 package dmap
 
 import (
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"math"
+	"os"
+
 	"ditto/internal/config"
 	"ditto/internal/dfs"
 	"ditto/internal/dsklog"
-	"encoding/hex"
-	"fmt"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
@@ -192,4 +196,58 @@ func (d *Dmap) GetMap() map[Digest][]string {
 // MinDuplicates returns the current threshold for displaying duplicate groups.
 func (d *Dmap) MinDuplicates() uint {
 	return d.minDuplicates
+}
+
+// RemoveDuplicates removes duplicates, leaving at most keep files per group. Returns removed file paths.
+func (d *Dmap) RemoveDuplicates(keep uint) ([]string, error) {
+	if keep == 0 {
+		return nil, errors.New("keep count must be greater than zero")
+	}
+
+	if keep > uint(math.MaxInt) {
+		return nil, fmt.Errorf("keep count %d exceeds supported maximum %d", keep, math.MaxInt)
+	}
+	keepThreshold := int(keep)
+
+	var removed []string
+	var errs []error
+
+	for hash, files := range d.filesMap {
+		if uint(len(files)) <= keep {
+			continue
+		}
+
+		keepCount := keepThreshold
+		if keepCount > len(files) {
+			keepCount = len(files)
+		}
+
+		survivors := append([]string(nil), files[:keepCount]...)
+
+		for _, path := range files[keepCount:] {
+			if err := os.Remove(path); err != nil {
+				errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
+				survivors = append(survivors, path)
+				continue
+			}
+			dsklog.Dlogger.Infof("Removed duplicate file: %s", path)
+			removed = append(removed, path)
+			if d.fileCount > 0 {
+				d.fileCount--
+			}
+		}
+
+		if len(survivors) == 0 {
+			delete(d.filesMap, hash)
+			continue
+		}
+
+		d.filesMap[hash] = survivors
+	}
+
+	if len(errs) > 0 {
+		return removed, errors.Join(errs...)
+	}
+
+	return removed, nil
 }

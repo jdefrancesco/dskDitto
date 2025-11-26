@@ -2,11 +2,15 @@ package dmap
 
 import (
 	"crypto/sha256"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"ditto/internal/config"
 	"ditto/internal/dfs"
 	"ditto/internal/dsklog"
-	"fmt"
-	"testing"
 )
 
 // setupLogging initializes the logger and other necessary components
@@ -38,9 +42,9 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	for _, f := range dfiles {
-		df, err := dfs.NewDfile(f.fileName, f.fileSize, dfs.HashSHA256)
-		if err != nil {
-			t.Errorf("Failed to read file %s: %v", f.fileName, err)
+		df, dfErr := dfs.NewDfile(f.fileName, f.fileSize, dfs.HashSHA256)
+		if dfErr != nil {
+			t.Errorf("Failed to read file %s: %v", f.fileName, dfErr)
 		}
 
 		dmap.Add(df)
@@ -56,12 +60,12 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	fmt.Println("Testing dmap.Get()")
-	hash, err := DigestFromHex("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
-	if err != nil {
-		t.Errorf("Error converting hex to hash: %v", err)
+	hash, hexErr := DigestFromHex("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
+	if hexErr != nil {
+		t.Errorf("Error converting hex to hash: %v", hexErr)
 	}
-	files, err := dmap.Get(hash)
-	if err != nil {
+	files, getErr := dmap.Get(hash)
+	if getErr != nil {
 		t.Errorf("Error gettings hash from map")
 	}
 
@@ -184,4 +188,66 @@ func FuzzDigestFromHex(f *testing.F) {
 			}
 		}
 	})
+}
+
+func TestRemoveDuplicates(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(config.Config{MinDuplicates: 2, HashAlgorithm: dfs.HashSHA256})
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	tmp := t.TempDir()
+	const keep uint = 1
+	var dfiles []*dfs.Dfile
+	for i := 0; i < 3; i++ {
+		path := filepath.Join(tmp, fmt.Sprintf("dup_%d.dat", i))
+		if writeErr := os.WriteFile(path, []byte("duplicate"), 0o644); writeErr != nil {
+			t.Fatalf("write %s: %v", path, writeErr)
+		}
+		df, dfErr := dfs.NewDfile(path, int64(len("duplicate")), dfs.HashSHA256)
+		if dfErr != nil {
+			t.Fatalf("NewDfile(%s): %v", path, dfErr)
+		}
+		dfiles = append(dfiles, df)
+		dm.Add(df)
+	}
+
+	removed, removeErr := dm.RemoveDuplicates(keep)
+	if removeErr != nil {
+		t.Fatalf("RemoveDuplicates returned error: %v", removeErr)
+	}
+	if len(removed) != 2 {
+		t.Fatalf("expected 2 files removed, got %d", len(removed))
+	}
+
+	for _, path := range removed {
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("expected %s to be removed, stat err: %v", path, statErr)
+		}
+	}
+
+	hashKey := Digest(dfiles[0].Hash())
+	remaining := dm.GetMap()[hashKey]
+	if len(remaining) != int(keep) {
+		t.Fatalf("expected %d survivor, got %d", keep, len(remaining))
+	}
+
+	if dm.FileCount() != keep {
+		t.Fatalf("expected fileCount %d, got %d", keep, dm.FileCount())
+	}
+}
+
+func TestRemoveDuplicatesZeroKeep(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(config.Config{})
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	if _, removeErr := dm.RemoveDuplicates(0); removeErr == nil {
+		t.Fatalf("expected error when keep is zero")
+	}
 }
