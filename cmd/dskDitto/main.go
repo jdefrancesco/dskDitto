@@ -100,7 +100,7 @@ func main() {
 		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates. Useful for development.")
 		flMinFileSize  = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
-		flTextOutput   = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
+		flTextOutput   = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets  = flag.Bool("bullets", false, "Show duplicates as formatted bullet list.")
 		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
 		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
@@ -253,20 +253,16 @@ MainLoop:
 		os.Exit(0)
 	}
 
-	// Dump results to stdout. Useful for scripting.
-	if *flTextOutput {
+	// Dump results in various format. No interactive results are shown. These
+	// options are better for scripting or grepping through.
+	switch {
+	case *flTextOutput:
 		dMap.PrintDmap()
 		os.Exit(0)
-	}
-
-	// Dump pretty using Pterm. Not default because it can be slow for large sets.
-	if *flShowPretty {
+	case *flShowPretty:
 		dMap.ShowResultsPretty()
 		os.Exit(0)
-	}
-
-	// Dump as bullets.
-	if *flShowBullets {
+	case *flShowBullets:
 		dMap.ShowResultsBullet()
 		os.Exit(0)
 	}

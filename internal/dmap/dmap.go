@@ -96,7 +96,6 @@ func (d *Dmap) AddDeferredFile(file string) {
 	d.deferredFiles = append(d.deferredFiles, file)
 }
 
-// TODO: Refactor ShowResults function that will display results in the various formats.
 // PrintDmap will print entries currently stored in map in more text friendly way.
 func (d *Dmap) PrintDmap() {
 	for k, v := range d.filesMap {
@@ -104,19 +103,17 @@ func (d *Dmap) PrintDmap() {
 			continue
 		}
 		hash := fmt.Sprintf("%x", k)
-		fmt.Printf("Hash: %s  \n ---> Files: \n", hash)
+		fmt.Printf("Hash: %s  \n", hash)
 		for i, f := range v {
-			fmt.Printf("\t%d: %s \n", i, f)
+			fmt.Printf("\t%d: %s \n", i+1, f)
 		}
-		fmt.Println("--------------------------")
+		fmt.Printf("\n\n")
 	}
 }
 
 // ShowResultsPretty will display duplicates held in our Dmap as
 // a pretty tree.
 // NOTE: Pterm takes a very long time to render this table for some reason.
-//
-//	The primary method of viewing the results is via the TUI.
 func (d *Dmap) ShowResultsPretty() {
 
 	// Banner
