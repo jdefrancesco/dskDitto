@@ -29,11 +29,23 @@ func init() {
 
 	// Custom help message
 	flag.Usage = func() {
-		fmt.Printf("Usage: dskDitto [options] PATHS\n")
-		flag.PrintDefaults()
-		fmt.Println("")
-		fmt.Printf("[note] Display options like --pretty will only show results. No file removal occurs.\n")
-		fmt.Printf("[note] Double dash notation works too. Example: --no-banner.\n")
+		fmt.Fprintf(os.Stderr, "Usage: dskDitto [options] PATHS\n\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		fmt.Fprintf(os.Stderr, "  --no-banner                Do not show the dskDitto banner.\n")
+		fmt.Fprintf(os.Stderr, "  --version                  Display version information.\n")
+		fmt.Fprintf(os.Stderr, "  --profile <file>           Write CPU profile to disk for analysis.\n")
+		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
+		fmt.Fprintf(os.Stderr, "  --min-size <bytes>         Skip files smaller than the given size.\n")
+		fmt.Fprintf(os.Stderr, "  --max-size <bytes>         Skip files larger than the given size (default 4GiB).\n")
+		fmt.Fprintf(os.Stderr, "  --text-output              Emit duplicate results in text-friendly format.\n")
+		fmt.Fprintf(os.Stderr, "  --bullets                  Show duplicates as a formatted bullet list.\n")
+		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
+		fmt.Fprintf(os.Stderr, "  --ignore-empty             Ignore empty files (default true).\n")
+		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
+		fmt.Fprintf(os.Stderr, "  --no-hidden                Skip hidden dotfiles and directories (default true).\n")
+		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n\n")
+		fmt.Fprintf(os.Stderr, "Notes:\n")
+		fmt.Fprintf(os.Stderr, "  Display-oriented options like --pretty only render results; no files are removed.\n")
 	}
 }
 
@@ -93,6 +105,7 @@ func main() {
 		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flSkipHidden   = flag.Bool("no-hidden", true, "Skip hidden files and directories (dotfiles).")
+		flMinDups      = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
 	)
 	flag.Parse()
 
@@ -140,12 +153,19 @@ func main() {
 	}
 
 	// Dmap stores duplicate file information. Failure is fatal.
+	minDups := *flMinDups
+	if minDups < 2 {
+		fmt.Fprintf(os.Stderr, "invalid duplicate threshold %d; must be at least 2\n", minDups)
+		os.Exit(1)
+	}
+
 	dMap, err := dmap.NewDmap(config.Config{
 		SkipEmpty:     *flIgnoreEmpty,
 		SkipSymLinks:  *flSkipSymLinks,
 		SkipHidden:    *flSkipHidden,
 		MinFileSize:   MinFileSize,
 		MaxFileSize:   MaxFileSize,
+		MinDuplicates: minDups,
 		HashAlgorithm: hashAlgo,
 	})
 

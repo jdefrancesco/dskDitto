@@ -147,10 +147,11 @@ type nodeRef struct {
 
 // model struct for Bubble Tea
 type model struct {
-	groups  []*duplicateGroup
-	visible []nodeRef
-	cursor  int
-	scroll  int
+	groups        []*duplicateGroup
+	visible       []nodeRef
+	cursor        int
+	scroll        int
+	minDuplicates uint
 
 	// double-click tracking
 	lastClickIdx int
@@ -172,11 +173,12 @@ var _ tea.Model = (*model)(nil)
 
 func newModel(dMap *dmap.Dmap) *model {
 	m := &model{
-		mode: modeTree,
+		mode:          modeTree,
+		minDuplicates: dMap.MinDuplicates(),
 	}
 
 	for hash, files := range dMap.GetMap() {
-		if len(files) <= 1 {
+		if uint(len(files)) < m.minDuplicates {
 			continue
 		}
 

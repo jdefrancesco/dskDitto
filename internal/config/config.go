@@ -14,6 +14,8 @@ type Config struct {
 	// File size limits.
 	MinFileSize uint
 	MaxFileSize uint
+	// MinDuplicates controls the minimum number of files required for a duplicate group to be surfaced.
+	MinDuplicates uint
 	// HashAlgorithm selects which digest is used when hashing file contents.
 	HashAlgorithm dfs.HashAlgorithm
 }

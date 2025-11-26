@@ -51,17 +51,22 @@ type Dmap struct {
 	fileCount uint
 	// Batches of duplicate files.
 	// batchCount   uint
-	ignoreEmpty  bool
-	skipSymLinks bool
+	ignoreEmpty   bool
+	skipSymLinks  bool
+	minDuplicates uint
 }
 
 // NewDmap returns a new Dmap structure.
 func NewDmap(cfg config.Config) (*Dmap, error) {
 
 	dmap := &Dmap{
-		fileCount:    0,
-		ignoreEmpty:  cfg.SkipEmpty,
-		skipSymLinks: cfg.SkipSymLinks,
+		fileCount:     0,
+		ignoreEmpty:   cfg.SkipEmpty,
+		skipSymLinks:  cfg.SkipSymLinks,
+		minDuplicates: cfg.MinDuplicates,
+	}
+	if dmap.minDuplicates < 2 {
+		dmap.minDuplicates = 2
 	}
 	// Initialize our map.
 	dmap.filesMap = make(map[Digest][]string, mapInitSize)
@@ -91,7 +96,7 @@ func (d *Dmap) AddDeferredFile(file string) {
 // PrintDmap will print entries currently stored in map in more text friendly way.
 func (d *Dmap) PrintDmap() {
 	for k, v := range d.filesMap {
-		if len(v) < 2 {
+		if uint(len(v)) < d.minDuplicates {
 			continue
 		}
 		hash := fmt.Sprintf("%x", k)
@@ -115,7 +120,7 @@ func (d *Dmap) ShowResultsPretty() {
 
 	for hash, files := range d.filesMap {
 		// Only show files that have at least one other duplicate.
-		if len(files) < 2 {
+		if uint(len(files)) < d.minDuplicates {
 			continue
 		}
 		// Our hash value will be our level 0 item from which all duplicate files
@@ -139,7 +144,7 @@ func (d *Dmap) ShowResultsBullet() {
 	var bl []pterm.BulletListItem
 	for hash, files := range d.filesMap {
 
-		if len(files) < 2 {
+		if uint(len(files)) < d.minDuplicates {
 			continue
 		}
 		h := fmt.Sprintf("%x", hash)
@@ -182,4 +187,9 @@ func (d *Dmap) Get(hash Digest) (files []string, err error) {
 // GetMap will return the map.
 func (d *Dmap) GetMap() map[Digest][]string {
 	return d.filesMap
+}
+
+// MinDuplicates returns the current threshold for displaying duplicate groups.
+func (d *Dmap) MinDuplicates() uint {
+	return d.minDuplicates
 }
