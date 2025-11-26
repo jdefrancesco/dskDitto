@@ -23,7 +23,7 @@ import (
 )
 
 // Version
-const ver = "0.0.1"
+const ver = "0.1"
 
 func init() {
 
@@ -128,6 +128,7 @@ func main() {
 	// Just show version then quit.
 	if *flShowVersion {
 		showVersion()
+		os.Exit(0)
 	}
 
 	// TODO: Refactor and pull this out into proper package.
