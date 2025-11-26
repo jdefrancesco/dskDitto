@@ -48,11 +48,11 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
 }
 
 // Run method kicks off filesystem crawl for file dupes.
-func (d *DWalk) Run(ctx context.Context, maxFileSize uint) {
+func (d *DWalk) Run(ctx context.Context, minFileSize, maxFileSize uint) {
 
 	for _, root := range d.rootDirs {
 		d.wg.Add(1)
-		go walkDir(ctx, root, d, d.dFiles, maxFileSize)
+		go walkDir(ctx, root, d, d.dFiles, minFileSize, maxFileSize)
 	}
 
 	// Wait for all goroutines to finish.
@@ -78,7 +78,7 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, maxFileSize uint) {
+func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile, minFileSize, maxFileSize uint) {
 
 	defer d.wg.Done()
 
@@ -91,7 +91,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 		if entry.IsDir() {
 			d.wg.Add(1)
 			subDir := filepath.Join(dir, entry.Name())
-			go walkDir(ctx, subDir, d, dFiles, maxFileSize)
+			go walkDir(ctx, subDir, d, d.dFiles, minFileSize, maxFileSize)
 			continue
 		}
 
@@ -108,7 +108,11 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 		}
 
 		fileSize := uint(max(info.Size(), 0)) // #nosec G115
-		if fileSize >= maxFileSize {
+		if minFileSize > 0 && fileSize < minFileSize {
+			dsklog.Dlogger.Debugf("File %s smaller than minimum. Skipping", entry.Name())
+			continue
+		}
+		if maxFileSize > 0 && fileSize >= maxFileSize {
 			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", entry.Name())
 			continue
 		}

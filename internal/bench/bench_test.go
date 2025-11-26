@@ -110,7 +110,7 @@ func BenchmarkDWalkRun(b *testing.B) {
 				dFiles := make(chan *dfs.Dfile, expected)
 				walker := dwalk.NewDWalker([]string{root}, dFiles)
 				ctx := context.Background()
-				walker.Run(ctx, dwalk.MAX_FILE_SIZE)
+				walker.Run(ctx, 0, dwalk.MAX_FILE_SIZE)
 
 				count := 0
 				for range dFiles {

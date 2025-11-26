@@ -85,6 +85,7 @@ func main() {
 		flShowVersion  = flag.Bool("version", false, "Display version")
 		flCpuProfile   = flag.String("profile", "", "Write CPU profile to disk for analysis.")
 		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates. Useful for development.")
+		flMinFileSize  = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput   = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets  = flag.Bool("bullets", false, "Show duplicates as formatted bullet list.")
@@ -113,10 +114,17 @@ func main() {
 		showVersion()
 	}
 
+	var MinFileSize uint = 0
+	if *flMinFileSize != 0 {
+		MinFileSize = *flMinFileSize
+		fmt.Printf("Skipping files smaller than: %d bytes.\n", MinFileSize)
+		dsklog.Dlogger.Infof("Min file size set to %d bytes.\n", MinFileSize)
+	}
+
 	var MaxFileSize uint = dwalk.MAX_FILE_SIZE // Default is 4 GiB.
 	if *flMaxFileSize != 0 {
 		MaxFileSize = *flMaxFileSize
-		fmt.Printf("Skipping files of size: %d bytes.\n\n", MaxFileSize)
+		fmt.Printf("Skipping files larger than: %d bytes.\n", MaxFileSize)
 		dsklog.Dlogger.Infof("Max file size set to %d bytes.\n", MaxFileSize)
 	}
 
@@ -131,6 +139,8 @@ func main() {
 	dMap, err := dmap.NewDmap(config.Config{
 		SkipEmpty:    *flIgnoreEmpty,
 		SkipSymLinks: *flSkipSymLinks,
+		MinFileSize:  MinFileSize,
+		MaxFileSize:  MaxFileSize,
 	})
 
 	if err != nil {
@@ -143,7 +153,7 @@ func main() {
 	dFiles := make(chan *dfs.Dfile, 1000)
 
 	walker := dwalk.NewDWalker(rootDirs, dFiles)
-	walker.Run(ctx, MaxFileSize)
+	walker.Run(ctx, MinFileSize, MaxFileSize)
 
 	start := time.Now()
 
