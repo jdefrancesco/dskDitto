@@ -113,6 +113,9 @@ func GetFileUidGid(filename string) (Uid, Gid int) {
 // Check if we have proper permissions for investigating
 // a file. Performs additional fast safety checks to avoid
 // symlink traversal and non-regular special files.
+// TODO: These additional checks need to be refactored out. Not sure what I was
+//
+//	thinking when I put them there.
 func CheckFilePerms(path string) bool {
 	cleanPath := filepath.Clean(path)
 	absPath, err := filepath.Abs(cleanPath)

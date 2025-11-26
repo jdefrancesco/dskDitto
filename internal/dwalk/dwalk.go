@@ -152,9 +152,12 @@ func dirEntries(ctx context.Context, dir string, d *DWalk) []os.DirEntry {
 
 // getOptimalConcurrency returns optimal concurrency based on system resources
 func getOptimalConcurrency() int {
-	// For directory reading, use 2-4x CPU count as it's mostly I/O bound
-	// But cap it to avoid creating too many goroutines
-	cpuCount := min(runtime.NumCPU()*2, 64)
-	dsklog.Dlogger.Debugf("CPU Count chose: %d", cpuCount)
-	return cpuCount
+	procs := runtime.GOMAXPROCS(0)
+	if procs < 1 {
+		procs = runtime.NumCPU()
+	}
+	concurrency := min(procs*4, 128)
+
+	dsklog.Dlogger.Debugf("Directory walker concurrency: %d (procs=%d)", concurrency, procs)
+	return concurrency
 }

@@ -61,7 +61,7 @@ This confirms Pterm tree rendering is extremely slow for some reason.
 
 * Updated latest golang
 * Efficient dMap now uses sha256 [32]byte key instead of string
-* Open File Desc. Limit in dfs now a reasonable 8192 
+* Open File Desc. Limit in dfs now a reasonable 8192
 
 #### Results
 
@@ -71,11 +71,30 @@ Processed 429,565 files in 17.32 seconds!
 
 #### Changes
 
-* We started using a buffered channel. 
+* We started using a buffered channel.
 
 #### Results
 
 This gave a modest improvement and a bit better file throughput.
 
 Processed 429,663 files in 17.18 seconds...
+
+
+### Run 6
+
+#### Changes
+
+* Added buf-pool buffers to ease pressure on GC
+* getOptimalConcurrency is more robust.
+
+#### Command
+
+```bash
+ ./bin/dskDitto --time-only --profile real.prof ~
+```
+
+#### Results
+
+Processed **1,766,248** files in ~1m18seconds. This is our best result so far I believe. Profiling demonstrates that I/O Bound work acting
+as the primary bottleneck right now.  We alleviated this somewhat using `io.CopyBuffer`. We may fiddle with picking optimal size for buffer pool buffs.
 

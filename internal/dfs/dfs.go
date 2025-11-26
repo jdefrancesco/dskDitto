@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"sync"
 
 	"fmt"
 	"os"
@@ -13,7 +14,8 @@ import (
 
 // For now this will be our max open-file descriptor limit. This value
 // is used by hashing function semaphore logic.
-const OpenFileDescLimMax = 1024
+// TODO: Make tuneable.
+const OpenFileDescLimMax = 2048
 
 // Dfile structure will describe a given file. We
 // only care about the few file properties that will
@@ -72,31 +74,41 @@ func (d *Dfile) GetPerms() string {
 	return ""
 }
 
+// Semaphore that controls how many open file descriptors we can have at once..
 var sema = make(chan struct{}, OpenFileDescLimMax)
+
+// We want to re-use a pool of buffers to make things easier on GC. We hash files
+// in quick succession. Instead of creating a new buffer for each file we can re-use what we have
+// available.
+var bufPool = sync.Pool{
+	New: func() any {
+		var arr [1 << 20]byte
+		return &arr
+	},
+}
 
 func (d *Dfile) hashFileSHA256() error {
 	// Acquire concurrency/semaphore permit
 	sema <- struct{}{}
 	defer func() { <-sema }()
 
+	bufPtr := bufPool.Get().(*[1 << 20]byte)
+	defer bufPool.Put(bufPtr)
+
 	f, err := os.Open(d.fileName)
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", d.fileName, err)
 	}
 	defer func() {
-		if cerr := f.Close(); cerr != nil {
+		if err := f.Close(); err != nil {
 			dsklog.Dlogger.Debug("Error closing file.")
 		}
 	}()
 
 	h := sha256.New()
-
-	// Use a large, reusable buffer for copying. io.Copy used a default 32KiB
-	// size resulted in excessive syscalls bottlenecking.
-	buf := make([]byte, 1<<20) // 1 MiB buffer
-
+	buf := bufPtr[:]
 	if _, err := io.CopyBuffer(h, f, buf); err != nil {
-		return fmt.Errorf("failed to copy file into hash for %s: %w", d.fileName, err)
+		return fmt.Errorf("failed to copy file %s into hash buffer for processing: %w", d.fileName, err)
 	}
 
 	sum := h.Sum(nil)

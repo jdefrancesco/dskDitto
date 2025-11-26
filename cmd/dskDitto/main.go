@@ -31,7 +31,9 @@ func init() {
 	flag.Usage = func() {
 		fmt.Printf("Usage: dskDitto [options] PATHS\n")
 		flag.PrintDefaults()
-		fmt.Printf("\n[note] Double dash notation works too. Example: --no-banner.\n")
+		fmt.Println("")
+		fmt.Printf("[note] Display options like --pretty will only show results. No file removal occurs.\n")
+		fmt.Printf("[note] Double dash notation works too. Example: --no-banner.\n")
 	}
 }
 
@@ -82,7 +84,7 @@ func main() {
 		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flShowVersion  = flag.Bool("version", false, "Display version")
 		flCpuProfile   = flag.String("profile", "", "Write CPU profile to disk for analysis.")
-		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
+		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates. Useful for development.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput   = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets  = flag.Bool("bullets", false, "Show duplicates as formatted bullet list.")
@@ -149,7 +151,7 @@ func main() {
 	tick := time.Tick(time.Duration(500) * time.Millisecond)
 	infoSpinner, _ := pterm.DefaultSpinner.Start()
 
-	// Number of files we need to process.
+	// Number of files we have processed so far.
 	var nfiles uint
 
 MainLoop:

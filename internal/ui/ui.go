@@ -554,6 +554,7 @@ func (m *model) startConfirmationPrompt() {
 }
 
 // processDeletion actually removes the duplicate files.
+// TODO: Factor out logic that removes file.
 func (m *model) processDeletion() {
 	m.mode = modeTree
 	m.confirmInput = ""

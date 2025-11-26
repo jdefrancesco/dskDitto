@@ -328,7 +328,7 @@ func createDuplicateFiles(tb testing.TB, dir string, duplicates, size int) []str
 	}
 
 	var paths []string
-	for i := 0; i < duplicates; i++ {
+	for i := range duplicates {
 		content := bytes.Repeat([]byte{byte(i % 251)}, size)
 		left := filepath.Join(dir, fmt.Sprintf("dupA_%03d.dat", i))
 		right := filepath.Join(dir, fmt.Sprintf("dupB_%03d.dat", i))
@@ -369,10 +369,7 @@ func makeSizedFile(tb testing.TB, dir, name string, size int) string {
 	chunk := bytes.Repeat([]byte{0xA5}, min(size, chunkSize))
 	remaining := size
 	for remaining > 0 {
-		writeLen := chunkSize
-		if remaining < chunkSize {
-			writeLen = remaining
-		}
+		writeLen := min(remaining, chunkSize)
 		if _, err := file.Write(chunk[:writeLen]); err != nil {
 			tb.Fatalf("write %s: %v", path, err)
 		}

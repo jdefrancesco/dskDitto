@@ -11,7 +11,7 @@ MEM_PROFILE ?= mem.prof
 PROFILE ?= $(CPU_PROFILE)
 PPROF_ADDR ?= localhost:6060
 
-PREFIX=/usr/local/bin
+PREFIX = /usr/local/bin
 
 all: test build
 
