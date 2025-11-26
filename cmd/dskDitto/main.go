@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -80,7 +81,7 @@ func main() {
 	var (
 		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flShowVersion  = flag.Bool("version", false, "Display version")
-		flCpuProfile   = flag.String("cpuprofile", "", "Write CPU profile to disk for analysis.")
+		flCpuProfile   = flag.String("profile", "", "Write CPU profile to disk for analysis.")
 		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput   = flag.Bool("text-output", false, "Dump results in grep/text friendly format. Useful for scripting.")
@@ -90,6 +91,16 @@ func main() {
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 	)
 	flag.Parse()
+
+	// Enable CPU profiling
+	if *flCpuProfile != "" {
+		f, err := os.Create(*flCpuProfile)
+		if err != nil {
+			dsklog.Dlogger.Info("profile failed")
+			os.Exit(1)
+		}
+		pprof.StartCPUProfile(f)
+	}
 
 	if !*flNoBanner {
 		showHeader()
@@ -108,17 +119,6 @@ func main() {
 	}
 
 	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
-
-	// Enable CPU profiling
-	if *flCpuProfile != "" {
-		f, err := os.Create(*flCpuProfile)
-		if err != nil {
-			dsklog.Dlogger.Info("cpuprofile failed")
-			os.Exit(1)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
@@ -186,6 +186,10 @@ MainLoop:
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
 		pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
+
+	// Stop profiling after this point. Profile data should now be
+	// written to disk.
+	pprof.StopCPUProfile()
 
 	// For debugging to test speed
 	if *flTimeOnly {

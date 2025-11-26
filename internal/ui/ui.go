@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fmt"
-	"math/rand" //gosec:
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"

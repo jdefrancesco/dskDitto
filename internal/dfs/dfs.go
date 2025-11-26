@@ -2,6 +2,7 @@ package dfs
 
 import (
 	"crypto/sha256"
+	"ditto/internal/dsklog"
 	"errors"
 	"io"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 
 // For now this will be our max open-file descriptor limit. This value
 // is used by hashing function semaphore logic.
-const OpenFileDescLimMax = 8192
+const OpenFileDescLimMax = 1024
 
 // Dfile structure will describe a given file. We
 // only care about the few file properties that will
@@ -73,28 +74,33 @@ func (d *Dfile) GetPerms() string {
 
 var sema = make(chan struct{}, OpenFileDescLimMax)
 
-// Compute SHA256 hash. This will be the primary hash used, MD5 will be removed.
 func (d *Dfile) hashFileSHA256() error {
-
-	// Acquire semaphore to prevent exhausting all our file descriptors.
+	// Acquire concurrency/semaphore permit
 	sema <- struct{}{}
 	defer func() { <-sema }()
 
 	f, err := os.Open(d.fileName)
 	if err != nil {
-		err = fmt.Errorf("failed to read file %s", d.fileName)
-		return err
+		return fmt.Errorf("failed to open file %s: %w", d.fileName, err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			dsklog.Dlogger.Debug("Error closing file.")
+		}
+	}()
 
 	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		// TODO: Handle this more approriately
-		return nil
+
+	// Use a large, reusable buffer for copying. io.Copy used a default 32KiB
+	// size resulted in excessive syscalls bottlenecking.
+	buf := make([]byte, 1<<20) // 1 MiB buffer
+
+	if _, err := io.CopyBuffer(h, f, buf); err != nil {
+		return fmt.Errorf("failed to copy file into hash for %s: %w", d.fileName, err)
 	}
 
-	// Copy the hash bytes directly into our fixed-size array
-	copy(d.fileSHA256Hash[:], h.Sum(nil))
-	return nil
+	sum := h.Sum(nil)
+	copy(d.fileSHA256Hash[:], sum)
 
+	return nil
 }
