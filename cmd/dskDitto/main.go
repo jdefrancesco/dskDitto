@@ -92,6 +92,7 @@ func main() {
 		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
 		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
+		flHashAlgo     = flag.String("hash", string(dfs.HashSHA256), "Hash algorithm to use (sha256 or blake3).")
 	)
 	flag.Parse()
 
@@ -130,6 +131,12 @@ func main() {
 
 	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
+	hashAlgo, err := dfs.ParseHashAlgorithm(*flHashAlgo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid hash algorithm %q: %v\n", *flHashAlgo, err)
+		os.Exit(1)
+	}
+
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
@@ -137,10 +144,11 @@ func main() {
 
 	// Dmap stores duplicate file information. Failure is fatal.
 	dMap, err := dmap.NewDmap(config.Config{
-		SkipEmpty:    *flIgnoreEmpty,
-		SkipSymLinks: *flSkipSymLinks,
-		MinFileSize:  MinFileSize,
-		MaxFileSize:  MaxFileSize,
+		SkipEmpty:     *flIgnoreEmpty,
+		SkipSymLinks:  *flSkipSymLinks,
+		MinFileSize:   MinFileSize,
+		MaxFileSize:   MaxFileSize,
+		HashAlgorithm: hashAlgo,
 	})
 
 	if err != nil {
@@ -152,7 +160,7 @@ func main() {
 	// Use buffered channel to allow async file discovery and processing
 	dFiles := make(chan *dfs.Dfile, 1000)
 
-	walker := dwalk.NewDWalker(rootDirs, dFiles)
+	walker := dwalk.NewDWalker(rootDirs, dFiles, hashAlgo)
 	walker.Run(ctx, MinFileSize, MaxFileSize)
 
 	start := time.Now()

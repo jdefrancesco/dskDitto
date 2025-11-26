@@ -2,14 +2,18 @@ package dfs
 
 import (
 	"crypto/sha256"
-	"ditto/internal/dsklog"
 	"errors"
+	"fmt"
+	"hash"
 	"io"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
-	"fmt"
-	"os"
+	"ditto/internal/dsklog"
+
+	"lukechampine.com/blake3"
 )
 
 // For now this will be our max open-file descriptor limit. This value
@@ -17,18 +21,26 @@ import (
 // TODO: Make tuneable.
 const OpenFileDescLimMax = 2048
 
+// HashAlgorithm identifies which digest to use when hashing files.
+type HashAlgorithm string
+
+const (
+	HashSHA256 HashAlgorithm = "sha256"
+	HashBLAKE3 HashAlgorithm = "blake3"
+)
+
 // Dfile structure will describe a given file. We
 // only care about the few file properties that will
 // allow us to detect a duplicate.
 type Dfile struct {
 	fileName string
 	fileSize int64
-	// SHA256 of file as raw bytes (more efficient than hex string)
-	fileSHA256Hash [32]byte
+	algo     HashAlgorithm
+	fileHash [32]byte
 }
 
 // New creates a new Dfile.
-func NewDfile(fName string, fSize int64) (*Dfile, error) {
+func NewDfile(fName string, fSize int64, algo HashAlgorithm) (*Dfile, error) {
 
 	if fName == "" {
 		fmt.Printf("File name must be specified\n")
@@ -41,15 +53,21 @@ func NewDfile(fName string, fSize int64) (*Dfile, error) {
 		return nil, err
 	}
 
+	if algo == "" {
+		algo = HashSHA256
+	}
+
 	d := &Dfile{
 		fileName: fullFileName,
 		fileSize: fSize,
+		algo:     algo,
 	}
 
-	if err = d.hashFileSHA256(); err != nil {
+	if err = d.hashFile(); err != nil {
 		return d, errors.New("failed to hash file")
 	}
 
+	dsklog.Dlogger.Debugf("Hash algorithm chosen is %s", algo)
 	return d, nil
 }
 
@@ -62,11 +80,14 @@ func (d *Dfile) BaseName() string { return filepath.Base(d.fileName) }
 // FileSize will return the size of the file described by dfile object.
 func (d *Dfile) FileSize() int64 { return d.fileSize }
 
-// GetHash will return SHA256 Hash as byte array.
-func (d *Dfile) Hash() [32]byte { return d.fileSHA256Hash }
+// Algorithm returns the hashing algorithm used to create this Dfile.
+func (d *Dfile) Algorithm() HashAlgorithm { return d.algo }
+
+// GetHash will return hash bytes as fixed-size array.
+func (d *Dfile) Hash() [32]byte { return d.fileHash }
 
 // GetHashString will return SHA256 Hash as hex string for display purposes.
-func (d *Dfile) HashString() string { return fmt.Sprintf("%x", d.fileSHA256Hash) }
+func (d *Dfile) HashString() string { return fmt.Sprintf("%x", d.fileHash) }
 
 // GetPerms will give us UNIX permissions we need to ensure we can access
 // a file.
@@ -87,8 +108,7 @@ var bufPool = sync.Pool{
 	},
 }
 
-func (d *Dfile) hashFileSHA256() error {
-	// Acquire concurrency/semaphore permit
+func (d *Dfile) hashFile() error {
 	sema <- struct{}{}
 	defer func() { <-sema }()
 
@@ -105,14 +125,39 @@ func (d *Dfile) hashFileSHA256() error {
 		}
 	}()
 
-	h := sha256.New()
-	buf := bufPtr[:]
-	if _, err := io.CopyBuffer(h, f, buf); err != nil {
+	h, err := newHash(d.algo)
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.CopyBuffer(h, f, bufPtr[:]); err != nil {
 		return fmt.Errorf("failed to copy file %s into hash buffer for processing: %w", d.fileName, err)
 	}
 
 	sum := h.Sum(nil)
-	copy(d.fileSHA256Hash[:], sum)
-
+	copy(d.fileHash[:], sum)
 	return nil
+}
+
+func newHash(algo HashAlgorithm) (hash.Hash, error) {
+	switch algo {
+	case HashBLAKE3:
+		return blake3.New(32, nil), nil
+	case HashSHA256, "":
+		return sha256.New(), nil
+	default:
+		return nil, fmt.Errorf("unsupported hash algorithm: %s", algo)
+	}
+}
+
+// ParseHashAlgorithm returns the supported hash algorithm constant for the supplied string.
+func ParseHashAlgorithm(name string) (HashAlgorithm, error) {
+	switch HashAlgorithm(strings.ToLower(name)) {
+	case HashSHA256, "":
+		return HashSHA256, nil
+	case HashBLAKE3:
+		return HashBLAKE3, nil
+	default:
+		return "", fmt.Errorf("unsupported hash algorithm %q", name)
+	}
 }

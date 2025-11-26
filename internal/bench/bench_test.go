@@ -20,6 +20,8 @@ import (
 
 var benchmarkInit sync.Once
 
+const defaultHashAlgorithm = dfs.HashSHA256
+
 // setupBenchmark ensures the logger is initialised exactly once for benchmarks.
 func setupBenchmark(tb testing.TB) {
 	tb.Helper()
@@ -31,6 +33,15 @@ func setupBenchmark(tb testing.TB) {
 // BenchmarkNewDfile benchmarks overhead of creating a new Dfile. A Dfile
 // is the abstraction we use for files we crawl and analyze.
 func BenchmarkNewDfile(b *testing.B) {
+	benchmarkNewDfile(b, defaultHashAlgorithm)
+}
+
+// BenchmarkNewDfileBLAKE3 measures Dfile creation when using the BLAKE3 digest.
+func BenchmarkNewDfileBLAKE3(b *testing.B) {
+	benchmarkNewDfile(b, dfs.HashBLAKE3)
+}
+
+func benchmarkNewDfile(b *testing.B, algo dfs.HashAlgorithm) {
 	setupBenchmark(b)
 
 	dir := b.TempDir()
@@ -42,14 +53,23 @@ func BenchmarkNewDfile(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		if _, err := dfs.NewDfile(path, info.Size()); err != nil {
+		if _, err := dfs.NewDfile(path, info.Size(), algo); err != nil {
 			b.Fatalf("NewDfile failed: %v", err)
 		}
 	}
 }
 
-// BenchmarkHashFileSHA256 measures hashing throughput for a range of file sizes.
+// BenchmarkHashFileSHA256 measures hashing throughput for SHA-256 across file sizes.
 func BenchmarkHashFileSHA256(b *testing.B) {
+	benchmarkHashFile(b, dfs.HashSHA256)
+}
+
+// BenchmarkHashFileBLAKE3 measures hashing throughput for BLAKE3 across file sizes.
+func BenchmarkHashFileBLAKE3(b *testing.B) {
+	benchmarkHashFile(b, dfs.HashBLAKE3)
+}
+
+func benchmarkHashFile(b *testing.B, algo dfs.HashAlgorithm) {
 	setupBenchmark(b)
 
 	tests := []struct {
@@ -74,7 +94,7 @@ func BenchmarkHashFileSHA256(b *testing.B) {
 
 			b.ResetTimer()
 			for b.Loop() {
-				if _, err := dfs.NewDfile(path, info.Size()); err != nil {
+				if _, err := dfs.NewDfile(path, info.Size(), algo); err != nil {
 					b.Fatalf("hash failed: %v", err)
 				}
 			}
@@ -108,7 +128,7 @@ func BenchmarkDWalkRun(b *testing.B) {
 			b.ResetTimer()
 			for b.Loop() {
 				dFiles := make(chan *dfs.Dfile, expected)
-				walker := dwalk.NewDWalker([]string{root}, dFiles)
+				walker := dwalk.NewDWalker([]string{root}, dFiles, defaultHashAlgorithm)
 				ctx := context.Background()
 				walker.Run(ctx, 0, dwalk.MAX_FILE_SIZE)
 
@@ -132,7 +152,7 @@ func BenchmarkMonitorLoop(b *testing.B) {
 	root := b.TempDir()
 	paths := createDuplicateFiles(b, root, 128, 8*1024)
 	infos := mustStatPaths(b, paths)
-	prehashed := mustMakeDfiles(b, paths, infos)
+	prehashed := mustMakeDfiles(b, paths, infos, defaultHashAlgorithm)
 	expected := uint(len(prehashed))
 
 	b.Run("Prehashed", func(b *testing.B) {
@@ -151,7 +171,7 @@ func BenchmarkMonitorLoop(b *testing.B) {
 			result := runMonitorLoop(b, nil, func() []*dfs.Dfile {
 				files := make([]*dfs.Dfile, 0, len(paths))
 				for idx, path := range paths {
-					df, err := dfs.NewDfile(path, infos[idx].Size())
+					df, err := dfs.NewDfile(path, infos[idx].Size(), defaultHashAlgorithm)
 					if err != nil {
 						b.Fatalf("NewDfile failed: %v", err)
 					}
@@ -177,6 +197,58 @@ func BenchmarkMonitorLoop(b *testing.B) {
 	})
 }
 
+// BenchmarkMonitorLoopBLAKE3 mirrors BenchmarkMonitorLoop but exercises the pipeline using BLAKE3.
+func BenchmarkMonitorLoopBLAKE3(b *testing.B) {
+	setupBenchmark(b)
+
+	root := b.TempDir()
+	paths := createDuplicateFiles(b, root, 128, 8*1024)
+	infos := mustStatPaths(b, paths)
+	prehashed := mustMakeDfiles(b, paths, infos, dfs.HashBLAKE3)
+	expected := uint(len(prehashed))
+
+	b.Run("Prehashed", func(b *testing.B) {
+		b.ResetTimer()
+		for b.Loop() {
+			result := runMonitorLoopWithAlgorithm(b, dfs.HashBLAKE3, prehashed, nil)
+			if result != expected {
+				b.Fatalf("unexpected file count: got %d want %d", result, expected)
+			}
+		}
+	})
+
+	b.Run("WithHashing", func(b *testing.B) {
+		b.ResetTimer()
+		for b.Loop() {
+			result := runMonitorLoopWithAlgorithm(b, dfs.HashBLAKE3, nil, func() []*dfs.Dfile {
+				files := make([]*dfs.Dfile, 0, len(paths))
+				for idx, path := range paths {
+					df, err := dfs.NewDfile(path, infos[idx].Size(), dfs.HashBLAKE3)
+					if err != nil {
+						b.Fatalf("NewDfile failed: %v", err)
+					}
+					files = append(files, df)
+				}
+				return files
+			})
+			if result != expected {
+				b.Fatalf("unexpected file count: got %d want %d", result, expected)
+			}
+		}
+	})
+
+	b.Run("ConcurrentProducers", func(b *testing.B) {
+		workers := runtime.GOMAXPROCS(0)
+		b.ResetTimer()
+		for b.Loop() {
+			result := runMonitorLoopConcurrentWithAlgorithm(b, dfs.HashBLAKE3, prehashed, workers)
+			if result != expected {
+				b.Fatalf("unexpected file count: got %d want %d", result, expected)
+			}
+		}
+	})
+}
+
 // BenchmarkDmapOperations benchmarks core Dmap operations.
 func BenchmarkDmapOperations(b *testing.B) {
 	setupBenchmark(b)
@@ -184,11 +256,11 @@ func BenchmarkDmapOperations(b *testing.B) {
 	root := b.TempDir()
 	paths := createDuplicateFiles(b, root, 256, 4*1024)
 	infos := mustStatPaths(b, paths)
-	prehashed := mustMakeDfiles(b, paths, infos)
+	prehashed := mustMakeDfiles(b, paths, infos, defaultHashAlgorithm)
 
 	b.ResetTimer()
 	for b.Loop() {
-		dMap, err := dmap.NewDmap(config.Config{})
+		dMap, err := dmap.NewDmap(config.Config{HashAlgorithm: defaultHashAlgorithm})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -205,9 +277,13 @@ func BenchmarkDmapOperations(b *testing.B) {
 // runMonitorLoop is a helper that runs the monitor loop using either a fixed slice
 // of dfiles or a factory function that returns a fresh slice.
 func runMonitorLoop(b *testing.B, cached []*dfs.Dfile, factory func() []*dfs.Dfile) uint {
+	return runMonitorLoopWithAlgorithm(b, defaultHashAlgorithm, cached, factory)
+}
+
+func runMonitorLoopWithAlgorithm(b *testing.B, algo dfs.HashAlgorithm, cached []*dfs.Dfile, factory func() []*dfs.Dfile) uint {
 	b.Helper()
 
-	dMap, err := dmap.NewDmap(config.Config{})
+	dMap, err := dmap.NewDmap(config.Config{HashAlgorithm: algo})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -240,9 +316,13 @@ func runMonitorLoop(b *testing.B, cached []*dfs.Dfile, factory func() []*dfs.Dfi
 
 // runMonitorLoopConcurrent stresses the monitor loop with multiple producers feeding the channel.
 func runMonitorLoopConcurrent(b *testing.B, files []*dfs.Dfile, workers int) uint {
+	return runMonitorLoopConcurrentWithAlgorithm(b, defaultHashAlgorithm, files, workers)
+}
+
+func runMonitorLoopConcurrentWithAlgorithm(b *testing.B, algo dfs.HashAlgorithm, files []*dfs.Dfile, workers int) uint {
 	b.Helper()
 
-	dMap, err := dmap.NewDmap(config.Config{})
+	dMap, err := dmap.NewDmap(config.Config{HashAlgorithm: algo})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -395,12 +475,12 @@ func mustStatPaths(tb testing.TB, paths []string) []os.FileInfo {
 }
 
 // mustMakeDfiles precomputes dfs.Dfile instances for the supplied paths.
-func mustMakeDfiles(tb testing.TB, paths []string, infos []os.FileInfo) []*dfs.Dfile {
+func mustMakeDfiles(tb testing.TB, paths []string, infos []os.FileInfo, algo dfs.HashAlgorithm) []*dfs.Dfile {
 	tb.Helper()
 
 	files := make([]*dfs.Dfile, 0, len(paths))
 	for i, path := range paths {
-		df, err := dfs.NewDfile(path, infos[i].Size())
+		df, err := dfs.NewDfile(path, infos[i].Size(), algo)
 		if err != nil {
 			tb.Fatalf("NewDfile(%s) failed: %v", path, err)
 		}

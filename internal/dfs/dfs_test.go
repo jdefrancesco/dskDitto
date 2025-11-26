@@ -7,9 +7,9 @@ import (
 
 func TestNewDfile(t *testing.T) {
 	var tests = []struct {
-		fileName       string
-		fileSize       int64
-		fileSHA256Hash string
+		fileName string
+		fileSize int64
+		fileHash string
 	}{
 		{"test_files/fileOne.bin", 100, "3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61"},
 		{"test_files/fileTwo.bin", 3, "f2e0e2beb73c21338a1dc872cd7b900c24c4547b6d9ae882e02bcd4257ac7bd4"},
@@ -18,7 +18,7 @@ func TestNewDfile(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		df, err := NewDfile(test.fileName, test.fileSize)
+		df, err := NewDfile(test.fileName, test.fileSize, HashSHA256)
 		if err != nil {
 			t.Errorf("Failed to read file %s: %v", test.fileName, err)
 		}
@@ -47,8 +47,8 @@ func TestNewDfile(t *testing.T) {
 			t.Errorf("t.fileSize want = %d, got = %d\n", test.fileSize, fileSize)
 		}
 
-		if test.fileSHA256Hash != fileHash {
-			t.Errorf("t.fileSHA256Hash want = %s, got = %s\n", test.fileSHA256Hash, fileHash)
+		if test.fileHash != fileHash {
+			t.Errorf("t.fileHash want = %s, got = %s\n", test.fileHash, fileHash)
 		}
 	}
 

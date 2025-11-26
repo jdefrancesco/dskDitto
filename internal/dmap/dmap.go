@@ -2,7 +2,7 @@
 //
 // Dmap will be a hash map with roughly the following simple structure:
 //
-// { SHA256Hash --> [fileClone1, fileClone2, etc...]}
+// { HashDigest --> [fileClone1, fileClone2, etc...]}
 //
 // That is, MD5 hash of file will serve as our hash map key, which maps to a simple list of file names.
 // MD5 will be used for the time being, mainly for the slight speed advantage.
@@ -19,11 +19,11 @@ import (
 	"github.com/pterm/pterm/putils"
 )
 
-type SHA256Hash [32]byte
+type Digest [32]byte
 
-// SHA256HashFromHex converts a hex string to SHA256Hash
-func SHA256HashFromHex(hexStr string) (SHA256Hash, error) {
-	var hash SHA256Hash
+// DigestFromHex converts a hex string to Digest
+func DigestFromHex(hexStr string) (Digest, error) {
+	var hash Digest
 	bytes, err := hex.DecodeString(hexStr)
 	if err != nil {
 		return hash, err
@@ -43,7 +43,7 @@ const mapInitSize = 4096
 // that will eventually be returned to the user.
 type Dmap struct {
 	// Primary map structure.
-	filesMap map[SHA256Hash][]string
+	filesMap map[Digest][]string
 
 	// Files deffered for reasons such as size are stored here for later processing.
 	deferredFiles []string
@@ -64,7 +64,7 @@ func NewDmap(cfg config.Config) (*Dmap, error) {
 		skipSymLinks: cfg.SkipSymLinks,
 	}
 	// Initialize our map.
-	dmap.filesMap = make(map[SHA256Hash][]string, mapInitSize)
+	dmap.filesMap = make(map[Digest][]string, mapInitSize)
 	dsklog.Dlogger.Debug("Dmap created with initial size: ", mapInitSize)
 	dsklog.Dlogger.Debug("Skipping empty files: ", cfg.SkipEmpty)
 	dsklog.Dlogger.Debug("Skipping symbolic links: ", cfg.SkipSymLinks)
@@ -74,7 +74,7 @@ func NewDmap(cfg config.Config) (*Dmap, error) {
 
 // Add will take a dfile and add it the map.
 func (d *Dmap) Add(dfile *dfs.Dfile) {
-	hash := SHA256Hash(dfile.Hash())
+	hash := Digest(dfile.Hash())
 	d.filesMap[hash] = append(d.filesMap[hash], dfile.FileName())
 	d.fileCount++
 }
@@ -170,7 +170,7 @@ func (d *Dmap) FileCount() uint {
 }
 
 // Get will get slice of files associated with hash.
-func (d *Dmap) Get(hash SHA256Hash) (files []string, err error) {
+func (d *Dmap) Get(hash Digest) (files []string, err error) {
 	res, ok := d.filesMap[hash]
 	if !ok {
 		return []string{}, err
@@ -180,6 +180,6 @@ func (d *Dmap) Get(hash SHA256Hash) (files []string, err error) {
 }
 
 // GetMap will return the map.
-func (d *Dmap) GetMap() map[SHA256Hash][]string {
+func (d *Dmap) GetMap() map[Digest][]string {
 	return d.filesMap
 }

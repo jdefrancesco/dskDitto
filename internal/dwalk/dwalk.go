@@ -26,17 +26,23 @@ type DWalk struct {
 	wg       sync.WaitGroup
 
 	// Channel used to communicate with main monitor goroutine.
-	dFiles chan<- *dfs.Dfile
-	sem    *semaphore.Weighted
+	dFiles        chan<- *dfs.Dfile
+	sem           *semaphore.Weighted
+	hashAlgorithm dfs.HashAlgorithm
 }
 
 // NewDWalker returns a new DWalk instance that accepts a root directory, wait group, and
 // channel dFiles over which we pass file names along with their hash for monitor loop.
-func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile) *DWalk {
+func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, algo dfs.HashAlgorithm) *DWalk {
+
+	if algo == "" {
+		algo = dfs.HashSHA256
+	}
 
 	walker := &DWalk{
-		rootDirs: rootDirs,
-		dFiles:   dFiles,
+		rootDirs:      rootDirs,
+		dFiles:        dFiles,
+		hashAlgorithm: algo,
 	}
 
 	// Set semaphore to optimal value based on system resources
@@ -123,7 +129,7 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 			continue
 		}
 
-		dFileEntry, err := dfs.NewDfile(absFileName, info.Size())
+		dFileEntry, err := dfs.NewDfile(absFileName, info.Size(), d.hashAlgorithm)
 		if err == nil {
 			dFiles <- dFileEntry
 		}

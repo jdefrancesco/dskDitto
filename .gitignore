@@ -8,6 +8,7 @@ files/
 app.log
 bin/
 .vscode/
+testdata/
 
 ./bin/dskDitto
 bench.test

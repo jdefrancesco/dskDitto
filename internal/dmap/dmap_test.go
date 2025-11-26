@@ -1,6 +1,7 @@
 package dmap
 
 import (
+	"crypto/sha256"
 	"ditto/internal/config"
 	"ditto/internal/dfs"
 	"ditto/internal/dsklog"
@@ -20,15 +21,15 @@ func TestNewDmap(t *testing.T) {
 
 	setupLogging()
 
-	dmap, err := NewDmap(config.Config{})
+	dmap, err := NewDmap(config.Config{HashAlgorithm: dfs.HashSHA256})
 	if err != nil {
 		t.Errorf("Couldn't create new dmap: %s", err)
 	}
 
 	var dfiles = []struct {
-		fileName       string
-		fileSize       int64
-		fileSHA256Hash string
+		fileName string
+		fileSize int64
+		fileHash string
 	}{
 		{"test_files/fileOne.bin", 101, "3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61"},
 		{"test_files/fileTwo.bin", 3, "f2e0e2beb73c21338a1dc872cd7b900c24c4547b6d9ae882e02bcd4257ac7bd4"},
@@ -37,7 +38,7 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	for _, f := range dfiles {
-		df, err := dfs.NewDfile(f.fileName, f.fileSize)
+		df, err := dfs.NewDfile(f.fileName, f.fileSize, dfs.HashSHA256)
 		if err != nil {
 			t.Errorf("Failed to read file %s: %v", f.fileName, err)
 		}
@@ -55,7 +56,7 @@ func TestNewDmap(t *testing.T) {
 	}
 
 	fmt.Println("Testing dmap.Get()")
-	hash, err := SHA256HashFromHex("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
+	hash, err := DigestFromHex("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
 	if err != nil {
 		t.Errorf("Error converting hex to hash: %v", err)
 	}
@@ -94,7 +95,7 @@ func FuzzDmapAdd(f *testing.F) {
 		}
 
 		// Create a new Dmap for each test
-		dm, err := NewDmap(config.Config{})
+		dm, err := NewDmap(config.Config{HashAlgorithm: dfs.HashSHA256})
 		if err != nil {
 			t.Fatalf("Failed to create Dmap: %v", err)
 		}
@@ -111,7 +112,7 @@ func FuzzDmapAdd(f *testing.F) {
 			}
 		}()
 
-		testHash := SHA256Hash{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
+		testHash := Digest{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
 			0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10,
 			0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
 			0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20}
@@ -137,8 +138,7 @@ func FuzzDmapAdd(f *testing.F) {
 	})
 }
 
-func FuzzSHA256HashFromHex(f *testing.F) {
-	// Add seed inputs for hex string fuzzing
+func FuzzDigestFromHex(f *testing.F) {
 	f.Add("3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61")
 	f.Add("deadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678")
 	f.Add("")
@@ -147,38 +147,40 @@ func FuzzSHA256HashFromHex(f *testing.F) {
 	f.Add("way_too_long_hex_string_that_exceeds_normal_hash_length_by_far_and_should_be_rejected")
 
 	f.Fuzz(func(t *testing.T, hexStr string) {
-		// Test that SHA256HashFromHex doesn't panic
 		defer func() {
 			if r := recover(); r != nil {
-				t.Errorf("SHA256HashFromHex panicked with input %q: %v", hexStr, r)
+				t.Errorf("DigestFromHex panicked with input %q: %v", hexStr, r)
 			}
 		}()
 
-		hash, err := SHA256HashFromHex(hexStr)
+		hash, err := DigestFromHex(hexStr)
 
-		// Valid 64-character hex strings should succeed
-		if len(hexStr) == 64 {
-			// Check if all characters are valid hex
-			validHex := true
+		// Case 1: Expect valid only when it's a valid 64-char hex string
+		isValidHex := len(hexStr) == 64
+		if isValidHex {
 			for _, c := range hexStr {
-				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-					validHex = false
+				if !((c >= '0' && c <= '9') ||
+					(c >= 'a' && c <= 'f') ||
+					(c >= 'A' && c <= 'F')) {
+					isValidHex = false
 					break
 				}
 			}
+		}
 
-			if validHex && err != nil {
-				t.Errorf("Expected valid hex string %q to succeed, but got error: %v", hexStr, err)
+		if isValidHex {
+			if err != nil {
+				t.Errorf("Expected valid hex %q to succeed, got error: %v", hexStr, err)
 			}
-			if validHex && err == nil {
-				// Verify the hash was properly constructed
-				if hash == (SHA256Hash{}) {
-					t.Errorf("Expected non-zero hash for valid input %q", hexStr)
-				}
+
+			// No non-zero requirement! Zero digest is valid.
+			if len(hash) != sha256.Size {
+				t.Errorf("Expected digest size %d, got %d", sha256.Size, len(hash))
 			}
+
 		} else {
 			if err == nil {
-				t.Errorf("Expected error for invalid length hex string %q, but got success", hexStr)
+				t.Errorf("Expected invalid hex %q to fail, but got success", hexStr)
 			}
 		}
 	})

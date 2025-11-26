@@ -18,7 +18,7 @@ func TestNewDWalk(t *testing.T) {
 	rootDirs := []string{"test_files"}
 
 	dFiles := make(chan *dfs.Dfile)
-	walker := NewDWalker(rootDirs, dFiles)
+	walker := NewDWalker(rootDirs, dFiles, dfs.HashSHA256)
 
 	// walker
 	ctx, cancel := context.WithCancel(context.Background())

@@ -61,8 +61,6 @@ install:
 	cp ./dskDitto $(PREFIX)/dskDitto
 
 
-fuzz:
-	$(GOTEST) -fuzz=Fuzz -fuzztime=10s ./internal/...
 
 .PHONY: clean
 clean:

@@ -132,7 +132,7 @@ type fileEntry struct {
 
 // These are batches of file dups
 type duplicateGroup struct {
-	Hash     dmap.SHA256Hash
+	Hash     dmap.Digest
 	Title    string
 	Files    []*fileEntry
 	Expanded bool
@@ -798,7 +798,7 @@ func (m *model) adjustScroll() {
 	}
 }
 
-func formatGroupTitle(hash dmap.SHA256Hash, files []string) string {
+func formatGroupTitle(hash dmap.Digest, files []string) string {
 	if len(files) == 0 {
 		return "Empty group"
 	}

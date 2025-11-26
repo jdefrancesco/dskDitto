@@ -1,5 +1,7 @@
 package config
 
+import "ditto/internal/dfs"
+
 type Config struct {
 	// Skip over empty files.
 	SkipEmpty bool
@@ -10,4 +12,6 @@ type Config struct {
 	// File size limits.
 	MinFileSize uint
 	MaxFileSize uint
+	// HashAlgorithm selects which digest is used when hashing file contents.
+	HashAlgorithm dfs.HashAlgorithm
 }
