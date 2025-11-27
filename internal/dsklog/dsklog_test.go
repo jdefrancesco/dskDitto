@@ -2,6 +2,7 @@ package dsklog
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -9,8 +10,10 @@ import (
 
 // Test initialization of the global logger for testing (Dlogger)
 func TestGlobalLoggerInitialization(t *testing.T) {
-	InitializeDlogger("test.log")
-	// defer os.Remove("test.log") // Clean up the test log file
+	t.Setenv(logLevelEnvVar, "debug")
+
+	logPath := filepath.Join(t.TempDir(), "test.log")
+	InitializeDlogger(logPath)
 	Dlogger.Debug("Test message")
 
 	// Ensure logger is not nil
@@ -33,5 +36,28 @@ func TestGlobalLoggerInitialization(t *testing.T) {
 	// Check the buffer for the logged message
 	if !bytes.Contains(buf.Bytes(), []byte("Test message")) {
 		t.Errorf("Expected log message not found in buffer")
+	}
+}
+
+func TestSetLevel(t *testing.T) {
+	t.Setenv(logLevelEnvVar, "")
+
+	logPath := filepath.Join(t.TempDir(), "test.log")
+	InitializeDlogger(logPath)
+
+	if err := SetLevel("error"); err != nil {
+		t.Fatalf("SetLevel returned error: %v", err)
+	}
+
+	if Dlogger.GetLevel() != logrus.ErrorLevel {
+		t.Fatalf("Expected log level to be Error, got %v", Dlogger.GetLevel())
+	}
+
+	if err := SetLevel("invalid"); err == nil {
+		t.Fatalf("SetLevel should fail for invalid level")
+	}
+
+	if Dlogger.GetLevel() != logrus.ErrorLevel {
+		t.Fatalf("Log level should remain Error after invalid SetLevel attempt, got %v", Dlogger.GetLevel())
 	}
 }

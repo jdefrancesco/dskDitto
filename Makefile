@@ -24,9 +24,11 @@ build:
 	gosec -exclude=G104,G108 ./...
 	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
+.PHONY: test
 test:
 	$(GOTEST) -v ./...
 
+.PHONY: bench
 bench:
 	$(GOTEST) -bench=. -benchmem ./internal/bench/
 
@@ -67,5 +69,6 @@ clean:
 	$(GOCLEAN)
 	rm -f ./bin/$(BINARY_NAME)
 	# Clear log files...
+	rm -f *.log
+	# Clear profiling data
 	rm *.prof
-	rm -rf app.log

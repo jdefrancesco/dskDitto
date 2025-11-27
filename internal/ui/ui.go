@@ -821,7 +821,7 @@ func autoMarkGroup(group *duplicateGroup) {
 			continue
 		}
 		entry.Marked = true
-		dsklog.Dlogger.Infof("Auto-marked file for deletion: %s", entry.Path)
+		dsklog.Dlogger.Debugf("Auto-marked file for deletion: %s", entry.Path)
 	}
 }
 

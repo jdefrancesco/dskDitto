@@ -195,14 +195,16 @@ func (d *Dmap) MinDuplicates() uint {
 	return d.minDuplicates
 }
 
-// RemoveDuplicates removes duplicates, leaving at most keep files per group. Returns removed file paths.
+// RemoveDuplicates removes duplicates, leaving at most "keep" files per group. Returns removed file paths.
 func (d *Dmap) RemoveDuplicates(keep uint) ([]string, error) {
 	if keep == 0 {
 		return nil, errors.New("keep count must be greater than zero")
 	}
 
+	// Guard against integer overflow
 	if keep > uint(math.MaxInt) {
-		return nil, fmt.Errorf("keep count %d exceeds supported maximum %d", keep, math.MaxInt)
+		dsklog.Dlogger.Debug("keep value overflow")
+		return nil, fmt.Errorf("keep count of %d exceeds maximum %d.", keep, math.MaxInt)
 	}
 	keepThreshold := int(keep)
 
