@@ -37,8 +37,8 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
 		fmt.Fprintf(os.Stderr, "  --min-size <bytes>         Skip files smaller than the given size.\n")
 		fmt.Fprintf(os.Stderr, "  --max-size <bytes>         Skip files larger than the given size (default 4GiB).\n")
-		fmt.Fprintf(os.Stderr, "  --text-output              Emit duplicate results in text-friendly format.\n")
-		fmt.Fprintf(os.Stderr, "  --bullets                  Show duplicates as a formatted bullet list.\n")
+		fmt.Fprintf(os.Stderr, "  --text               		 Emit duplicate results in text-friendly format.\n")
+		fmt.Fprintf(os.Stderr, "  --bullet                   Show duplicates as a formatted bullet list.\n")
 		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
 		fmt.Fprintf(os.Stderr, "  --ignore-empty             Ignore empty files (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
@@ -101,7 +101,7 @@ func main() {
 		flMinFileSize  = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput   = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
-		flShowBullets  = flag.Bool("bullets", false, "Show duplicates as formatted bullet list.")
+		flShowBullets  = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
 		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
 		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
@@ -131,25 +131,24 @@ func main() {
 		os.Exit(0)
 	}
 
-	// TODO: Refactor and pull this out into proper package.
 	var MinFileSize uint = 0
 	if *flMinFileSize != 0 {
 		MinFileSize = *flMinFileSize
 		fmt.Printf("Skipping files smaller than: %d bytes.\n", MinFileSize)
-		dsklog.Dlogger.Infof("Min file size set to %d bytes.\n", MinFileSize)
+		dsklog.Dlogger.Debugf("Min file size set to %d bytes.\n", MinFileSize)
 	}
 
 	var MaxFileSize uint = dwalk.MAX_FILE_SIZE // Default is 4 GiB.
 	if *flMaxFileSize != 0 {
 		MaxFileSize = *flMaxFileSize
 		fmt.Printf("Skipping files larger than: %d bytes.\n", MaxFileSize)
-		dsklog.Dlogger.Infof("Max file size set to %d bytes.\n", MaxFileSize)
+		dsklog.Dlogger.Debugf("Max file size set to %d bytes.\n", MaxFileSize)
 	}
 
 	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
-	// Keep SHA256 for now since BLAKE3 implementation is abysmal...
 	hashAlgo := dfs.HashSHA256
+
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
@@ -167,7 +166,7 @@ func main() {
 		// Leave as zero to indicate no removal requested.
 	}
 
-	dMap, err := dmap.NewDmap(config.Config{
+	appCfg := config.Config{
 		SkipEmpty:     *flIgnoreEmpty,
 		SkipSymLinks:  *flSkipSymLinks,
 		SkipHidden:    *flSkipHidden,
@@ -175,7 +174,9 @@ func main() {
 		MaxFileSize:   MaxFileSize,
 		MinDuplicates: minDups,
 		HashAlgorithm: hashAlgo,
-	})
+	}
+
+	dMap, err := dmap.NewDmap(appCfg.MinDuplicates)
 
 	if err != nil {
 		dsklog.Dlogger.Fatal("Failed to make new Dmap: ", err)
@@ -186,8 +187,8 @@ func main() {
 	// Use buffered channel to allow async file discovery and processing
 	dFiles := make(chan *dfs.Dfile, 1000)
 
-	walker := dwalk.NewDWalker(rootDirs, dFiles, hashAlgo, *flSkipHidden)
-	walker.Run(ctx, MinFileSize, MaxFileSize)
+	walker := dwalk.NewDWalker(rootDirs, dFiles, appCfg)
+	walker.Run(ctx)
 
 	start := time.Now()
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jdefrancesco/dskDitto/internal/config"
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 )
@@ -21,13 +22,12 @@ func TestNewDWalk(t *testing.T) {
 	rootDirs := []string{"test_files"}
 
 	dFiles := make(chan *dfs.Dfile)
-	walker := NewDWalker(rootDirs, dFiles, dfs.HashSHA256, true)
+	walker := NewDWalker(rootDirs, dFiles, config.Config{SkipHidden: true, HashAlgorithm: dfs.HashSHA256})
 
 	// walker
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var MaxFileSize uint = 1024 * 1024 * 1024 * 1
-	walker.Run(ctx, 0, MaxFileSize)
+	walker.Run(ctx)
 
 	var nfiles int64
 	tick := time.Tick(500 * time.Millisecond)
@@ -94,12 +94,11 @@ func collectFiles(t *testing.T, skipHidden bool) []string {
 	}
 
 	dFiles := make(chan *dfs.Dfile, 4)
-	walker := NewDWalker([]string{dir}, dFiles, dfs.HashSHA256, skipHidden)
+	walker := NewDWalker([]string{dir}, dFiles, config.Config{SkipHidden: skipHidden, HashAlgorithm: dfs.HashSHA256})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	const maxFileSize uint = MAX_FILE_SIZE
-	walker.Run(ctx, 0, maxFileSize)
+	walker.Run(ctx)
 
 	var names []string
 	for df := range dFiles {

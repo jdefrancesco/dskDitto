@@ -15,7 +15,6 @@ import (
 	"math"
 	"os"
 
-	"github.com/jdefrancesco/dskDitto/internal/config"
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
@@ -55,19 +54,15 @@ type Dmap struct {
 	fileCount uint
 	// Batches of duplicate files.
 	// batchCount   uint
-	ignoreEmpty   bool
-	skipSymLinks  bool
 	minDuplicates uint
 }
 
 // NewDmap returns a new Dmap structure.
-func NewDmap(cfg config.Config) (*Dmap, error) {
+func NewDmap(minDuplicates uint) (*Dmap, error) {
 
 	dmap := &Dmap{
 		fileCount:     0,
-		ignoreEmpty:   cfg.SkipEmpty,
-		skipSymLinks:  cfg.SkipSymLinks,
-		minDuplicates: cfg.MinDuplicates,
+		minDuplicates: minDuplicates,
 	}
 	if dmap.minDuplicates < 2 {
 		dmap.minDuplicates = 2
@@ -75,8 +70,6 @@ func NewDmap(cfg config.Config) (*Dmap, error) {
 	// Initialize our map.
 	dmap.filesMap = make(map[Digest][]string, mapInitSize)
 	dsklog.Dlogger.Debug("Dmap created with initial size: ", mapInitSize)
-	dsklog.Dlogger.Debug("Skipping empty files: ", cfg.SkipEmpty)
-	dsklog.Dlogger.Debug("Skipping symbolic links: ", cfg.SkipSymLinks)
 
 	return dmap, nil
 }
@@ -204,7 +197,7 @@ func (d *Dmap) RemoveDuplicates(keep uint) ([]string, error) {
 	// Guard against integer overflow
 	if keep > uint(math.MaxInt) {
 		dsklog.Dlogger.Debug("keep value overflow")
-		return nil, fmt.Errorf("keep count of %d exceeds maximum %d.", keep, math.MaxInt)
+		return nil, fmt.Errorf("keep count of %d exceeds maximum %d", keep, math.MaxInt)
 	}
 	keepThreshold := int(keep)
 

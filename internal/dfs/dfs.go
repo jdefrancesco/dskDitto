@@ -24,6 +24,7 @@ const OpenFileDescLimMax = 2048
 // HashAlgorithm identifies which digest to use when hashing files.
 type HashAlgorithm string
 
+// XXX: Removal of Blake3 until I find issue with implementation or my usage.
 const (
 	HashSHA256 HashAlgorithm = "sha256"
 	HashBLAKE3 HashAlgorithm = "blake3"
@@ -53,14 +54,10 @@ func NewDfile(fName string, fSize int64, algo HashAlgorithm) (*Dfile, error) {
 		return nil, err
 	}
 
-	if algo == "" {
-		algo = HashSHA256
-	}
-
 	d := &Dfile{
 		fileName: fullFileName,
 		fileSize: fSize,
-		algo:     algo,
+		algo:     HashSHA256,
 	}
 
 	if err = d.hashFile(); err != nil {

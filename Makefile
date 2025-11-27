@@ -68,6 +68,7 @@ install:
 clean:
 	$(GOCLEAN)
 	rm -f ./bin/$(BINARY_NAME)
+	rm -f ./bin/bench.test
 	# Clear log files...
 	rm -f *.log
 	# Clear profiling data

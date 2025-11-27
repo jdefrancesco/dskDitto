@@ -128,9 +128,13 @@ func BenchmarkDWalkRun(b *testing.B) {
 			b.ResetTimer()
 			for b.Loop() {
 				dFiles := make(chan *dfs.Dfile, expected)
-				walker := dwalk.NewDWalker([]string{root}, dFiles, defaultHashAlgorithm, true)
+				walker := dwalk.NewDWalker(
+					[]string{root},
+					dFiles,
+					config.Config{HashAlgorithm: defaultHashAlgorithm, SkipHidden: true},
+				)
 				ctx := context.Background()
-				walker.Run(ctx, 0, dwalk.MAX_FILE_SIZE)
+				walker.Run(ctx)
 
 				count := 0
 				for range dFiles {
@@ -260,7 +264,7 @@ func BenchmarkDmapOperations(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		dMap, err := dmap.NewDmap(config.Config{HashAlgorithm: defaultHashAlgorithm})
+		dMap, err := dmap.NewDmap(2)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -283,7 +287,7 @@ func runMonitorLoop(b *testing.B, cached []*dfs.Dfile, factory func() []*dfs.Dfi
 func runMonitorLoopWithAlgorithm(b *testing.B, algo dfs.HashAlgorithm, cached []*dfs.Dfile, factory func() []*dfs.Dfile) uint {
 	b.Helper()
 
-	dMap, err := dmap.NewDmap(config.Config{HashAlgorithm: algo})
+	dMap, err := dmap.NewDmap(2)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -322,7 +326,7 @@ func runMonitorLoopConcurrent(b *testing.B, files []*dfs.Dfile, workers int) uin
 func runMonitorLoopConcurrentWithAlgorithm(b *testing.B, algo dfs.HashAlgorithm, files []*dfs.Dfile, workers int) uint {
 	b.Helper()
 
-	dMap, err := dmap.NewDmap(config.Config{HashAlgorithm: algo})
+	dMap, err := dmap.NewDmap(2)
 	if err != nil {
 		b.Fatal(err)
 	}

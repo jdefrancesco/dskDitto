@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jdefrancesco/dskDitto/internal/config"
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 )
@@ -25,7 +24,7 @@ func TestNewDmap(t *testing.T) {
 
 	setupLogging()
 
-	dmap, err := NewDmap(config.Config{HashAlgorithm: dfs.HashSHA256})
+	dmap, err := NewDmap(0)
 	if err != nil {
 		t.Errorf("Couldn't create new dmap: %s", err)
 	}
@@ -99,7 +98,7 @@ func FuzzDmapAdd(f *testing.F) {
 		}
 
 		// Create a new Dmap for each test
-		dm, err := NewDmap(config.Config{HashAlgorithm: dfs.HashSHA256})
+		dm, err := NewDmap(0)
 		if err != nil {
 			t.Fatalf("Failed to create Dmap: %v", err)
 		}
@@ -193,7 +192,7 @@ func FuzzDigestFromHex(f *testing.F) {
 func TestRemoveDuplicates(t *testing.T) {
 	setupLogging()
 
-	dm, err := NewDmap(config.Config{MinDuplicates: 2, HashAlgorithm: dfs.HashSHA256})
+	dm, err := NewDmap(2)
 	if err != nil {
 		t.Fatalf("NewDmap failed: %v", err)
 	}
@@ -242,7 +241,7 @@ func TestRemoveDuplicates(t *testing.T) {
 func TestRemoveDuplicatesZeroKeep(t *testing.T) {
 	setupLogging()
 
-	dm, err := NewDmap(config.Config{})
+	dm, err := NewDmap(0)
 	if err != nil {
 		t.Fatalf("NewDmap failed: %v", err)
 	}
