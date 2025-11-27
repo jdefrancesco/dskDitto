@@ -53,18 +53,16 @@ var (
 
 // Color scheme for lip gloss.
 var (
-	headerBG   = lipgloss.Color("#47484aff")
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7fe02aaf")).
-			Background(headerBG).
+			Foreground(lipgloss.Color("#B8BB26")).
 			Bold(true).
 			PaddingBottom(0)
 
 	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
 	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#df5353ff")).Bold(true)
 	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
-	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#EAB308")).Bold(true)
-	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
+	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbe249e")).Bold(false)
+	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbe249e"))
 	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
 	// selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
 	// Files marked for removal are green.
@@ -79,7 +77,7 @@ var (
 
 	confirmPanelStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#5DFDCB")).
+				BorderForeground(lipgloss.Color("#86fb71ff")).
 				Padding(1, 2)
 
 	confirmCodeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
@@ -354,7 +352,7 @@ func (m *model) renderTreeView() string {
 	divider := dividerStyle.Render(strings.Repeat("─", width))
 
 	var sections []string
-	title := "dskDitto • Interactive Duplicate Management"
+	title := "dskDitto • Interactive Results"
 	sections = append(sections,
 		titleStyle.Width(width).Render(runewidth.Truncate(title, width, "…")))
 	sections = append(sections, divider)
@@ -805,7 +803,7 @@ func formatGroupTitle(hash dmap.Digest, files []string) string {
 		return "Empty group"
 	}
 
-	const tmpl = "%s - %d duplicates - (Using %s total)"
+	const tmpl = "%s - %d files - (approx. size %s)"
 	fileSize := dfs.GetFileSize(files[0])
 	totalSize := uint64(fileSize) * uint64(len(files))
 	hashHex := fmt.Sprintf("%x", hash[:4])
