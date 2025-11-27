@@ -1,55 +1,97 @@
 # dskDitto
 
-## About
+`dskDitto` is a fast, parallel duplicate-file detector with an optional interactive terminal UI that lets you review, keep, or safely delete redundant files.
 
-`DskDitto` is a tiny utility written in Go that helps identify duplicate/useless files on your machine
-in only a matter of seconds. It is highly concurrent, and efficient. Results are displayed in a slick looking TUI 
-that allows you to select what you to keep or clobber. 
+## Features
 
+- Concurrent directory walker tuned for large trees and multi-core systems
+- SHA-256 (default) or BLAKE3 hashing with smart size filtering
+- Multiple output modes: TUI, pretty tree, bullet lists, or text-friendly dumps
+- Optional automated duplicate removal with confirmation safety rails
+- Profiling toggles and micro-benchmarks for power users
 
-## TODO
+## Install
 
-See TODO.txt
+Install straight from source using Go 1.22+:
 
+```bash
+go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
+```
+
+This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default).
+
+Prefer cloning? Build locally via Make:
+
+```bash
+git clone https://github.com/jdefrancesco/dskDitto
+cd dskDitto
+make          # builds into ./bin/dskDitto
+```
+
+The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
+
+## Usage
+
+```bash
+./bin/dskDitto [options] PATH...
+```
+
+Common flags:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--min-size <bytes>` | Ignore files smaller than the provided size |
+| `--max-size <bytes>` | Skip files larger than the provided size (default 4 GiB) |
+| `--no-hidden` | Exclude dot files and dot-directories |
+| `--no-symlinks` | Skip symbolic links |
+| `--ignore-empty` | Skip zero-byte files |
+| `--text`, `--bullet`, `--pretty` | Render duplicates without launching the TUI |
+| `--remove <keep>` | Delete duplicates, keeping the first `<keep>` entries per group |
+
+Press `Ctrl+C` at any time to abort a scan. When duplicates are removed, a confirmation dialog prevents accidental mass deletion.
+
+## Configuration
+
+- **Log level:** set `DSKDITTO_LOG_LEVEL` to `debug`, `info`, `warn`, etc.
+- **Default options:** wrap `dskDitto` in a shell alias or script with your favorite defaults.
+- **Profiling:** supply `--pprof host:port` to expose Go's `pprof` endpoints while the tool runs.
 
 ## Screenshots
 
+### `dskDitto` rendered as a table
 
-### `dskDitto` invoked with only to show duplicates as table.
+![Screenshot: pretty table output](./ss/ss-pretty.png)
 
-![dskDitto-0](./ss/ss-pretty.png)
+### TUI for interactively selecting files to remove or keep
 
-### `dskDitto` has awesome TUI for interactively choosing files to remove or keep.
+![Screenshot: interactive TUI](./ss/ss-tui.png)
 
-![dskDitto-1](./ss/ss-tui.png)
+### Confirmation window keeps you from deleting the wrong files
 
-### `dskDitto` confirmation window ensures you don't shoot yourself in foot!
+![Confirmation dialog screenshot](./ss/ss-confirm.png)
 
-![dskDitto-2](./ss/ss-confirm.png)
+### Legacy UI shots
 
-### `dskDitto` screen shots (older)
+![Legacy screenshot 3](./ss/dskDitto-ss-one.png)
 
-![dskDitto-3](./ss/dskDitto-ss-one.png)
+![Legacy screenshot 4](./ss/dskDitto-ss-two.png)
 
-![dslDotto-4](./ss/dskDitto-ss-two.png)
-
-## Building
-
-Running the following commands will create a new executable `dskDitto`.
+## Development
 
 ```bash
-$ git clone https://github.com/jdefrancesco/dskDitto && cd dskDitto
-$ make
+make debug         # Create development build 
+make test          # go test ./...
+make bench         # run benchmarks (adds -benchmem)
+make bench-profile # capture cpu.prof and mem.prof into the repo root
+make pprof-web     # launch go tool pprof with HTTP UI for the latest profile
 ```
 
-## Benchmarking & Profiling
-
-- `make bench` runs the in-tree micro-benchmarks.
-- `make bench-profile` builds the benchmark binary and captures `cpu.prof` and `mem.prof` so you can inspect them later.
-- `make pprof-web PROFILE=cpu.prof` launches `go tool pprof` with the web UI (change `PROFILE` or `PPROF_ADDR` as needed).
-- At runtime you can expose live profiling handlers by adding `--pprof localhost:6060` (or any host:port) when starting `dskDitto`, then open `http://localhost:6060/debug/pprof/` in your browser.
+The TODO backlog lives in `TODO.md`.
 
 ## Contributing
 
-If you want to work on this just let me know. I don't have a ton of time to dedicate to this, and I might get bored
-of it all together..
+Issues and PRs are welcome. Open an issue if you have ideas for improvements, new output modes, or performance tweaks.
+
+## License
+
+This project is released under the MIT license. See [`LICENSE`](LICENSE) for details.
