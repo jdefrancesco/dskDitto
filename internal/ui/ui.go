@@ -121,6 +121,8 @@ const (
 	fileStatusError
 )
 
+// fileEntry represents a file tracked by the UI, capturing its path, marked state,
+// status, and any associated message.
 type fileEntry struct {
 	Path    string
 	Marked  bool
@@ -143,7 +145,7 @@ type nodeRef struct {
 	file  int
 }
 
-// model struct for Bubble Tea
+// model struct for Bubble Tea.
 type model struct {
 	groups        []*duplicateGroup
 	visible       []nodeRef
@@ -169,6 +171,9 @@ type model struct {
 
 var _ tea.Model = (*model)(nil)
 
+// newModel constructs a model initialized with duplicate groups derived from the provided dmap,
+// filtering out groups below the minimum duplicate threshold, preparing file entries, and
+// rebuilding the visible UI nodes before returning the result.
 func newModel(dMap *dmap.Dmap) *model {
 	m := &model{
 		mode:          modeTree,
@@ -202,24 +207,31 @@ func (m *model) Init() tea.Cmd {
 	return nil
 }
 
-// Update our Bubble Tea view
+// Update our Bubble Tea view. Handle key presses and mouse
+// activity as well.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
 	switch msg := msg.(type) {
+
 	case tea.KeyMsg:
 		if m.mode == modeConfirm {
 			return m.handleConfirmKeys(msg)
 		}
 		return m.handleTreeKeys(msg)
+
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.adjustScroll()
 	}
+
 	return m, nil
 }
 
+// View is a primary method used by Bubble Tea. Similiar to MVC.
 func (m *model) View() string {
 	if m.mode == modeConfirm {
 		return m.renderConfirmView()
@@ -228,59 +240,88 @@ func (m *model) View() string {
 }
 
 // handleTreeKeys allows user to navigate the TUI.
+// It wraps the finer detail handling so we can keep our Update
+// method clean. We provide some vim key binding too!
 func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+
 	// Prefer string-based matching for common keys.
 	switch msg.String() {
+
+	// Quit application
 	case "ctrl+c", "esc", "q":
 		return m, tea.Quit
+
+	// Move cursor up with arrow and vim like binding
 	case "up", "k":
 		m.moveCursor(-1)
+
 	case "down", "j":
 		m.moveCursor(1)
+
 	case "left", "h":
 		m.collapseCurrentGroup()
+
 	case "right", "l":
 		m.expandCurrentGroup()
+
 	case "pgup":
 		m.pageMove(-1)
+
 	case "pgdown", "pgdn":
 		m.pageMove(1)
+
 	case "ctrl+u":
 		m.halfPageMove(-1)
+
 	case "ctrl+d":
 		m.halfPageMove(1)
+
 	case "a", "A", "ctrl+a":
 		m.markAllFiles()
+
 	case "u", "U":
 		m.unmarkAllFiles()
+
 	case "enter":
 		m.toggleCurrentGroup()
+
 	case "m":
 		m.toggleCurrentFileMark()
+
 	case "d":
 		m.startConfirmationPrompt()
 	}
+
 	// Also catch PageUp/PageDown by key type for wider terminal support.
 	switch msg.Type {
+
 	case tea.KeyPgUp:
 		m.pageMove(-1)
+
 	case tea.KeyPgDown:
 		m.pageMove(1)
 	}
+
 	return m, nil
 }
 
 // handleMouse supports scroll wheel and selecting a row by clicking.
+// TODO: Refactor and remove any deprecated Bubble Tea types.
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+
 	if m.mode != modeTree {
 		return m, nil
 	}
+
+	// Refactor later as some of these methods seem to be deprecated.
 	switch msg.Type {
 	case tea.MouseWheelUp:
 		// Scroll up a few lines per tick.
 		m.moveCursor(-3)
+
 	case tea.MouseWheelDown:
 		m.moveCursor(3)
+
 	case tea.MouseLeft:
 		// Map Y position to list row.
 		row := msg.Y - m.listTopOffset()
@@ -317,11 +358,14 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // handleConfirmKeys ensures the user doesn't shoot themselves in the foot. The files will
 // be removed only if they type the code correctly.
 func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+
 	switch msg.Type {
+
 	case tea.KeyEsc:
 		m.mode = modeTree
 		m.confirmError = ""
 		m.confirmInput = ""
+
 	case tea.KeyEnter:
 		if m.confirmInput == m.confirmCode {
 			m.processDeletion()
@@ -329,10 +373,12 @@ func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirmError = "Incorrect code. Try again."
 			m.confirmInput = ""
 		}
+
 	case tea.KeyBackspace:
 		if len(m.confirmInput) > 0 {
 			m.confirmInput = m.confirmInput[:len(m.confirmInput)-1]
 		}
+
 	case tea.KeyRunes:
 		if len(m.confirmInput) >= len(m.confirmCode) {
 			return m, nil
@@ -343,15 +389,19 @@ func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
+
 	return m, nil
 }
 
-// renderTreeView draws primary tree table the user will interact with.
+// renderTreeView provides View with primary tree based TUI the user interacts with.
 func (m *model) renderTreeView() string {
+
 	width := m.effectiveWidth()
 	divider := dividerStyle.Render(strings.Repeat("─", width))
 
 	var sections []string
+
+	// Title at top of view
 	title := "dskDitto • Interactive Results"
 	sections = append(sections,
 		titleStyle.Width(width).Render(runewidth.Truncate(title, width, "…")))
@@ -375,7 +425,8 @@ func (m *model) renderTreeView() string {
 	if m.deleteResult != "" {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
-	sections = append(sections, footerStyle.Render("enter expand/collapse • arrow keys navigate • m toggle selection • s select all • u clear selection • d delete marked • esc/q exit"))
+	// Navigation instructions.
+	sections = append(sections, footerStyle.Render("enter expand/fold • arrows/j/k nav. list • m toggle selection • a select all • u clear selection • d delete marked • esc/q exit"))
 
 	return strings.Join(sections, "\n")
 }
@@ -468,6 +519,8 @@ func (m *model) currentNode() *nodeRef {
 	return &m.visible[m.cursor]
 }
 
+// collapseCurrentGroup collapses the currently selected group node,
+// ensuring its expanded state is false and refreshing the visible node list when needed.
 func (m *model) collapseCurrentGroup() {
 	node := m.currentNode()
 	if node == nil || node.typ != nodeGroup {
@@ -480,6 +533,7 @@ func (m *model) collapseCurrentGroup() {
 	}
 }
 
+// expandCurrentGroup marks the currently selected group as expanded.
 func (m *model) expandCurrentGroup() {
 	node := m.currentNode()
 	if node == nil || node.typ != nodeGroup {
@@ -492,6 +546,7 @@ func (m *model) expandCurrentGroup() {
 	}
 }
 
+// toggleCurrentGroup toggles between collapsed and expanded view.
 func (m *model) toggleCurrentGroup() {
 	node := m.currentNode()
 	if node == nil || node.typ != nodeGroup {
@@ -642,6 +697,9 @@ func (m *model) rebuildVisibleNodes() {
 	m.adjustScroll()
 }
 
+// renderNodeLine renders the visual line for the provided node reference, applying the appropriate
+// cursor state, group or file styling, truncation, and status formatting based on the available width
+// and whether the node is currently selected.
 func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 	cursor := cursorInactiveStyle.Render("  ")
 	if selected {
@@ -667,6 +725,7 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		}
 		body := lipgloss.JoinHorizontal(lipgloss.Left, indicator, " ", groupStyle.Render(title))
 		content = body
+
 	case nodeFile:
 		entry := m.groups[ref.group].Files[ref.file]
 		mark := unmarkedStyle.Render("□")
@@ -674,13 +733,14 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 			mark = markedStyle.Render("■")
 		}
 		markStr := "  " + mark
+
 		// First, estimate a status width budget as a third of available after mark.
 		markW := lipgloss.Width(markStr)
 		baseAvail := max(avail-markW, 1)
-		statusBudget := max(baseAvail/3,
-			// ensure status like "DELETED" fits
-			8)
+		// Make sure we have enough room to display "DELETED"
+		statusBudget := max(baseAvail/3, 8)
 		statusStr := formatFileStatus(entry, statusBudget)
+
 		// Now compute remaining width for the path and recompute status if needed.
 		used := lipgloss.Width(markStr) + lipgloss.Width(statusStr)
 		pathMax := max(avail-used, 1)
@@ -688,6 +748,7 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		if runewidth.StringWidth(path) > pathMax {
 			path = runewidth.Truncate(path, pathMax, "…")
 		}
+
 		// Recompute status with the final remaining width after mark+path (in case status was too big).
 		usedAfterPath := lipgloss.Width(markStr) + lipgloss.Width(fileStyle.Render(path))
 		rem := max(avail-usedAfterPath, 0)
@@ -810,6 +871,8 @@ func formatGroupTitle(hash dmap.Digest, files []string) string {
 	return fmt.Sprintf(tmpl, hashHex, len(files), utils.DisplaySize(totalSize))
 }
 
+// autoMarkGroup marks all but one in the duplicate group. For UX, assumes users will want
+// to probably keep at least one of the files.
 func autoMarkGroup(group *duplicateGroup) {
 	if group == nil {
 		return
