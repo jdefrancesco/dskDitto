@@ -40,7 +40,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --text               		 Emit duplicate results in text-friendly format.\n")
 		fmt.Fprintf(os.Stderr, "  --bullet                   Show duplicates as a formatted bullet list.\n")
 		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
-		fmt.Fprintf(os.Stderr, "  --ignore-empty             Ignore empty files (default true).\n")
+		fmt.Fprintf(os.Stderr, "  --empty                    Include empty files (default: ignore).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --no-hidden                Skip hidden dotfiles and directories (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
@@ -103,7 +103,7 @@ func main() {
 		flTextOutput   = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets  = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
 		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
-		flIgnoreEmpty  = flag.Bool("ignore-empty", true, "Ignore empty files (0 bytes).")
+		flIncludeEmpty = flag.Bool("empty", false, "Include empty files (0 bytes).")
 		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flSkipHidden   = flag.Bool("no-hidden", true, "Skip hidden files and directories (dotfiles).")
 		flMinDups      = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
@@ -167,7 +167,7 @@ func main() {
 	}
 
 	appCfg := config.Config{
-		SkipEmpty:     *flIgnoreEmpty,
+		SkipEmpty:     !*flIncludeEmpty,
 		SkipSymLinks:  *flSkipSymLinks,
 		SkipHidden:    *flSkipHidden,
 		MinFileSize:   MinFileSize,
