@@ -67,9 +67,7 @@ install:
 .PHONY: clean
 clean:
 	$(GOCLEAN)
-	rm -f ./bin/$(BINARY_NAME)
-	rm -f ./bin/bench.test
-	# Clear log files...
-	rm -f *.log
-	# Clear profiling data
-	rm *.prof
+	@if [ -e ./bin/$(BINARY_NAME) ]; then rm ./bin/$(BINARY_NAME); fi
+	@if [ -e ./bin/bench.test ]; then rm ./bin/bench.test; fi
+	@if ls *.log >/dev/null 2>&1; then rm *.log; fi
+	@if ls *.prof >/dev/null 2>&1; then rm *.prof; fi
