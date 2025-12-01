@@ -29,6 +29,7 @@ func init() {
 
 	// Custom help message
 	flag.Usage = func() {
+		showHeader()
 		fmt.Fprintf(os.Stderr, "Usage: dskDitto [options] PATHS\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fmt.Fprintf(os.Stderr, "  --no-banner                Do not show the dskDitto banner.\n")
