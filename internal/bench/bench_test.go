@@ -323,6 +323,8 @@ func runMonitorLoopConcurrent(b *testing.B, files []*dfs.Dfile, workers int) uin
 	return runMonitorLoopConcurrentWithAlgorithm(b, defaultHashAlgorithm, files, workers)
 }
 
+// runMonitorLoopConcurrentWithAlgorithm concurrently feeds the provided Dfiles into a shared dmap, using the given worker pool size, and returns
+// the total number of files recorded after all producers and the single consumer complete.
 func runMonitorLoopConcurrentWithAlgorithm(b *testing.B, algo dfs.HashAlgorithm, files []*dfs.Dfile, workers int) uint {
 	b.Helper()
 
@@ -335,7 +337,8 @@ func runMonitorLoopConcurrentWithAlgorithm(b *testing.B, algo dfs.HashAlgorithm,
 		workers = 1
 	}
 
-	dFiles := make(chan *dfs.Dfile, len(files))
+	// Set channel to 1 so we uncover backpressure.
+	dFiles := make(chan *dfs.Dfile, 1)
 	var consumer sync.WaitGroup
 	consumer.Add(1)
 	go func() {

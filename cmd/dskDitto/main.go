@@ -42,7 +42,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
 		fmt.Fprintf(os.Stderr, "  --empty                    Include empty files (default: ignore).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
-		fmt.Fprintf(os.Stderr, "  --no-hidden                Skip hidden dotfiles and directories (default true).\n")
+		fmt.Fprintf(os.Stderr, "  --hidden                   Include hidden dotfiles and directories (default: ignore).\n")
 		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
 		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n\n")
 		fmt.Fprintf(os.Stderr, "Notes:\n")
@@ -94,20 +94,20 @@ func main() {
 
 	// Parse command flags.
 	var (
-		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
-		flShowVersion  = flag.Bool("version", false, "Display version")
-		flCpuProfile   = flag.String("profile", "", "Write CPU profile to disk for analysis.")
-		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
-		flMinFileSize  = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
-		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
-		flTextOutput   = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
-		flShowBullets  = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
-		flShowPretty   = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
-		flIncludeEmpty = flag.Bool("empty", false, "Include empty files (0 bytes).")
-		flSkipSymLinks = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
-		flSkipHidden   = flag.Bool("no-hidden", true, "Skip hidden files and directories (dotfiles).")
-		flMinDups      = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
-		flKeep         = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
+		flNoBanner      = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
+		flShowVersion   = flag.Bool("version", false, "Display version")
+		flCpuProfile    = flag.String("profile", "", "Write CPU profile to disk for analysis.")
+		flTimeOnly      = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
+		flMinFileSize   = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
+		flMaxFileSize   = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
+		flTextOutput    = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
+		flShowBullets   = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
+		flShowPretty    = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
+		flIncludeEmpty  = flag.Bool("empty", false, "Include empty files (0 bytes).")
+		flSkipSymLinks  = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
+		flIncludeHidden = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
+		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
+		flKeep          = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
 	)
 	flag.Parse()
 
@@ -169,7 +169,7 @@ func main() {
 	appCfg := config.Config{
 		SkipEmpty:     !*flIncludeEmpty,
 		SkipSymLinks:  *flSkipSymLinks,
-		SkipHidden:    *flSkipHidden,
+		SkipHidden:    !*flIncludeHidden,
 		MinFileSize:   MinFileSize,
 		MaxFileSize:   MaxFileSize,
 		MinDuplicates: minDups,
