@@ -51,7 +51,7 @@ var (
 	currentProgram *tea.Program
 )
 
-// Color scheme for lip gloss.
+// Color scheme to make things look good!
 var (
 	titleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#B8BB26")).
@@ -145,7 +145,9 @@ type nodeRef struct {
 	file  int
 }
 
-// model struct for Bubble Tea.
+// model struct for Bubble Tea. This core structure
+// holds bulk of what is needed to render TUI.
+// See Bubble Tea github page for tutorial.
 type model struct {
 	groups        []*duplicateGroup
 	visible       []nodeRef
@@ -233,9 +235,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View is a primary method used by Bubble Tea. Similiar to MVC.
 func (m *model) View() string {
+	// Modal window that pops up when user triggers file removal
+	// process.
 	if m.mode == modeConfirm {
 		return m.renderConfirmView()
 	}
+
+	// Interactive tree view for viewing results and selecting course of action.
 	return m.renderTreeView()
 }
 

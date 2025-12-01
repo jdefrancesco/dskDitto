@@ -97,7 +97,7 @@ func main() {
 		flNoBanner     = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flShowVersion  = flag.Bool("version", false, "Display version")
 		flCpuProfile   = flag.String("profile", "", "Write CPU profile to disk for analysis.")
-		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates. Useful for development.")
+		flTimeOnly     = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
 		flMinFileSize  = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
 		flMaxFileSize  = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
 		flTextOutput   = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
@@ -184,8 +184,9 @@ func main() {
 	}
 
 	// Receive files we need to process via this channel.
-	// Use buffered channel to allow async file discovery and processing
-	dFiles := make(chan *dfs.Dfile, 1000)
+	// Settled on using 1 for high throughput and no hidden back pressure that
+	// I may have been hiding with buffered channel.
+	dFiles := make(chan *dfs.Dfile, 1)
 
 	walker := dwalk.NewDWalker(rootDirs, dFiles, appCfg)
 	walker.Run(ctx)
