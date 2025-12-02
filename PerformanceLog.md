@@ -98,3 +98,19 @@ Processed 429,663 files in 17.18 seconds...
 Processed **1,766,248** files in ~1m18seconds. This is our best result so far I believe. Profiling demonstrates that I/O Bound work acting
 as the primary bottleneck right now.  We alleviated this somewhat using `io.CopyBuffer`. We may fiddle with picking optimal size for buffer pool buffs.
 
+
+### Run 7
+
+#### Changes
+
+* Tested SIMD vs native SHA2 profiling.
+
+#### Command
+
+```bash
+./bin/dskDitto --time-only ~
+```
+
+#### Results
+
+1129601 files processed in 46.988s

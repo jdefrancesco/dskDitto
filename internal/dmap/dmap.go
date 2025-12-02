@@ -4,8 +4,7 @@
 //
 // { HashDigest --> [fileClone1, fileClone2, etc...]}
 //
-// That is, MD5 hash of file will serve as our hash map key, which maps to a simple list of file names.
-// MD5 will be used for the time being, mainly for the slight speed advantage.
+// That is, SHA256 hash of file will serve as our hash map key, which maps to a simple list of file names.
 package dmap
 
 import (
