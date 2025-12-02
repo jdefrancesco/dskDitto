@@ -75,7 +75,7 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 func main() {
 
 	// Initialize logger
-	dsklog.InitializeDlogger("dskditto.log")
+	dsklog.InitializeDlogger(".dskditto.log")
 	dsklog.Dlogger.Info("Logger initialized")
 
 	// Setup signal handler
