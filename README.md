@@ -5,7 +5,7 @@
 ## Features
 
 - Concurrent directory walker tuned for large trees and multi-core systems
-- SHA-256 (default) or BLAKE3 hashing with smart size filtering
+- SHA-256 (default) or BLAKE3 coming soon.
 - Multiple output modes: TUI, pretty tree, bullet lists, or text-friendly dumps
 - Optional automated duplicate removal with confirmation safety rails
 - Profiling toggles and micro-benchmarks for power users

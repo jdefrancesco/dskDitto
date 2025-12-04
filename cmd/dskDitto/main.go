@@ -317,4 +317,5 @@ func showHeader() {
 
 func showVersion() {
 	fmt.Printf("Version: %s\n", ver)
+	fmt.Printf("Github: https://github.com/jdefrancesco/dskDitto")
 }
