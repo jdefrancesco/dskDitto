@@ -38,12 +38,15 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
 		fmt.Fprintf(os.Stderr, "  --min-size <bytes>         Skip files smaller than the given size.\n")
 		fmt.Fprintf(os.Stderr, "  --max-size <bytes>         Skip files larger than the given size (default 4GiB).\n")
-		fmt.Fprintf(os.Stderr, "  --text               		 Emit duplicate results in text-friendly format.\n")
+		fmt.Fprintf(os.Stderr, "  --text               	     Emit duplicate results in text-friendly format.\n")
 		fmt.Fprintf(os.Stderr, "  --bullet                   Show duplicates as a formatted bullet list.\n")
 		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
 		fmt.Fprintf(os.Stderr, "  --empty                    Include empty files (default: ignore).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --hidden                   Include hidden dotfiles and directories (default: ignore).\n")
+		fmt.Fprintf(os.Stderr, "  --current                  Do not descend into subdirectories.\n")
+		fmt.Fprintf(os.Stderr, "  --depth <levels>           Limit recursion to <levels> directories below the start paths.\n")
+		fmt.Fprintf(os.Stderr, "  --include-vfs              Include virtual filesystem directories like /proc or /dev.\n")
 		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
 		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n\n")
 		fmt.Fprintf(os.Stderr, "Notes:\n")
@@ -94,6 +97,7 @@ func main() {
 	}()
 
 	// Parse command flags.
+	// Note these messages aren't what user sees any longer. See flUsage for that.
 	var (
 		flNoBanner      = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flShowVersion   = flag.Bool("version", false, "Display version")
@@ -107,6 +111,9 @@ func main() {
 		flIncludeEmpty  = flag.Bool("empty", false, "Include empty files (0 bytes).")
 		flSkipSymLinks  = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flIncludeHidden = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
+		flNoRecurse     = flag.Bool("current", false, "Only scan the provided directories without descending into subdirectories.")
+		flDepth         = flag.Int("depth", -1, "Maximum recursion depth; 0 inspects only the provided paths, -1 means unlimited.")
+		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
 		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
 		flKeep          = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
 	)
@@ -146,6 +153,26 @@ func main() {
 		dsklog.Dlogger.Debugf("Max file size set to %d bytes.\n", MaxFileSize)
 	}
 
+	if *flDepth < -1 {
+		dsklog.Dlogger.Debugf("Invalid depth of %d \n", *flDepth)
+		fmt.Fprintf(os.Stderr, "invalid depth %d; must be -1 or greater\n", *flDepth)
+		os.Exit(1)
+	}
+
+	maxDepth := -1
+	if *flDepth >= 0 {
+		maxDepth = *flDepth
+	}
+	if *flNoRecurse {
+		maxDepth = 0
+	}
+
+	if maxDepth == 0 && (*flNoRecurse || *flDepth >= 0) {
+		fmt.Println("Recursion disabled; scanning only the provided directories.")
+	} else if maxDepth > 0 {
+		fmt.Printf("Limiting recursion depth to %d level(s).\n", maxDepth)
+	}
+
 	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
 	hashAlgo := dfs.HashSHA256
@@ -164,13 +191,16 @@ func main() {
 
 	keepCount := *flKeep
 	if keepCount == 0 {
-		// Leave as zero to indicate no removal requested.
+		dsklog.Dlogger.Debug("No removal requested. keepCount is zero")
 	}
 
+	// Hold app config.
 	appCfg := config.Config{
 		SkipEmpty:     !*flIncludeEmpty,
 		SkipSymLinks:  *flSkipSymLinks,
 		SkipHidden:    !*flIncludeHidden,
+		SkipVirtualFS: !*flIncludeVFS,
+		MaxDepth:      maxDepth,
 		MinFileSize:   MinFileSize,
 		MaxFileSize:   MaxFileSize,
 		MinDuplicates: minDups,

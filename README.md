@@ -42,9 +42,12 @@ Common flags:
 | ---- | ----------- |
 | `--min-size <bytes>` | Ignore files smaller than the provided size |
 | `--max-size <bytes>` | Skip files larger than the provided size (default 4 GiB) |
-| `--no-hidden` | Exclude dot files and dot-directories |
+| `--hidden` | Include dot files and dot-directories |
 | `--no-symlinks` | Skip symbolic links |
-| `--ignore-empty` | Skip zero-byte files |
+| `--empty` | Include zero-byte files |
+| `--include-vfs` | Include virtual filesystem directories such as `/proc` or `/dev` |
+| `--no-recurse` | Restrict the scan to the provided paths only |
+| `--depth <levels>` | Limit recursion to `<levels>` directories below the starting paths |
 | `--text`, `--bullet`, `--pretty` | Render duplicates without launching the TUI |
 | `--remove <keep>` | Delete duplicates, keeping the first `<keep>` entries per group |
 
@@ -94,4 +97,4 @@ Issues and PRs are welcome. Open an issue if you have ideas for improvements, ne
 
 ## License
 
-This project is released under the MIT license. See [`LICENSE`](LICENSE) for details.
+This project is released under the Apache license. See [`LICENSE`](LICENSE) for details.

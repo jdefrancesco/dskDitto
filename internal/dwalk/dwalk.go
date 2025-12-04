@@ -21,6 +21,16 @@ const (
 	DEFAULT_DIR_CONCURRENCY      = 50                     // Optimal balance for directory reading
 )
 
+// These are generally special VFS directories a user normally wouldn't want to recurse into nor touch.
+// In future versions we can expand user config abilities.
+var defaultSkipDirPrefixes = []string{
+	"/proc",
+	"/sys",
+	"/dev",
+	"/run",
+	"/var/run",
+}
+
 // DWalk is our primary object for traversing filesystem
 // in a parallel manner.
 type DWalk struct {
@@ -28,14 +38,16 @@ type DWalk struct {
 	wg       sync.WaitGroup
 
 	// Channel used to communicate with main monitor goroutine.
-	dFiles       chan<- *dfs.Dfile
-	sem          *semaphore.Weighted
-	skipHidden   bool
-	skipEmpty    bool
-	skipSymLinks bool
-	minFileSize  uint
-	maxFileSize  uint
-	hashAlgo     dfs.HashAlgorithm
+	dFiles          chan<- *dfs.Dfile
+	sem             *semaphore.Weighted
+	skipHidden      bool
+	skipEmpty       bool
+	skipSymLinks    bool
+	minFileSize     uint
+	maxFileSize     uint
+	hashAlgo        dfs.HashAlgorithm
+	skipDirPrefixes []string
+	maxDepth        int
 }
 
 // NewDWalker returns a new DWalk instance that accepts traversal options.
@@ -52,15 +64,27 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 		maxSize = MAX_FILE_SIZE
 	}
 
+	maxDepth := cfg.MaxDepth
+	if maxDepth < 0 {
+		maxDepth = -1
+	}
+
+	var skipPrefixes []string
+	if cfg.SkipVirtualFS {
+		skipPrefixes = normalizeSkipPrefixes(defaultSkipDirPrefixes)
+	}
+
 	walker := &DWalk{
-		rootDirs:     rootDirs,
-		dFiles:       dFiles,
-		skipHidden:   cfg.SkipHidden,
-		skipEmpty:    cfg.SkipEmpty,
-		skipSymLinks: cfg.SkipSymLinks,
-		minFileSize:  cfg.MinFileSize,
-		maxFileSize:  maxSize,
-		hashAlgo:     dfs.HashSHA256, // Only use SHA256 for now. Need to debug performance issues with Blake3
+		rootDirs:        rootDirs,
+		dFiles:          dFiles,
+		skipHidden:      cfg.SkipHidden,
+		skipEmpty:       cfg.SkipEmpty,
+		skipSymLinks:    cfg.SkipSymLinks,
+		minFileSize:     cfg.MinFileSize,
+		maxFileSize:     maxSize,
+		hashAlgo:        dfs.HashSHA256, // Only use SHA256 for now. Need to debug performance issues with Blake3
+		skipDirPrefixes: skipPrefixes,
+		maxDepth:        maxDepth,
 	}
 
 	// Set semaphore to optimal value based on system resources
@@ -75,8 +99,12 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 func (d *DWalk) Run(ctx context.Context) {
 
 	for _, root := range d.rootDirs {
+		if d.shouldSkipDir(root) {
+			dsklog.Dlogger.Infof("Skipping directory %s due to restricted filesystem", root)
+			continue
+		}
 		d.wg.Add(1)
-		go walkDir(ctx, root, d, d.dFiles)
+		go walkDir(ctx, root, 0, d, d.dFiles)
 	}
 
 	// Wait for all goroutines to finish.
@@ -102,12 +130,17 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile) {
+func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<- *dfs.Dfile) {
 
 	defer d.wg.Done()
 
 	// Check for cancellation.
 	if cancelled(ctx) {
+		return
+	}
+
+	if d.shouldSkipDir(dir) {
+		dsklog.Dlogger.Debugf("Skipping directory %s due to restricted filesystem", dir)
 		return
 	}
 
@@ -125,9 +158,17 @@ func walkDir(ctx context.Context, dir string, d *DWalk, dFiles chan<- *dfs.Dfile
 		}
 
 		if entry.IsDir() {
-			d.wg.Add(1)
 			subDir := filepath.Join(dir, name)
-			go walkDir(ctx, subDir, d, d.dFiles)
+			if d.shouldSkipDir(subDir) {
+				dsklog.Dlogger.Debugf("Skipping directory %s due to restricted filesystem", subDir)
+				continue
+			}
+			if d.maxDepth >= 0 && depth >= d.maxDepth {
+				dsklog.Dlogger.Debugf("Skipping directory %s due to max depth %d", subDir, d.maxDepth)
+				continue
+			}
+			d.wg.Add(1)
+			go walkDir(ctx, subDir, depth+1, d, d.dFiles)
 			continue
 		}
 
@@ -210,4 +251,52 @@ func getOptimalConcurrency() int {
 
 	dsklog.Dlogger.Debugf("Directory walker concurrency: %d (procs=%d)", concurrency, procs)
 	return concurrency
+}
+
+// normalizeSkipPrefixes filters and deduplicates skip prefixes by cleaning their absolute paths,
+// discarding empty entries and root-only paths before returning the normalized list.
+func normalizeSkipPrefixes(prefixes []string) []string {
+	cleaned := make([]string, 0, len(prefixes))
+	seen := make(map[string]struct{}, len(prefixes))
+	for _, p := range prefixes {
+		if p == "" {
+			continue
+		}
+		normalized := cleanAbsPath(p)
+		if normalized == "" || normalized == string(os.PathSeparator) {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		cleaned = append(cleaned, normalized)
+	}
+	return cleaned
+}
+
+func (d *DWalk) shouldSkipDir(path string) bool {
+	normalized := cleanAbsPath(path)
+	if normalized == "" {
+		return false
+	}
+	for _, prefix := range d.skipDirPrefixes {
+		if normalized == prefix || strings.HasPrefix(normalized, prefix+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func cleanAbsPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = filepath.Clean(path)
+	} else {
+		abs = filepath.Clean(abs)
+	}
+	return abs
 }

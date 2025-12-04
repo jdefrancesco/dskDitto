@@ -131,7 +131,7 @@ func BenchmarkDWalkRun(b *testing.B) {
 				walker := dwalk.NewDWalker(
 					[]string{root},
 					dFiles,
-					config.Config{HashAlgorithm: defaultHashAlgorithm, SkipHidden: true},
+					config.Config{HashAlgorithm: defaultHashAlgorithm, SkipHidden: true, SkipVirtualFS: true, MaxDepth: -1},
 				)
 				ctx := context.Background()
 				walker.Run(ctx)

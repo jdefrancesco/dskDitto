@@ -11,6 +11,10 @@ type Config struct {
 	SkipHardLinks bool
 	// SkipHidden controls whether hidden dotfiles and directories are skipped.
 	SkipHidden bool
+	// SkipVirtualFS controls whether well-known virtual filesystem mount points are skipped.
+	SkipVirtualFS bool
+	// MaxDepth limits how deeply the walker will recurse into subdirectories. A value of -1 means unlimited.
+	MaxDepth int
 	// File size limits.
 	MinFileSize uint
 	MaxFileSize uint

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestNewDWalk(t *testing.T) {
 	rootDirs := []string{"test_files"}
 
 	dFiles := make(chan *dfs.Dfile)
-	walker := NewDWalker(rootDirs, dFiles, config.Config{SkipHidden: true, HashAlgorithm: dfs.HashSHA256})
+	walker := NewDWalker(rootDirs, dFiles, config.Config{SkipHidden: true, SkipVirtualFS: true, HashAlgorithm: dfs.HashSHA256, MaxDepth: -1})
 
 	// walker
 	ctx, cancel := context.WithCancel(context.Background())
@@ -94,7 +95,7 @@ func collectFiles(t *testing.T, skipHidden bool) []string {
 	}
 
 	dFiles := make(chan *dfs.Dfile, 4)
-	walker := NewDWalker([]string{dir}, dFiles, config.Config{SkipHidden: skipHidden, HashAlgorithm: dfs.HashSHA256})
+	walker := NewDWalker([]string{dir}, dFiles, config.Config{SkipHidden: skipHidden, SkipVirtualFS: true, HashAlgorithm: dfs.HashSHA256, MaxDepth: -1})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -114,4 +115,100 @@ func contains(list []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestSkipVirtualFSToggle(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	dFiles := make(chan *dfs.Dfile)
+
+	walkerSkip := NewDWalker([]string{"/"}, dFiles, config.Config{SkipVirtualFS: true, HashAlgorithm: dfs.HashSHA256, MaxDepth: -1})
+	if !walkerSkip.shouldSkipDir("/proc") {
+		t.Fatalf("expected /proc to be skipped when SkipVirtualFS is true")
+	}
+
+	walkerInclude := NewDWalker([]string{"/"}, dFiles, config.Config{SkipVirtualFS: false, HashAlgorithm: dfs.HashSHA256, MaxDepth: -1})
+	if walkerInclude.shouldSkipDir("/proc") {
+		t.Fatalf("expected /proc not to be skipped when SkipVirtualFS is false")
+	}
+}
+
+func TestMaxDepthLimit(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	level1 := filepath.Join(root, "level1")
+	level2 := filepath.Join(level1, "level2")
+
+	if err := os.MkdirAll(level2, 0o755); err != nil {
+		t.Fatalf("failed to create directories: %v", err)
+	}
+
+	files := []struct {
+		path string
+		data string
+	}{
+		{filepath.Join(root, "root.txt"), "root"},
+		{filepath.Join(level1, "one.txt"), "level1"},
+		{filepath.Join(level2, "two.txt"), "level2"},
+	}
+
+	for _, f := range files {
+		if err := os.WriteFile(f.path, []byte(f.data), 0o644); err != nil {
+			t.Fatalf("failed to write %s: %v", f.path, err)
+		}
+	}
+
+	collect := func(depth int) []string {
+		cfg := config.Config{
+			HashAlgorithm: dfs.HashSHA256,
+			SkipVirtualFS: true,
+			MaxDepth:      depth,
+		}
+		return collectRelativePaths(t, root, cfg)
+	}
+
+	all := collect(-1)
+	expectPathsEqual(t, all, []string{"level1/level2/two.txt", "level1/one.txt", "root.txt"})
+
+	depth0 := collect(0)
+	expectPathsEqual(t, depth0, []string{"root.txt"})
+
+	depth1 := collect(1)
+	expectPathsEqual(t, depth1, []string{"level1/one.txt", "root.txt"})
+}
+
+func collectRelativePaths(t *testing.T, root string, cfg config.Config) []string {
+	t.Helper()
+
+	dFiles := make(chan *dfs.Dfile, 16)
+	walker := NewDWalker([]string{root}, dFiles, cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	walker.Run(ctx)
+
+	var names []string
+	for df := range dFiles {
+		rel, err := filepath.Rel(root, df.FileName())
+		if err != nil {
+			t.Fatalf("failed to compute relative path: %v", err)
+		}
+		names = append(names, filepath.ToSlash(rel))
+	}
+
+	sort.Strings(names)
+	return names
+}
+
+func expectPathsEqual(t *testing.T, got []string, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("unexpected path count: got %d want %d (values=%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected paths: got %v want %v", got, want)
+		}
+	}
 }
