@@ -138,11 +138,15 @@ func applyShadow(src *image.RGBA) *image.RGBA {
 				if count == 0 {
 					continue
 				}
+				avgR := rs / count
+				avgG := gs / count
+				avgB := bs / count
+				avgA := as / count
 				dst.Set(x, y, color.RGBA{
-					R: uint8((rs / count) >> 8),
-					G: uint8((gs / count) >> 8),
-					B: uint8((bs / count) >> 8),
-					A: uint8((as / count) >> 8),
+					R: fromRGBA16(avgR),
+					G: fromRGBA16(avgG),
+					B: fromRGBA16(avgB),
+					A: fromRGBA16(avgA),
 				})
 			}
 		}
@@ -159,17 +163,17 @@ func applyShadow(src *image.RGBA) *image.RGBA {
 
 			if fa>>8 > 0 { // foreground pixel wins
 				out.Set(x, y, color.RGBA{
-					uint8(fr >> 8),
-					uint8(fg >> 8),
-					uint8(fb >> 8),
-					255,
+					R: fromRGBA16(fr),
+					G: fromRGBA16(fg),
+					B: fromRGBA16(fb),
+					A: 255,
 				})
 			} else if sa>>8 > 0 {
 				out.Set(x, y, color.RGBA{
-					uint8(sr >> 8),
-					uint8(sg >> 8),
-					uint8(sb >> 8),
-					255,
+					R: fromRGBA16(sr),
+					G: fromRGBA16(sg),
+					B: fromRGBA16(sb),
+					A: 255,
 				})
 			} else {
 				out.Set(x, y, color.RGBA{0, 0, 0, 0})
@@ -390,4 +394,13 @@ func clamp(v, min, max int) int {
 		return max
 	}
 	return v
+}
+
+func fromRGBA16(v uint32) uint8 {
+	// Values produced by color.RGBA() occupy the 0-65535 range; clamp before narrowing to a byte.
+	val := v >> 8
+	if val > 0xFF {
+		return 0xFF
+	}
+	return byte(val)
 }
