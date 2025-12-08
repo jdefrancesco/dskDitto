@@ -13,6 +13,20 @@ import (
 	"strconv"
 )
 
+// EXAMPLE
+//  [go:embed] assets/help-icon.png
+// var helpIconPNG []byte
+
+// func printHelpIcon() {
+//     img, _, err := image.Decode(bytes.NewReader(helpIconPNG))
+//     if err != nil {
+//         log.Printf("help icon decode failed: %v", err)
+//         return
+//     }
+//     utils.RenderImageANSI(img, utils.Options{Width: 60, PaletteBits: 4})
+//     fmt.Println()
+// }
+
 // Options controls rendering behaviour.
 type Options struct {
 	Width        int // target width in terminal cells
@@ -136,7 +150,7 @@ func applyShadow(src *image.RGBA) *image.RGBA {
 	}
 	shadow = blur(shadow)
 
-	// 3) Composite shadow behind src (simple "over" with opaque fg).
+	//  Composite shadow behind src (simple "over" with opaque fg).
 	out := image.NewRGBA(src.Bounds())
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {

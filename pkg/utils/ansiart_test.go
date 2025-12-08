@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -66,33 +67,8 @@ func TestRenderImageANSI(t *testing.T) {
 	img.Set(0, 0, color.RGBA{255, 0, 0, 255})
 	img.Set(0, 1, color.RGBA{0, 0, 255, 255})
 
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
-	defer r.Close()
-
-	origStdout := os.Stdout
-	defer func() { os.Stdout = origStdout }()
-
-	os.Stdout = w
-
-	var buf bytes.Buffer
-	copyDone := make(chan error, 1)
-	go func() {
-		_, err := io.Copy(&buf, r)
-		copyDone <- err
-	}()
-
 	opts := Options{Width: 1, EnableShadow: false, PaletteBits: 8}
-	RenderImageANSI(img, opts)
-
-	w.Close()
-	if err := <-copyDone; err != nil {
-		t.Fatalf("failed to read render output: %v", err)
-	}
-
-	output := buf.String()
+	output := renderImageANSIToString(t, img, opts)
 	var topR, topG, topB, bottomR, bottomG, bottomB int
 	format := "\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀\x1b[0m\n\x1b[0m"
 	if _, err := fmt.Sscanf(output, format, &topR, &topG, &topB, &bottomR, &bottomG, &bottomB); err != nil {
@@ -107,34 +83,9 @@ func TestRenderImageANSI(t *testing.T) {
 }
 
 func TestRenderImageANSIWithPNG(t *testing.T) {
-	img := mustLoadFixtureImage(t)
-
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
-	defer r.Close()
-
-	origStdout := os.Stdout
-	defer func() { os.Stdout = origStdout }()
-	os.Stdout = w
-
-	var buf bytes.Buffer
-	copyDone := make(chan error, 1)
-	go func() {
-		_, err := io.Copy(&buf, r)
-		copyDone <- err
-	}()
-
+	img := mustLoadFixtureImageByName(t, "image.png")
 	opts := Options{Width: 80, EnableShadow: false, PaletteBits: 8}
-	RenderImageANSI(img, opts)
-
-	w.Close()
-	if err := <-copyDone; err != nil {
-		t.Fatalf("failed to read render output: %v", err)
-	}
-
-	output := buf.String()
+	output := renderImageANSIToString(t, img, opts)
 	t.Logf("\n%s", output)
 	if !strings.Contains(output, "▀") {
 		t.Fatalf("expected output to contain block character, got %q", output)
@@ -147,6 +98,66 @@ func TestRenderImageANSIWithPNG(t *testing.T) {
 		t.Fatalf("unexpected line count: got %d want %d", actualLines, expectedLines)
 	}
 
+}
+
+func TestRenderImageANSIWithWarmPalette(t *testing.T) {
+	img := mustLoadFixtureImageByName(t, "warm_palette.png")
+	opts := Options{Width: 80, EnableShadow: false, PaletteBits: 8}
+	output := renderImageANSIToString(t, img, opts)
+
+	colors := parseFGColors(output)
+	if len(colors) == 0 {
+		t.Fatalf("expected foreground colors in output")
+	}
+
+	var minR, maxR, minG, maxG, minB, maxB int = 255, 0, 255, 0, 255, 0
+	for _, c := range colors {
+		if c[0] < minR {
+			minR = c[0]
+		}
+		if c[0] > maxR {
+			maxR = c[0]
+		}
+		if c[1] < minG {
+			minG = c[1]
+		}
+		if c[1] > maxG {
+			maxG = c[1]
+		}
+		if c[2] < minB {
+			minB = c[2]
+		}
+		if c[2] > maxB {
+			maxB = c[2]
+		}
+	}
+
+	if maxR < 220 || maxR-minR < 30 {
+		t.Fatalf("expected warm reds with some variation, got range %d-%d", minR, maxR)
+	}
+	if maxG < 80 || minG > 70 {
+		t.Fatalf("expected green range around warm palette, got %d-%d", minG, maxG)
+	}
+	if maxB > 150 || minB < 20 {
+		t.Fatalf("expected constrained blues, got %d-%d", minB, maxB)
+	}
+}
+
+func TestRenderImageANSIDithering(t *testing.T) {
+	img := generateGradientImage(32, 32)
+
+	high := renderImageANSIToString(t, img, Options{Width: 32, EnableShadow: false, PaletteBits: 8})
+	low := renderImageANSIToString(t, img, Options{Width: 32, EnableShadow: false, PaletteBits: 3})
+
+	if high == low {
+		t.Fatalf("expected quantization to change ANSI output")
+	}
+
+	highColors := parseFGColorSet(high)
+	lowColors := parseFGColorSet(low)
+	if len(lowColors) >= len(highColors) {
+		t.Fatalf("expected fewer unique colors with reduced palette: high=%d low=%d", len(highColors), len(lowColors))
+	}
 }
 
 func TestRenderImageANSIToTerminal(t *testing.T) {
@@ -164,7 +175,7 @@ func TestRenderImageANSIToTerminal(t *testing.T) {
 	defer func() { os.Stdout = origStdout }()
 	os.Stdout = tty
 
-	img := mustLoadFixtureImage(t)
+	img := mustLoadFixtureImageByName(t, "image.png")
 	opts := Options{Width: 80, EnableShadow: false, PaletteBits: 8}
 	RenderImageANSI(img, opts)
 	fmt.Fprintln(tty)
@@ -212,17 +223,47 @@ func abs(v int) int {
 	return v
 }
 
-func mustLoadFixtureImage(t testing.TB) image.Image {
+func renderImageANSIToString(t testing.TB, img image.Image, opts Options) string {
 	t.Helper()
-	img, err := loadFixtureImage()
+
+	r, w, err := os.Pipe()
 	if err != nil {
-		t.Fatalf("failed to load png fixture: %v", err)
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	defer r.Close()
+
+	origStdout := os.Stdout
+	defer func() { os.Stdout = origStdout }()
+	os.Stdout = w
+
+	var buf bytes.Buffer
+	copyDone := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(&buf, r)
+		copyDone <- err
+	}()
+
+	RenderImageANSI(img, opts)
+
+	w.Close()
+	if err := <-copyDone; err != nil {
+		t.Fatalf("failed to read render output: %v", err)
+	}
+
+	return buf.String()
+}
+
+func mustLoadFixtureImageByName(t testing.TB, name string) image.Image {
+	t.Helper()
+	img, err := loadFixtureImage(name)
+	if err != nil {
+		t.Fatalf("failed to load png fixture %s: %v", name, err)
 	}
 	return img
 }
 
-func loadFixtureImage() (image.Image, error) {
-	f, err := os.Open("testdata/image.png")
+func loadFixtureImage(name string) (image.Image, error) {
+	f, err := os.Open("testdata/" + name)
 	if err != nil {
 		return nil, err
 	}
@@ -233,4 +274,55 @@ func loadFixtureImage() (image.Image, error) {
 		return nil, err
 	}
 	return img, nil
+}
+
+func parseFGColors(output string) [][]int {
+	parts := strings.Split(output, "\x1b[38;2;")
+	colors := make([][]int, 0, len(parts))
+	for _, part := range parts[1:] {
+		end := strings.Index(part, "m")
+		if end == -1 {
+			continue
+		}
+		triplet := strings.Split(part[:end], ";")
+		if len(triplet) < 3 {
+			continue
+		}
+		r, err1 := strconv.Atoi(triplet[0])
+		g, err2 := strconv.Atoi(triplet[1])
+		b, err3 := strconv.Atoi(triplet[2])
+		if err1 != nil || err2 != nil || err3 != nil {
+			continue
+		}
+		colors = append(colors, []int{r, g, b})
+	}
+	return colors
+}
+
+func parseFGColorSet(output string) map[string]struct{} {
+	colors := make(map[string]struct{})
+	parts := strings.Split(output, "\x1b[38;2;")
+	for _, part := range parts[1:] {
+		end := strings.Index(part, "m")
+		if end == -1 {
+			continue
+		}
+		colors[part[:end]] = struct{}{}
+	}
+	return colors
+}
+
+func generateGradientImage(w, h int) image.Image {
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.NRGBA{
+				R: uint8((x * 255) / (w - 1)),
+				G: uint8((y * 255) / (h - 1)),
+				B: uint8(((x + y) * 255) / (w + h - 2)),
+				A: 255,
+			})
+		}
+	}
+	return img
 }
