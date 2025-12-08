@@ -17,6 +17,7 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
 	"github.com/jdefrancesco/dskDitto/internal/ui"
+	"github.com/jdefrancesco/dskDitto/pkg/utils"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
@@ -36,8 +37,8 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --version                  Display version information.\n")
 		fmt.Fprintf(os.Stderr, "  --profile <file>           Write CPU profile to disk for analysis.\n")
 		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
-		fmt.Fprintf(os.Stderr, "  --min-size <bytes>         Skip files smaller than the given size.\n")
-		fmt.Fprintf(os.Stderr, "  --max-size <bytes>         Skip files larger than the given size (default 4GiB).\n")
+		fmt.Fprintf(os.Stderr, "  --min-size <size>          Skip files smaller than the given size (e.g. 512K, 5MiB).\n")
+		fmt.Fprintf(os.Stderr, "  --max-size <size>          Skip files larger than the given size (default 4GiB).\n")
 		fmt.Fprintf(os.Stderr, "  --text               	     Emit duplicate results in text-friendly format.\n")
 		fmt.Fprintf(os.Stderr, "  --bullet                   Show duplicates as a formatted bullet list.\n")
 		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
@@ -103,8 +104,8 @@ func main() {
 		flShowVersion   = flag.Bool("version", false, "Display version")
 		flCpuProfile    = flag.String("profile", "", "Write CPU profile to disk for analysis.")
 		flTimeOnly      = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
-		flMinFileSize   = flag.Uint("min-size", 0, "Skip files smaller than this size in bytes.")
-		flMaxFileSize   = flag.Uint("max-size", 0, "Max file size is 4 GiB by default.")
+		flMinFileSize   = flag.String("min-size", "", "Skip files smaller than this size (supports suffixes like 512K, 5MiB).")
+		flMaxFileSize   = flag.String("max-size", "", "Skip files larger than this size (default 4GiB).")
 		flTextOutput    = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets   = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
 		flShowPretty    = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
@@ -139,17 +140,41 @@ func main() {
 		os.Exit(0)
 	}
 
-	var MinFileSize uint = 0
-	if *flMinFileSize != 0 {
-		MinFileSize = *flMinFileSize
-		fmt.Printf("Skipping files smaller than: %d bytes.\n", MinFileSize)
+	maxUint := ^uint(0)
+
+	MinFileSize := uint(0)
+	if *flMinFileSize != "" {
+		value, err := utils.ParseSize(*flMinFileSize)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid value for --min-size: %v\n", err)
+			os.Exit(1)
+		}
+		if value > uint64(maxUint) {
+			fmt.Fprintf(os.Stderr, "--min-size %s exceeds platform limit (%d bytes)\n", *flMinFileSize, maxUint)
+			os.Exit(1)
+		}
+		MinFileSize = uint(value)
+		if MinFileSize > 0 {
+			fmt.Printf("Skipping files smaller than: %s (%d bytes).\n", utils.DisplaySize(uint64(MinFileSize)), MinFileSize)
+		}
 		dsklog.Dlogger.Debugf("Min file size set to %d bytes.\n", MinFileSize)
 	}
 
-	var MaxFileSize uint = dwalk.MAX_FILE_SIZE // Default is 4 GiB.
-	if *flMaxFileSize != 0 {
-		MaxFileSize = *flMaxFileSize
-		fmt.Printf("Skipping files larger than: %d bytes.\n", MaxFileSize)
+	MaxFileSize := dwalk.MAX_FILE_SIZE // Default is 4 GiB.
+	if *flMaxFileSize != "" {
+		value, err := utils.ParseSize(*flMaxFileSize)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid value for --max-size: %v\n", err)
+			os.Exit(1)
+		}
+		if value > uint64(maxUint) {
+			fmt.Fprintf(os.Stderr, "--max-size %s exceeds platform limit (%d bytes)\n", *flMaxFileSize, maxUint)
+			os.Exit(1)
+		}
+		if value > 0 {
+			MaxFileSize = uint(value)
+			fmt.Printf("Skipping files larger than: %s (%d bytes).\n", utils.DisplaySize(uint64(MaxFileSize)), MaxFileSize)
+		}
 		dsklog.Dlogger.Debugf("Max file size set to %d bytes.\n", MaxFileSize)
 	}
 

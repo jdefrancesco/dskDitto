@@ -31,3 +31,38 @@ func TestDisplaySize(t *testing.T) {
 		fmt.Printf("Success. DisplaySize(%d) = %s\n", test.bytes, got)
 	}
 }
+
+func TestParseSize(t *testing.T) {
+	tests := []struct {
+		input string
+		want  uint64
+	}{
+		{"0", 0},
+		{"1024", 1024},
+		{"1K", uint64(KiB)},
+		{"1KB", uint64(KiB)},
+		{"1KiB", uint64(KiB)},
+		{"1.5G", uint64(GiB) + uint64(GiB)/2},
+		{"2Gi", 2 * uint64(GiB)},
+		{"1e3", 1000},
+		{"512b", 512},
+		{"2 GiB", 2 * uint64(GiB)},
+	}
+
+	for _, tc := range tests {
+		got, err := ParseSize(tc.input)
+		if err != nil {
+			t.Fatalf("ParseSize(%q) returned error: %v", tc.input, err)
+		}
+		if got != tc.want {
+			t.Errorf("ParseSize(%q) = %d; want %d", tc.input, got, tc.want)
+		}
+	}
+
+	invalid := []string{"", "abc", "-1", "1XB"}
+	for _, input := range invalid {
+		if _, err := ParseSize(input); err == nil {
+			t.Errorf("ParseSize(%q) expected error, got nil", input)
+		}
+	}
+}

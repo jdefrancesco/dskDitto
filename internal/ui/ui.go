@@ -873,7 +873,8 @@ func formatGroupTitle(hash dmap.Digest, files []string) string {
 	const tmpl = "%s - %d files - (approx. size %s)"
 	fileSize := dfs.GetFileSize(files[0])
 	totalSize := uint64(fileSize) * uint64(len(files))
-	hashHex := fmt.Sprintf("%x", hash[:4])
+	// Show 16 hex chars of SHA-256 hash.
+	hashHex := fmt.Sprintf("%x", hash[:16])
 	return fmt.Sprintf(tmpl, hashHex, len(files), utils.DisplaySize(totalSize))
 }
 
