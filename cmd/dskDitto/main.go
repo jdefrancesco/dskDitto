@@ -139,6 +139,8 @@ func main() {
 		showHeader()
 	}
 
+	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
+
 	// Just show version then quit.
 	if *flShowVersion {
 		showVersion()
@@ -212,8 +214,6 @@ func main() {
 	} else if maxDepth > 0 {
 		dsklog.Dlogger.Debugf("Limiting recursion depth to %d level(s).\n", maxDepth)
 	}
-
-	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
 	hashAlgo := dfs.HashSHA256
 
