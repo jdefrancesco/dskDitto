@@ -57,14 +57,14 @@ func NewDfile(fName string, fSize int64, algo HashAlgorithm) (*Dfile, error) {
 	d := &Dfile{
 		fileName: fullFileName,
 		fileSize: fSize,
-		algo:     HashSHA256,
+		algo:     algo,
 	}
 
 	if err = d.hashFile(); err != nil {
 		return d, errors.New("failed to hash file")
 	}
 
-	dsklog.Dlogger.Debugf("Hash algorithm chosen is %s", algo)
+	dsklog.Dlogger.Debugf("Hash algorithm chosen is %s", d.algo)
 	return d, nil
 }
 

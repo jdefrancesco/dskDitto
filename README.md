@@ -5,7 +5,7 @@
 ## Features
 
 - Concurrent directory walker tuned for large trees and multi-core systems
-- SHA-256 (default) or BLAKE3 coming soon.
+- Pluggable hashing with SHA-256 (default) or BLAKE3
 - Multiple output modes: TUI, bullet lists, or text-friendly dumps
 - CSV and JSON output supported via flags.
 - Optional automated duplicate removal with confirmation safety rails
@@ -52,6 +52,7 @@ Common flags:
 | `--text`, `--bullet` | Render duplicates without launching the TUI |
 | `--remove <keep>` | Operate on duplicates, keeping the first `<keep>` entries per group |
 | `--link` | With `--remove`, convert extra duplicates to symlinks instead of deleting them |
+| `--hash <algo>` | Select hash algorithm: `sha256` (default) or `blake3` |
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
 
@@ -74,6 +75,15 @@ When using `--link`, the on-disk layout after the operation looks like this for 
 ```
 
 In the TUI, files that are symlinks are annotated with a `[symlink]` suffix so you can see which entries were converted.
+
+### Hash algorithms
+
+By default, `dskDitto` uses SHA-256 for content hashing:
+
+- **SHA-256 (`--hash sha256`)**: conservative, widely-supported choice with strong collision guarantees.
+- **BLAKE3 (`--hash blake3`)**: significantly faster on modern CPUs while still providing strong, practical collision resistance for duplicate detection.
+
+If you are scanning very large trees or running `dskDitto` frequently, `--hash blake3` will usually be noticeably faster while remaining safe for deduplication workloads.
 
 ## Examples
 
@@ -126,6 +136,12 @@ dskDitto --json-out dupes.json ~/Projects
 
   ```bash
   dskDitto --min-size 500MiB --text ~/Movies ~/TV
+  ```
+
+- **Speed up huge scans with BLAKE3:**
+
+  ```bash
+  dskDitto --hash blake3 --min-size 10MiB --text /mnt/big-disk
   ```
 
 - **Feed duplicate groups into another tool via CSV:**

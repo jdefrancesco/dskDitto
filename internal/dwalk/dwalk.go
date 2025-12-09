@@ -87,7 +87,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 		skipSymLinks:    cfg.SkipSymLinks,
 		minFileSize:     cfg.MinFileSize,
 		maxFileSize:     maxSize,
-		hashAlgo:        dfs.HashSHA256, // Only use SHA256 for now. Need to debug performance issues with Blake3
+		hashAlgo:        hashAlgo,
 		skipDirPrefixes: skipPrefixes,
 		maxDepth:        maxDepth,
 		seenFiles:       make(map[fileIdentity]struct{}),
@@ -116,7 +116,6 @@ func (d *DWalk) Run(ctx context.Context) {
 	// Wait for all goroutines to finish.
 	go func() {
 		d.wg.Wait()
-		// close channel.
 		close(d.dFiles)
 	}()
 

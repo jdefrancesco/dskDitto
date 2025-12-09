@@ -49,7 +49,9 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --depth <levels>           Limit recursion to <levels> directories below the start paths.\n")
 		fmt.Fprintf(os.Stderr, "  --include-vfs              Include virtual filesystem directories like /proc or /dev.\n")
 		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
-		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n")
+		fmt.Fprintf(os.Stderr, "  --remove <keep>            Operate on duplicates, keeping only <keep> files per group.\n")
+		fmt.Fprintf(os.Stderr, "  --link                     With --remove, convert extra duplicates into symlinks instead of deleting them.\n")
+		fmt.Fprintf(os.Stderr, "  --hash <algo>              Hash algorithm: sha256 (default) or blake3.\n")
 		fmt.Fprintf(os.Stderr, "  --csv-out <file>           Write duplicate groups to a CSV file.\n")
 		fmt.Fprintf(os.Stderr, "  --json-out <file>          Write duplicate groups to a JSON file.\n")
 		fmt.Fprintf(os.Stderr, "  --fs-detect <path>         Detect and display the filesystem containing path.\n\n")
@@ -118,6 +120,7 @@ func main() {
 		flDepth         = flag.Int("depth", -1, "Maximum recursion depth; 0 inspects only the provided paths, -1 means unlimited.")
 		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
 		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
+		flHashAlgo      = flag.String("hash", "sha256", "Hash algorithm to use: sha256 (default) or blake3.")
 		flKeep          = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many files per group.")
 		flLinkMode      = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
 		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV file.")
@@ -216,7 +219,12 @@ func main() {
 		dsklog.Dlogger.Debugf("Limiting recursion depth to %d level(s).\n", maxDepth)
 	}
 
-	hashAlgo := dfs.HashSHA256
+	hashAlgo, err := dfs.ParseHashAlgorithm(*flHashAlgo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unsupported hash algorithm %q; must be 'sha256' or 'blake3'\n", *flHashAlgo)
+		os.Exit(1)
+	}
+	dsklog.Dlogger.Debugf("Using hash algorithm: %s", hashAlgo)
 
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
