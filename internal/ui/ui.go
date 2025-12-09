@@ -32,7 +32,7 @@ func LaunchTUI(dMap *dmap.Dmap) {
 	setCurrentProgram(program)
 	defer clearCurrentProgram(program)
 
-	if err := program.Start(); err != nil {
+	if _, err := program.Run(); err != nil {
 		panic(err)
 	}
 }
@@ -319,44 +319,48 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Refactor later as some of these methods seem to be deprecated.
-	switch msg.Type {
-	case tea.MouseWheelUp:
-		// Scroll up a few lines per tick.
-		m.moveCursor(-3)
-
-	case tea.MouseWheelDown:
-		m.moveCursor(3)
-
-	case tea.MouseLeft:
-		// Map Y position to list row.
-		row := msg.Y - m.listTopOffset()
-		if row >= 0 && row < m.listAreaHeight() {
-			idx := m.scroll + row
-			if idx >= 0 && idx < len(m.visible) {
-				// Detect double-click on the same row within a short threshold
-				const dbl = 350 * time.Millisecond
-				now := time.Now()
-				if idx == m.lastClickIdx && now.Sub(m.lastClickAt) <= dbl {
-					// Double-click: toggle group if clicking on a group header
-					ref := m.visible[idx]
-					if ref.typ == nodeGroup {
-						// Keep cursor on the group and toggle expansion
+	switch msg.Action {
+	case tea.MouseActionPress:
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			// Scroll up a few lines per tick.
+			m.moveCursor(-3)
+			return m, nil
+		case tea.MouseButtonWheelDown:
+			m.moveCursor(3)
+			return m, nil
+		case tea.MouseButtonLeft:
+			// Map Y position to list row.
+			row := msg.Y - m.listTopOffset()
+			if row >= 0 && row < m.listAreaHeight() {
+				idx := m.scroll + row
+				if idx >= 0 && idx < len(m.visible) {
+					// Detect double-click on the same row within a short threshold
+					const dbl = 350 * time.Millisecond
+					now := time.Now()
+					if idx == m.lastClickIdx && now.Sub(m.lastClickAt) <= dbl {
+						// Double-click: toggle group if clicking on a group header
+						ref := m.visible[idx]
+						if ref.typ == nodeGroup {
+							// Keep cursor on the group and toggle expansion
+							m.cursor = idx
+							m.toggleCurrentGroup()
+						}
+						// Reset to avoid repeated toggles on subsequent events
+						m.lastClickIdx = -1
+						m.lastClickAt = time.Time{}
+					} else {
+						// Single click: move cursor and record for potential double-click
 						m.cursor = idx
-						m.toggleCurrentGroup()
+						m.adjustScroll()
+						m.lastClickIdx = idx
+						m.lastClickAt = now
 					}
-					// Reset to avoid repeated toggles on subsequent events
-					m.lastClickIdx = -1
-					m.lastClickAt = time.Time{}
-				} else {
-					// Single click: move cursor and record for potential double-click
-					m.cursor = idx
-					m.adjustScroll()
-					m.lastClickIdx = idx
-					m.lastClickAt = now
 				}
 			}
 		}
 	}
+
 	return m, nil
 }
 
