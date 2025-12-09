@@ -290,7 +290,8 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.toggleCurrentGroup()
 
-	case "m":
+	// m and space bar will mark a file.
+	case "m", " ":
 		m.toggleCurrentFileMark()
 
 	case "d":
@@ -805,6 +806,8 @@ func formatFileStatus(entry *fileEntry, maxWidth int) string {
 	}
 }
 
+// effectiveWidth returns the model's width constrained between 80 and 120,
+// defaulting to 80 when the current width is non-positive.
 func (m *model) effectiveWidth() int {
 	switch {
 	case m.width <= 0:
