@@ -193,9 +193,9 @@ func main() {
 	}
 
 	if maxDepth == 0 && (*flNoRecurse || *flDepth >= 0) {
-		fmt.Println("Recursion disabled; scanning only the provided directories.")
+		dsklog.Dlogger.Debug("Recursion disabled. Invoked with current flag. Only checking current directory for dups.")
 	} else if maxDepth > 0 {
-		fmt.Printf("Limiting recursion depth to %d level(s).\n", maxDepth)
+		dsklog.Dlogger.Debugf("Limiting recursion depth to %d level(s).\n", maxDepth)
 	}
 
 	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
@@ -311,6 +311,7 @@ MainLoop:
 		os.Exit(0)
 	}
 
+	fmt.Println()
 	// Dump results in various format. No interactive results are shown. These
 	// options are better for scripting or grepping through.
 	switch {
