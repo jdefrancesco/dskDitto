@@ -432,9 +432,9 @@ func (m *model) renderTreeView() string {
 	sections = append(sections, divider)
 	countStr := fmt.Sprintf("%d", m.countMarked())
 	markedLabel := "marked files: "
+	countStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Render(countStr)
 	sections = append(sections,
-		footerStyle.Render(markedLabel)+
-		confirmCodeStyle.Render(countStr),
+		footerStyle.Render(markedLabel)+countStyled,
 	)
 	if m.deleteResult != "" {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
