@@ -170,7 +170,7 @@ func main() {
 
 		MinFileSize = uint(value)
 		if MinFileSize > 0 {
-			fmt.Printf("Skipping files smaller than: %s (%d bytes).\n", utils.DisplaySize(uint64(MinFileSize)), MinFileSize)
+			fmt.Printf("Skipping files smaller than: ~ %s.\n", utils.DisplaySize(uint64(MinFileSize)))
 		}
 		dsklog.Dlogger.Debugf("Min file size set to %d bytes.\n", MinFileSize)
 	}
@@ -313,6 +313,7 @@ MainLoop:
 
 	// Dump to CSV, then exit without dropping into TUI
 	if *flCSVOut != "" {
+		pterm.Success.Printf("CSV file %s being written to disk...", *flCSVOut)
 		if err := dMap.WriteCSV(*flCSVOut); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
 			os.Exit(1)
@@ -323,11 +324,11 @@ MainLoop:
 
 	// Dump files to JSON then exit.
 	if *flJSONOut != "" {
+		pterm.Success.Printf("JSON file %s being written to disk...", *flJSONOut)
 		if err := dMap.WriteJSON(*flJSONOut); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to write JSON output: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Duplicate summary written to JSON: %s\n", *flJSONOut)
 		os.Exit(0)
 	}
 
