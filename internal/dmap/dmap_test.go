@@ -2,10 +2,13 @@ package dmap
 
 import (
 	"crypto/sha256"
+	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
@@ -248,5 +251,119 @@ func TestRemoveDuplicatesZeroKeep(t *testing.T) {
 
 	if _, removeErr := dm.RemoveDuplicates(0); removeErr == nil {
 		t.Fatalf("expected error when keep is zero")
+	}
+}
+
+func TestExportJSONAndCSV(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(2)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	tmp := t.TempDir()
+	fileA := filepath.Join(tmp, "dupA.txt")
+	fileB := filepath.Join(tmp, "dupB.txt")
+
+	if writeErr := os.WriteFile(fileA, []byte("hello"), 0o644); writeErr != nil {
+		t.Fatalf("write %s: %v", fileA, writeErr)
+	}
+	if writeErr := os.WriteFile(fileB, []byte("greetings"), 0o644); writeErr != nil {
+		t.Fatalf("write %s: %v", fileB, writeErr)
+	}
+
+	var digest Digest
+	digest[0] = 0x1
+	dm.filesMap[digest] = []string{fileA, fileB}
+
+	jsonPath := filepath.Join(tmp, "dups.json")
+	if err := dm.WriteJSON(jsonPath); err != nil {
+		t.Fatalf("WriteJSON failed: %v", err)
+	}
+
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile JSON: %v", err)
+	}
+
+	var summary exportSummary
+	if err := json.Unmarshal(jsonData, &summary); err != nil {
+		t.Fatalf("Unmarshal JSON: %v", err)
+	}
+
+	if summary.GroupCount != 1 {
+		t.Fatalf("expected 1 group, got %d", summary.GroupCount)
+	}
+	if len(summary.Groups) != 1 {
+		t.Fatalf("expected 1 group entry, got %d", len(summary.Groups))
+	}
+	group := summary.Groups[0]
+	if group.Hash != fmt.Sprintf("%x", digest) {
+		t.Fatalf("unexpected hash: %s", group.Hash)
+	}
+	if group.DuplicateCount != 2 {
+		t.Fatalf("expected duplicate count 2, got %d", group.DuplicateCount)
+	}
+	if len(group.Files) != 2 {
+		t.Fatalf("expected 2 file entries, got %d", len(group.Files))
+	}
+
+	filesSeen := make(map[string]uint64)
+	for _, f := range group.Files {
+		filesSeen[f.Path] = f.Size
+	}
+	if filesSeen[fileA] != 5 {
+		t.Fatalf("expected size 5 for %s, got %d", fileA, filesSeen[fileA])
+	}
+	if filesSeen[fileB] != 9 {
+		t.Fatalf("expected size 9 for %s, got %d", fileB, filesSeen[fileB])
+	}
+
+	csvPath := filepath.Join(tmp, "dups.csv")
+	if err := dm.WriteCSV(csvPath); err != nil {
+		t.Fatalf("WriteCSV failed: %v", err)
+	}
+
+	csvFile, err := os.Open(csvPath)
+	if err != nil {
+		t.Fatalf("Open CSV: %v", err)
+	}
+	defer csvFile.Close()
+
+	reader := csv.NewReader(csvFile)
+	rows, err := reader.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll CSV: %v", err)
+	}
+
+	if len(rows) != 3 { // header + 2 rows
+		t.Fatalf("expected 3 rows, got %d", len(rows))
+	}
+
+	header := rows[0]
+	expectedHeader := []string{"hash", "duplicate_count", "path", "size_bytes"}
+	for i, col := range expectedHeader {
+		if header[i] != col {
+			t.Fatalf("unexpected header column %d: %s", i, header[i])
+		}
+	}
+
+	expectedHash := fmt.Sprintf("%x", digest)
+	for _, row := range rows[1:] {
+		if row[0] != expectedHash {
+			t.Fatalf("unexpected hash in CSV row: %s", row[0])
+		}
+		if row[1] != "2" {
+			t.Fatalf("unexpected duplicate count in CSV row: %s", row[1])
+		}
+		path := row[2]
+		size, err := strconv.ParseUint(row[3], 10, 64)
+		if err != nil {
+			t.Fatalf("parse size: %v", err)
+		}
+		if filesSeen[path] != size {
+			t.Fatalf("CSV size mismatch for %s: got %d want %d", path, size, filesSeen[path])
+		}
 	}
 }

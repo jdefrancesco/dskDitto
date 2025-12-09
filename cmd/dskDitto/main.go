@@ -50,6 +50,8 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --include-vfs              Include virtual filesystem directories like /proc or /dev.\n")
 		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
 		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n")
+		fmt.Fprintf(os.Stderr, "  --csv-out <file>           Write duplicate groups to a CSV file.\n")
+		fmt.Fprintf(os.Stderr, "  --json-out <file>          Write duplicate groups to a JSON file.\n")
 		fmt.Fprintf(os.Stderr, "  --fs-detect <path>         Detect and display the filesystem containing path.\n\n")
 		fmt.Fprintf(os.Stderr, "Notes:\n")
 		fmt.Fprintf(os.Stderr, "  Display-oriented options like --bullet only render results; no files are removed.\n")
@@ -117,6 +119,8 @@ func main() {
 		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
 		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
 		flKeep          = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
+		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV file.")
+		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
 		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
 	)
 	flag.Parse()
@@ -149,17 +153,17 @@ func main() {
 		fmt.Printf("Filesystem: %s\n\n", fs)
 	}
 
-	// Largest maximum integer.
+	// Maximum uint size.
 	maxUint := ^uint(0)
-
 	MinFileSize := uint(0)
+
 	if *flMinFileSize != "" {
 		value, err := utils.ParseSize(*flMinFileSize)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "invalid value for --min-size: %v\n", err)
 			os.Exit(1)
 		}
-		if value > uint64(maxUint) {
+		if value > uint64(math.MaxUint) {
 			fmt.Fprintf(os.Stderr, "--min-size %s exceeds platform limit (%d bytes)\n", *flMinFileSize, maxUint)
 			os.Exit(1)
 		}
@@ -244,7 +248,6 @@ func main() {
 	}
 
 	dMap, err := dmap.NewDmap(appCfg.MinDuplicates)
-
 	if err != nil {
 		dsklog.Dlogger.Fatal("Failed to make new Dmap: ", err)
 		os.Exit(1)
@@ -302,6 +305,22 @@ MainLoop:
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
 		pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
+
+	if *flCSVOut != "" {
+		if err := dMap.WriteCSV(*flCSVOut); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Duplicate summary written to CSV: %s\n", *flCSVOut)
+	}
+
+	if *flJSONOut != "" {
+		if err := dMap.WriteJSON(*flJSONOut); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to write JSON output: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Duplicate summary written to JSON: %s\n", *flJSONOut)
+	}
 
 	// Zero value for moveKeep means don't remove anything..
 	if keepCount > 0 {
