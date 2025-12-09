@@ -48,6 +48,11 @@ type DWalk struct {
 	hashAlgo        dfs.HashAlgorithm
 	skipDirPrefixes []string
 	maxDepth        int
+
+	// seenFiles tracks unique files by device+inode so multiple hardlinks
+	// are treated as a single file during scanning.
+	seenMu    sync.Mutex
+	seenFiles map[fileIdentity]struct{}
 }
 
 // NewDWalker returns a new DWalk instance that accepts traversal options.
@@ -85,6 +90,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 		hashAlgo:        dfs.HashSHA256, // Only use SHA256 for now. Need to debug performance issues with Blake3
 		skipDirPrefixes: skipPrefixes,
 		maxDepth:        maxDepth,
+		seenFiles:       make(map[fileIdentity]struct{}),
 	}
 
 	// Set semaphore to optimal value based on system resources
@@ -187,6 +193,19 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<-
 		if !info.Mode().IsRegular() {
 			dsklog.Dlogger.Debugf("Skipping non-regular file: %s (mode: %s)", entry.Name(), info.Mode())
 			continue
+		}
+
+		// Treat multiple hardlinks to the same underlying inode as a single file
+		// to avoid redundant hashing and duplicate entries.
+		if id, ok := getFileIdentity(info); ok {
+			d.seenMu.Lock()
+			if _, exists := d.seenFiles[id]; exists {
+				d.seenMu.Unlock()
+				dsklog.Dlogger.Debugf("Skipping hardlink duplicate: %s", filepath.Join(dir, name))
+				continue
+			}
+			d.seenFiles[id] = struct{}{}
+			d.seenMu.Unlock()
 		}
 
 		// Check file size properties the user set.
