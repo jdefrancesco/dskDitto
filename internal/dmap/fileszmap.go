@@ -6,10 +6,6 @@ import (
 	"fmt"
 )
 
-const (
-	kInitMapEntries = 1000
-)
-
 type DFileSizeCache struct {
 	// A small store that keeps file sizes cached so we reference
 	// it in order to decide if hashing the entire file is necessary.

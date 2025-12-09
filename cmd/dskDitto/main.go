@@ -41,7 +41,6 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --max-size <size>          Skip files larger than the given size (default 4GiB).\n")
 		fmt.Fprintf(os.Stderr, "  --text               	     Emit duplicate results in text-friendly format.\n")
 		fmt.Fprintf(os.Stderr, "  --bullet                   Show duplicates as a formatted bullet list.\n")
-		fmt.Fprintf(os.Stderr, "  --pretty                   Render duplicates as a tree (slower for large sets).\n")
 		fmt.Fprintf(os.Stderr, "  --empty                    Include empty files (default: ignore).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --hidden                   Include hidden dotfiles and directories (default: ignore).\n")
@@ -49,9 +48,10 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --depth <levels>           Limit recursion to <levels> directories below the start paths.\n")
 		fmt.Fprintf(os.Stderr, "  --include-vfs              Include virtual filesystem directories like /proc or /dev.\n")
 		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
-		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n\n")
+		fmt.Fprintf(os.Stderr, "  --remove <keep>            Delete duplicates, keeping only <keep> files per group.\n")
+		fmt.Fprintf(os.Stderr, "  --fs-detect <path>         Detect and display the filesystem containing path.\n\n")
 		fmt.Fprintf(os.Stderr, "Notes:\n")
-		fmt.Fprintf(os.Stderr, "  Display-oriented options like --pretty only render results; no files are removed.\n")
+		fmt.Fprintf(os.Stderr, "  Display-oriented options like --bullet only render results; no files are removed.\n")
 	}
 }
 
@@ -108,7 +108,6 @@ func main() {
 		flMaxFileSize   = flag.String("max-size", "", "Skip files larger than this size (default 4GiB).")
 		flTextOutput    = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets   = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
-		flShowPretty    = flag.Bool("pretty", false, "Show pretty output of duplicates found as tree.")
 		flIncludeEmpty  = flag.Bool("empty", false, "Include empty files (0 bytes).")
 		flSkipSymLinks  = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flIncludeHidden = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
@@ -117,6 +116,7 @@ func main() {
 		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
 		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
 		flKeep          = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
+		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
 	)
 	flag.Parse()
 
@@ -140,6 +140,15 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *flDetectFS != "" {
+		fs, err := dfs.DetectFilesystem(".")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Filesystem: %s\n\n", fs)
+	}
+
+	// Largest maximum integer.
 	maxUint := ^uint(0)
 
 	MinFileSize := uint(0)
@@ -269,6 +278,7 @@ MainLoop:
 			if !ok {
 				break MainLoop
 			}
+
 			if dFile == nil {
 				dsklog.Dlogger.Warn("Received nil dFile, skipping...")
 				continue
@@ -317,9 +327,6 @@ MainLoop:
 	switch {
 	case *flTextOutput:
 		dMap.PrintDmap()
-		os.Exit(0)
-	case *flShowPretty:
-		dMap.ShowResultsPretty()
 		os.Exit(0)
 	case *flShowBullets:
 		dMap.ShowResultsBullet()

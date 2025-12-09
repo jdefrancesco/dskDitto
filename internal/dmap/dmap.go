@@ -18,7 +18,6 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
 	"github.com/pterm/pterm"
-	"github.com/pterm/pterm/putils"
 )
 
 type Digest [32]byte
@@ -97,37 +96,10 @@ func (d *Dmap) PrintDmap() {
 		hash := fmt.Sprintf("%x", k)
 		fmt.Printf("Hash: %s  \n", hash)
 		for i, f := range v {
-			fmt.Printf("\t%d: %s \n", i+1, f)
+			fmt.Printf(" %d: %s \n", i+1, f)
 		}
 		fmt.Printf("\n\n")
 	}
-}
-
-// ShowResultsPretty will display duplicates held in our Dmap as
-// a pretty tree.
-// NOTE: Pterm takes a very long time to render this table for some reason.
-func (d *Dmap) ShowResultsPretty() {
-
-	// Banner
-	var leveledList pterm.LeveledList
-
-	for hash, files := range d.filesMap {
-		// Only show files that have at least one other duplicate.
-		if uint(len(files)) < d.minDuplicates {
-			continue
-		}
-		// Our hash value will be our level 0 item from which all duplicate files
-		// will be subitems.
-		listItem := pterm.LeveledListItem{Level: 0, Text: fmt.Sprintf("%x", hash)}
-		leveledList = append(leveledList, listItem)
-		for _, f := range files {
-			listItem = pterm.LeveledListItem{Level: 1, Text: f}
-			leveledList = append(leveledList, listItem)
-		}
-	}
-
-	root := putils.TreeFromLeveledList(leveledList)
-	pterm.DefaultTree.WithRoot(root).Render()
 }
 
 // ShowResultsBullet will display duplicates held in our Dmap as

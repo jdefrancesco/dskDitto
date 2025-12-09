@@ -154,3 +154,8 @@ func ParseHashAlgorithm(name string) (HashAlgorithm, error) {
 		return "", fmt.Errorf("unsupported hash algorithm %q", name)
 	}
 }
+
+// DetectFilesystem returns the filesystem type for the path.
+func DetectFilesystem(path string) (string, error) {
+	return detectFilesystem(path)
+}
