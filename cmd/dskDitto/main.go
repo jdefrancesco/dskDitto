@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -176,7 +177,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "invalid value for --max-size: %v\n", err)
 			os.Exit(1)
 		}
-		if value > uint64(maxUint) {
+		if value > uint64(math.MaxUint) {
 			fmt.Fprintf(os.Stderr, "--max-size %s exceeds platform limit (%d bytes)\n", *flMaxFileSize, maxUint)
 			os.Exit(1)
 		}

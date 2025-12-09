@@ -65,7 +65,6 @@ var (
 	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbe249e"))
 	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
 	// selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
-	// Files marked for removal are green.
 	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#86fb71ff")).Bold(true)
 	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
 	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
