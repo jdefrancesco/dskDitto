@@ -302,24 +302,33 @@ MainLoop:
 	infoSpinner.Stop()
 	duration := time.Since(start)
 
+	// Stop profiling after this point. Profile data should now be
+	// written to disk.
+	pprof.StopCPUProfile()
+
+	// Status bar update
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
 		pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
 
+	// Dump to CSV, then exit without dropping into TUI
 	if *flCSVOut != "" {
 		if err := dMap.WriteCSV(*flCSVOut); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Printf("Duplicate summary written to CSV: %s\n", *flCSVOut)
+		os.Exit(0)
 	}
 
+	// Dump files to JSON then exit.
 	if *flJSONOut != "" {
 		if err := dMap.WriteJSON(*flJSONOut); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to write JSON output: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Printf("Duplicate summary written to JSON: %s\n", *flJSONOut)
+		os.Exit(0)
 	}
 
 	// Zero value for moveKeep means don't remove anything..
@@ -332,10 +341,6 @@ MainLoop:
 		}
 		os.Exit(0)
 	}
-
-	// Stop profiling after this point. Profile data should now be
-	// written to disk.
-	pprof.StopCPUProfile()
 
 	// For debugging to test speed
 	if *flTimeOnly {
