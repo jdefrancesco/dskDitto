@@ -54,25 +54,25 @@ var (
 // Color scheme to make things look good!
 var (
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#B8BB26")).
+			Foreground(lipgloss.Color("#A6E22E")).
 			Bold(true).
 			PaddingBottom(0)
 
 	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
-	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#df5353ff")).Bold(true)
-	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
-	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbe249e")).Bold(false)
-	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbe249e"))
-	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
+	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5C6370"))
+	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD866")).Bold(false)
+	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD866"))
+	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E5E5"))
 	// selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
-	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#86fb71ff")).Bold(true)
+	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Bold(true)
 	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
-	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true)
-	statusErrorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
-	statusInfoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA"))
+	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Bold(true)
+	statusErrorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+	statusInfoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#7F848E"))
 	footerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	resultStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))
-	emptyStateStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8")).Italic(true)
+	resultStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFB86C"))
+	emptyStateStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")).Italic(true)
 
 	confirmPanelStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
@@ -430,7 +430,12 @@ func (m *model) renderTreeView() string {
 	}
 
 	sections = append(sections, divider)
-	sections = append(sections, footerStyle.Render(fmt.Sprintf("marked files: %d", m.countMarked())))
+	countStr := fmt.Sprintf("%d", m.countMarked())
+	markedLabel := "marked files: "
+	sections = append(sections,
+		footerStyle.Render(markedLabel)+
+		confirmCodeStyle.Render(countStr),
+	)
 	if m.deleteResult != "" {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
@@ -741,7 +746,8 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		if entry.Marked {
 			mark = markedStyle.Render("■")
 		}
-		markStr := "  " + mark
+		// Add a bit of space between the checkbox and filename for readability.
+		markStr := "  " + mark + "  "
 
 		// First, estimate a status width budget as a third of available after mark.
 		markW := lipgloss.Width(markStr)
