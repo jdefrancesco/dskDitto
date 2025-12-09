@@ -214,3 +214,66 @@ func (d *Dmap) RemoveDuplicates(keep uint) ([]string, error) {
 
 	return removed, nil
 }
+
+// LinkDuplicates converts duplicates to symbolic links, leaving at most "keep" real files per group.
+// It removes each extra duplicate and recreates it as a symlink pointing to one of the kept files.
+// It returns the paths that were successfully converted to symlinks.
+func (d *Dmap) LinkDuplicates(keep uint) ([]string, error) {
+	if keep == 0 {
+		return nil, errors.New("keep count must be greater than zero")
+	}
+
+	// Guard against integer overflow
+	if keep > uint(math.MaxInt) {
+		dsklog.Dlogger.Debug("keep value overflow")
+		return nil, fmt.Errorf("keep count of %d exceeds maximum %d", keep, math.MaxInt)
+	}
+	keepThreshold := int(keep)
+
+	var linked []string
+	var errs []error
+
+	for hash, files := range d.filesMap {
+		if uint(len(files)) <= keep {
+			continue
+		}
+
+		keepCount := keepThreshold
+		if keepCount > len(files) {
+			keepCount = len(files)
+		}
+
+		// Survivors remain as real files. We point all converted symlinks at the first survivor.
+		survivors := append([]string(nil), files[:keepCount]...)
+		target := survivors[0]
+
+		for _, path := range files[keepCount:] {
+			if err := os.Remove(path); err != nil {
+				errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
+				survivors = append(survivors, path)
+				continue
+			}
+			if err := os.Symlink(target, path); err != nil {
+				errs = append(errs, fmt.Errorf("symlink %s -> %s: %w", path, target, err))
+				// Try to preserve logical membership if the symlink creation fails.
+				survivors = append(survivors, path)
+				continue
+			}
+			dsklog.Dlogger.Infof("Converted duplicate to symlink: %s -> %s", path, target)
+			linked = append(linked, path)
+		}
+
+		if len(survivors) == 0 {
+			delete(d.filesMap, hash)
+			continue
+		}
+
+		d.filesMap[hash] = survivors
+	}
+
+	if len(errs) > 0 {
+		return linked, errors.Join(errs...)
+	}
+
+	return linked, nil
+}

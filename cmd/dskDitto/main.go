@@ -118,7 +118,8 @@ func main() {
 		flDepth         = flag.Int("depth", -1, "Maximum recursion depth; 0 inspects only the provided paths, -1 means unlimited.")
 		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
 		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
-		flKeep          = flag.Uint("remove", 0, "Delete duplicates, keeping only this many files per group.")
+		flKeep          = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many files per group.")
+		flLinkMode      = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
 		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV file.")
 		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
 		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
@@ -318,7 +319,6 @@ MainLoop:
 			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Duplicate summary written to CSV: %s\n", *flCSVOut)
 		os.Exit(0)
 	}
 
@@ -332,13 +332,22 @@ MainLoop:
 		os.Exit(0)
 	}
 
-	// Zero value for moveKeep means don't remove anything..
+	// Zero value for moveKeep means don't remove or relink anything.
 	if keepCount > 0 {
-		removedPaths, removeErr := dMap.RemoveDuplicates(keepCount)
-		fmt.Printf("Removed %d duplicate files, kept %d per group.\n", len(removedPaths), keepCount)
-		if removeErr != nil {
-			fmt.Fprintf(os.Stderr, "Removal completed with errors: %v\n", removeErr)
-			os.Exit(1)
+		if *flLinkMode {
+			linkedPaths, linkErr := dMap.LinkDuplicates(keepCount)
+			fmt.Printf("Converted %d duplicate files to symlinks, kept %d real file(s) per group.\n", len(linkedPaths), keepCount)
+			if linkErr != nil {
+				fmt.Fprintf(os.Stderr, "Linking completed with errors: %v\n", linkErr)
+				os.Exit(1)
+			}
+		} else {
+			removedPaths, removeErr := dMap.RemoveDuplicates(keepCount)
+			fmt.Printf("Removed %d duplicate files, kept %d per group.\n", len(removedPaths), keepCount)
+			if removeErr != nil {
+				fmt.Fprintf(os.Stderr, "Removal completed with errors: %v\n", removeErr)
+				os.Exit(1)
+			}
 		}
 		os.Exit(0)
 	}

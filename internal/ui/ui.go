@@ -761,6 +761,11 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		used := lipgloss.Width(markStr) + lipgloss.Width(statusStr)
 		pathMax := max(avail-used, 1)
 		path := entry.Path
+		// If this path is currently a symlink on disk, annotate it so the user
+		// can distinguish converted duplicates.
+		if fi, err := os.Lstat(entry.Path); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+			path += " [symlink]"
+		}
 		if runewidth.StringWidth(path) > pathMax {
 			path = runewidth.Truncate(path, pathMax, "…")
 		}

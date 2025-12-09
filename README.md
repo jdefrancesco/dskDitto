@@ -6,7 +6,8 @@
 
 - Concurrent directory walker tuned for large trees and multi-core systems
 - SHA-256 (default) or BLAKE3 coming soon.
-- Multiple output modes: TUI, pretty tree, bullet lists, or text-friendly dumps
+- Multiple output modes: TUI, bullet lists, or text-friendly dumps
+- CSV and JSON output supported via flags.
 - Optional automated duplicate removal with confirmation safety rails
 - Profiling toggles and micro-benchmarks for power users
 
@@ -33,7 +34,7 @@ The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it f
 ## Usage
 
 ```bash
-./bin/dskDitto [options] PATH...
+dskDitto [options] PATH...
 ```
 
 Common flags:
@@ -48,10 +49,88 @@ Common flags:
 | `--include-vfs` | Include virtual filesystem directories such as `/proc` or `/dev` |
 | `--no-recurse` | Restrict the scan to the provided paths only |
 | `--depth <levels>` | Limit recursion to `<levels>` directories below the starting paths |
-| `--text`, `--bullet`, `--pretty` | Render duplicates without launching the TUI |
-| `--remove <keep>` | Delete duplicates, keeping the first `<keep>` entries per group |
+| `--text`, `--bullet` | Render duplicates without launching the TUI |
+| `--remove <keep>` | Operate on duplicates, keeping the first `<keep>` entries per group |
+| `--link` | With `--remove`, convert extra duplicates to symlinks instead of deleting them |
 
-Press `Ctrl+C` at any time to abort a scan. When duplicates are removed, a confirmation dialog prevents accidental mass deletion.
+Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
+
+### Duplicate removal and symlink conversion
+
+`dskDitto` never deletes or rewrites anything unless you explicitly ask it to with `--remove`.
+
+- **Dry / interactive modes:** by default (or with `--text` / `--bullet`) the tool only reports duplicates.
+- **Delete extras:** use `--remove <keep>` to delete all but `<keep>` files in each duplicate group.
+- **Convert extras to symlinks:** combine `--remove <keep> --link` to replace extra duplicates with symlinks pointing at one kept file per group.
+
+When using `--link`, the on-disk layout after the operation looks like this for a group of 3 identical files and `--remove 1 --link`:
+
+```text
+/path/to/keep/file.txt      # original file kept
+/path/to/dup/file-copy.txt  -> /path/to/keep/file.txt  (symlink)
+/another/location/file.txt  -> /path/to/keep/file.txt  (symlink)
+```
+
+In the TUI, files that are symlinks are annotated with a `[symlink]` suffix so you can see which entries were converted.
+
+## Examples
+
+Scan your home directory and interactively review duplicates:
+
+```bash
+dskDitto $HOME
+```
+
+List duplicates for scripting or grepping, without launching the TUI:
+
+```bash
+dskDitto --text ~/Pictures ~/Movies | grep "\.jpg$"
+```
+
+Find and safely delete duplicates larger than 100 MiB, keeping one copy per group:
+
+```bash
+dskDitto --min-size 100MiB --remove 1 /mnt/big-disk
+```
+
+Shrink a media library by converting duplicates into symlinks instead of deleting them:
+
+```bash
+dskDitto --remove 1 --link ~/Media
+```
+
+Export duplicate information to CSV or JSON for offline analysis:
+
+```bash
+dskDitto --csv-out dupes.csv  ~/Photos
+dskDitto --json-out dupes.json ~/Projects
+```
+
+### Recipes
+
+- **Clean a downloads folder but keep one copy of each installer:**
+
+  ```bash
+  dskDitto --min-size 10MiB --remove 1 ~/Downloads
+  ```
+
+- **Deduplicate a photo drive while preserving directory layout with symlinks:**
+
+  ```bash
+  dskDitto --remove 1 --link /Volumes/photo-archive
+  ```
+
+- **Hunt for big redundant media files only:**
+
+  ```bash
+  dskDitto --min-size 500MiB --text ~/Movies ~/TV
+  ```
+
+- **Feed duplicate groups into another tool via CSV:**
+
+  ```bash
+  dskDitto --csv-out dupes.csv /data
+  ```
 
 ## Configuration
 

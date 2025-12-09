@@ -1,0 +1,11 @@
+hash,duplicate_count,path,size_bytes
+3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61,2,/Users/jdefr89/projects/dskDitto/internal/dwalk/test_files/fileOne.bin,101
+3fa2a6033f2b531361adf2bf300774fd1b75a5db13828e387d6e4c3c03400d61,2,/Users/jdefr89/projects/dskDitto/internal/dfs/test_files/fileOne.bin,101
+5ee0dd4d4840229fab4a86438efbcaf1b9571af94f5ace5acc94de19e98ea9ab,4,/Users/jdefr89/projects/dskDitto/internal/dwalk/test_files/fileFour.bin,1
+5ee0dd4d4840229fab4a86438efbcaf1b9571af94f5ace5acc94de19e98ea9ab,4,/Users/jdefr89/projects/dskDitto/internal/dwalk/test_files/fileFourCpy.bin,1
+5ee0dd4d4840229fab4a86438efbcaf1b9571af94f5ace5acc94de19e98ea9ab,4,/Users/jdefr89/projects/dskDitto/internal/dfs/test_files/fileFour.bin,1
+5ee0dd4d4840229fab4a86438efbcaf1b9571af94f5ace5acc94de19e98ea9ab,4,/Users/jdefr89/projects/dskDitto/internal/dfs/test_files/fileFourCpy.bin,1
+7d6fd7774f0d87624da6dcf16d0d3d104c3191e771fbe2f39c86aed4b2bf1a0f,2,/Users/jdefr89/projects/dskDitto/internal/dwalk/test_files/test_dir/file2.txt,6
+7d6fd7774f0d87624da6dcf16d0d3d104c3191e771fbe2f39c86aed4b2bf1a0f,2,/Users/jdefr89/projects/dskDitto/internal/dwalk/test_files/test_dir/file2_copy.txt,6
+f2e0e2beb73c21338a1dc872cd7b900c24c4547b6d9ae882e02bcd4257ac7bd4,2,/Users/jdefr89/projects/dskDitto/internal/dwalk/test_files/fileTwo.bin,3
+f2e0e2beb73c21338a1dc872cd7b900c24c4547b6d9ae882e02bcd4257ac7bd4,2,/Users/jdefr89/projects/dskDitto/internal/dfs/test_files/fileTwo.bin,3
