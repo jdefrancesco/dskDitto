@@ -63,6 +63,8 @@ Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or conve
 - **Delete extras:** use `--remove <keep>` to delete all but `<keep>` files in each duplicate group.
 - **Convert extras to symlinks:** combine `--remove <keep> --link` to replace extra duplicates with symlinks pointing at one kept file per group.
 
+On Unix-like systems, multiple hard links to the same underlying file are treated as a single entry during scanning: `dskDitto` hashes the content once and does not report those hard-link paths as separate space-wasting duplicates.
+
 When using `--link`, the on-disk layout after the operation looks like this for a group of 3 identical files and `--remove 1 --link`:
 
 ```text
