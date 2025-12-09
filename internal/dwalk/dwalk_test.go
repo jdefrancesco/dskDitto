@@ -1,6 +1,7 @@
 package dwalk
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -176,6 +177,30 @@ func TestMaxDepthLimit(t *testing.T) {
 
 	depth1 := collect(1)
 	expectPathsEqual(t, depth1, []string{"level1/one.txt", "root.txt"})
+}
+
+func TestMaxFileSizeLimit(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	small := filepath.Join(root, "small.dat")
+	large := filepath.Join(root, "large.dat")
+
+	if err := os.WriteFile(small, bytes.Repeat([]byte("a"), 1024), 0o644); err != nil {
+		t.Fatalf("failed to create small file: %v", err)
+	}
+	if err := os.WriteFile(large, bytes.Repeat([]byte("b"), 5*1024*1024), 0o644); err != nil {
+		t.Fatalf("failed to create large file: %v", err)
+	}
+
+	cfg := config.Config{
+		HashAlgorithm: dfs.HashSHA256,
+		SkipVirtualFS: true,
+		MaxFileSize:   2048, // 2 KiB
+	}
+
+	paths := collectRelativePaths(t, root, cfg)
+	expectPathsEqual(t, paths, []string{"small.dat"})
 }
 
 func collectRelativePaths(t *testing.T, root string, cfg config.Config) []string {

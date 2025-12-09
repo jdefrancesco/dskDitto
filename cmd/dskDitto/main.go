@@ -163,6 +163,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "--min-size %s exceeds platform limit (%d bytes)\n", *flMinFileSize, maxUint)
 			os.Exit(1)
 		}
+
 		MinFileSize = uint(value)
 		if MinFileSize > 0 {
 			fmt.Printf("Skipping files smaller than: %s (%d bytes).\n", utils.DisplaySize(uint64(MinFileSize)), MinFileSize)
