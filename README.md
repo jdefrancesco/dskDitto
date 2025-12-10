@@ -1,5 +1,10 @@
 # dskDitto
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/jdefrancesco/dskDitto.svg)](https://pkg.go.dev/github.com/jdefrancesco/dskDitto)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jdefrancesco/dskDitto)](https://goreportcard.com/report/github.com/jdefrancesco/dskDitto)
+
+![dskDitto gnome logo](./docs/gnome-small.png)
+
 `dskDitto` is a fast, parallel duplicate-file detector with an optional interactive terminal UI that lets you review, keep, or safely delete redundant files.
 
 ## Features
@@ -26,7 +31,7 @@ Prefer cloning? Build locally via Make:
 ```bash
 git clone https://github.com/jdefrancesco/dskDitto
 cd dskDitto
-make          # builds into ./bin/dskDitto
+make          
 ```
 
 The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
@@ -186,8 +191,6 @@ make bench         # run benchmarks (adds -benchmem)
 make bench-profile # capture cpu.prof and mem.prof into the repo root
 make pprof-web     # launch go tool pprof with HTTP UI for the latest profile
 ```
-
-The TODO backlog lives in `TODO.md`.
 
 ## Contributing
 
