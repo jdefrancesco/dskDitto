@@ -81,9 +81,8 @@ In the TUI, files that are symlinks are annotated with a `[symlink]` suffix so y
 By default, `dskDitto` uses SHA-256 for content hashing:
 
 - **SHA-256 (`--hash sha256`)**: conservative, widely-supported choice with strong collision guarantees.
-- **BLAKE3 (`--hash blake3`)**: significantly faster on modern CPUs while still providing strong, practical collision resistance for duplicate detection.
+- **BLAKE3 (`--hash blake3`)**: Under many circumstances this is significantly faster on modern CPUs. However, on macOS `SHA256` is fine tuned and out performs `BLAKE3` most of the time. Thus, we leave `SHA-256` as the default for now.
 
-If you are scanning very large trees or running `dskDitto` frequently, `--hash blake3` will usually be noticeably faster while remaining safe for deduplication workloads.
 
 ## Examples
 
@@ -138,7 +137,9 @@ dskDitto --json-out dupes.json ~/Projects
   dskDitto --min-size 500MiB --text ~/Movies ~/TV
   ```
 
-- **Speed up huge scans with BLAKE3:**
+- **Use BLAKE3**
+
+  >*NOTE:* On *macOS*, `Blake3` will actually perform **worse** than `SHA256` hence, we leave it as default for time being. `Blake3's` implementation may improve in the future, possibly out performing `SHA256`.
 
   ```bash
   dskDitto --hash blake3 --min-size 10MiB --text /mnt/big-disk
