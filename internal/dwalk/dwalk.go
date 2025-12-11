@@ -136,8 +136,12 @@ func cancelled(ctx context.Context) bool {
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
 func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<- *dfs.Dfile) {
-
-	defer d.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			dsklog.Dlogger.Errorf("Recovered panic while walking directory %s: %v", dir, r)
+		}
+		d.wg.Done()
+	}()
 
 	// Check for cancellation.
 	if cancelled(ctx) {

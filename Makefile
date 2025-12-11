@@ -24,6 +24,10 @@ build:
 	gosec -exclude=G104,G108 ./...
 	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
+.PHONY: build-darwin-arm64
+build-darwin-arm64:
+	GOOS=darwin GOARCH=arm64 go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
+
 .PHONY: test
 test:
 	$(GOTEST) -v ./...
