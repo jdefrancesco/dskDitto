@@ -52,6 +52,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --remove <keep>            Operate on duplicates, keeping only <keep> files per group.\n")
 		fmt.Fprintf(os.Stderr, "  --link                     With --remove, convert extra duplicates into symlinks instead of deleting them.\n")
 		fmt.Fprintf(os.Stderr, "  --hash <algo>              Hash algorithm: sha256 (default) or blake3.\n")
+		fmt.Fprintf(os.Stderr, "  --file <path>              Only report duplicates of the specified file.\n")
 		fmt.Fprintf(os.Stderr, "  --csv-out <file>           Write duplicate groups to a CSV file.\n")
 		fmt.Fprintf(os.Stderr, "  --json-out <file>          Write duplicate groups to a JSON file.\n")
 		fmt.Fprintf(os.Stderr, "  --fs-detect <path>         Detect and display the filesystem containing path.\n\n")
@@ -123,6 +124,7 @@ func main() {
 		flHashAlgo      = flag.String("hash", "sha256", "Hash algorithm to use: sha256 (default) or blake3.")
 		flKeep          = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many files per group.")
 		flLinkMode      = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
+		flSingleFile    = flag.String("file", "", "Only search for duplicates of the specified file.")
 		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV file.")
 		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
 		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
@@ -226,6 +228,33 @@ func main() {
 	}
 	dsklog.Dlogger.Debugf("Using hash algorithm: %s", hashAlgo)
 
+	singleFileMode := false
+	var targetDigest dmap.Digest
+	var targetFilePath string
+	if *flSingleFile != "" {
+		dsklog.Dlogger.Debug("In single shot mode.")
+		info, statErr := os.Stat(*flSingleFile)
+		if statErr != nil {
+			dsklog.Dlogger.Debugf("Unable to stat --file path %s: %v\n", *flSingleFile, statErr)
+			fmt.Fprintf(os.Stderr, "unable to stat --file path %s: %v\n", *flSingleFile, statErr)
+			os.Exit(1)
+		}
+		if !info.Mode().IsRegular() {
+			fmt.Fprintf(os.Stderr, "--file path must be a regular file: %s\n", *flSingleFile)
+			os.Exit(1)
+		}
+		targetDfile, hashErr := dfs.NewDfile(*flSingleFile, info.Size(), hashAlgo)
+		if hashErr != nil {
+			dsklog.Dlogger.Debugf("Failed to hash --file target %s: %v\n", *flSingleFile, hashErr)
+			fmt.Fprintf(os.Stderr, "failed to hash --file target %s: %v\n", *flSingleFile, hashErr)
+			os.Exit(1)
+		}
+		targetDigest = dmap.Digest(targetDfile.Hash())
+		targetFilePath = targetDfile.FileName()
+		singleFileMode = true
+		pterm.Info.Printf("Searching for duplicates of %s\n", targetFilePath)
+	}
+
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
 		rootDirs = []string{"."}
@@ -315,6 +344,23 @@ MainLoop:
 	// written to disk.
 	pprof.StopCPUProfile()
 
+	if singleFileMode {
+		filesMap := dMap.GetMap()
+		matches := append([]string(nil), filesMap[targetDigest]...)
+		dupCount := countDuplicates(matches, targetFilePath)
+		if dupCount == 0 {
+			pterm.Info.Printf("No duplicates of %s found in the provided paths.\n", targetFilePath)
+			os.Exit(0)
+		}
+		filesMap[targetDigest] = ensurePathFirst(matches, targetFilePath)
+		for hash := range filesMap {
+			if hash != targetDigest {
+				delete(filesMap, hash)
+			}
+		}
+		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
+	}
+
 	// Status bar update
 	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
 		pterm.LightWhite(duration)
@@ -379,6 +425,48 @@ MainLoop:
 
 	// Show TUI interactive interface.
 	ui.LaunchTUI(dMap)
+}
+
+func countDuplicates(paths []string, target string) int {
+	if len(paths) == 0 {
+		return 0
+	}
+	count := 0
+	for _, p := range paths {
+		if p == target {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func ensurePathFirst(paths []string, target string) []string {
+	if target == "" {
+		return paths
+	}
+	idx := -1
+	for i, p := range paths {
+		if p == target {
+			idx = i
+			break
+		}
+	}
+	switch {
+	case idx == 0:
+		return paths
+	case idx > 0:
+		result := make([]string, 0, len(paths))
+		result = append(result, target)
+		result = append(result, paths[:idx]...)
+		result = append(result, paths[idx+1:]...)
+		return result
+	default:
+		result := make([]string, 0, len(paths)+1)
+		result = append(result, target)
+		result = append(result, paths...)
+		return result
+	}
 }
 
 // showHeader prints colorful dskDitto banner.

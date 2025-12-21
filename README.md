@@ -11,6 +11,8 @@
 
 - Concurrent directory walker tuned for large trees and multi-core systems
 - Pluggable hashing with SHA-256 (default) or BLAKE3
+- Pluggable hashing with SHA-256 (default) or BLAKE3
+- Targeted mode to search for duplicates of a single file
 - Multiple output modes: TUI, bullet lists, or text-friendly dumps
 - CSV and JSON output supported via flags.
 - Optional automated duplicate removal with confirmation safety rails
@@ -57,6 +59,7 @@ Common flags:
 | `--text`, `--bullet` | Render duplicates without launching the TUI |
 | `--remove <keep>` | Operate on duplicates, keeping the first `<keep>` entries per group |
 | `--link` | With `--remove`, convert extra duplicates to symlinks instead of deleting them |
+| `--file <path>` | Only report duplicates of the given file |
 | `--hash <algo>` | Select hash algorithm: `sha256` (default) or `blake3` |
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
@@ -80,6 +83,10 @@ When using `--link`, the on-disk layout after the operation looks like this for 
 ```
 
 In the TUI, files that are symlinks are annotated with a `[symlink]` suffix so you can see which entries were converted.
+
+### Single-file duplicate search
+
+Use `--file /path/to/original.ext` to hash a specific file first, then scan the provided directories for other files with identical content. If no duplicates are found in those directories, `dskDitto` exits cleanly; otherwise, all reporting/removal/export modes are limited to that single duplicate group (with the original file listed first).
 
 ### Hash algorithms
 
