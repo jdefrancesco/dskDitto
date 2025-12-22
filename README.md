@@ -46,19 +46,27 @@ Common flags:
 
 | Flag | Description |
 | ---- | ----------- |
+| `--version` | Print the current version and exit |
+| `--no-banner` | Skip the startup banner |
+| `--profile <file>` | Write a CPU profile to the given file |
+| `--time-only` | Exit immediately after the scan, printing only the elapsed time |
 | `--min-size <bytes>` | Ignore files smaller than the provided size |
 | `--max-size <bytes>` | Skip files larger than the provided size (default 4 GiB) |
 | `--hidden` | Include dot files and dot-directories |
 | `--no-symlinks` | Skip symbolic links |
 | `--empty` | Include zero-byte files |
 | `--include-vfs` | Include virtual filesystem directories such as `/proc` or `/dev` |
-| `--no-recurse` | Restrict the scan to the provided paths only |
+| `--current` | Restrict the scan to only the specified paths (no recursion) |
 | `--depth <levels>` | Limit recursion to `<levels>` directories below the starting paths |
+| `--dups <count>` | Only show groups that contain at least `<count>` files |
 | `--text`, `--bullet` | Render duplicates without launching the TUI |
 | `--remove <keep>` | Operate on duplicates, keeping the first `<keep>` entries per group |
 | `--link` | With `--remove`, convert extra duplicates to symlinks instead of deleting them |
 | `--file <path>` | Only report duplicates of the given file |
 | `--hash <algo>` | Select hash algorithm: `sha256` (default) or `blake3` |
+| `--csv-out <file>` | Write duplicate groups to CSV |
+| `--json-out <file>` | Write duplicate groups to JSON |
+| `--fs-detect <path>` | Print the filesystem type that contains `<path>` |
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
 
