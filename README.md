@@ -30,8 +30,8 @@ This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by defau
 
 Ensure you have
 
-* `go` (1.22+)
-* `gosec` (install via `go install github.com/securego/gosec/v2/cmd/gosec@latest`)
+- `go` (1.22+)
+- `gosec` (install via `go install github.com/securego/gosec/v2/cmd/gosec@latest`)
 
 ```bash
 git clone https://github.com/jdefrancesco/dskDitto
@@ -40,6 +40,14 @@ make
 ```
 
 The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
+
+Install the built binary somewhere on your path (defaults to `/usr/local/bin`) with:
+
+```bash
+sudo make install PREFIX=/usr/local/bin
+```
+
+Override `PREFIX` (for example `make install PREFIX=$HOME/.local/bin`) if you prefer a user-local install and want to skip `sudo`.
 
 ## Usage
 
