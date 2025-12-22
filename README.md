@@ -6,7 +6,7 @@
 
 ![dskDitto gnome logo](./docs/gnome-small.png)
 
-`dskDitto` is a fast, parallel duplicate-file detector with an optional interactive terminal UI that lets you review, keep, or safely delete redundant files.
+`dskDitto` is a fast, parallel duplicate-file detector with an sleek TUI that lets you review, keep, or safely delete redundant files.
 
 ## Features
 
