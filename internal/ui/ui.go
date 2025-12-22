@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -129,12 +130,22 @@ type fileEntry struct {
 	Message string
 }
 
+type sortMode int
+
+const (
+	sortByTotalSize sortMode = iota
+	sortByCount
+)
+
+const sortModeCount = 2
+
 // These are batches of file dups
 type duplicateGroup struct {
 	Hash     dmap.Digest
 	Title    string
 	Files    []*fileEntry
 	Expanded bool
+	TotalSz  uint64
 }
 
 type nodeRef struct {
@@ -149,6 +160,7 @@ type nodeRef struct {
 // See Bubble Tea github page for tutorial.
 type model struct {
 	groups        []*duplicateGroup
+	sortMode      sortMode
 	visible       []nodeRef
 	cursor        int
 	scroll        int
@@ -157,6 +169,8 @@ type model struct {
 	// double-click tracking
 	lastClickIdx int
 	lastClickAt  time.Time
+	// Sticky group info tracking: last group header cursor was on.
+	lastGroupIdx int
 
 	mode viewMode
 
@@ -178,7 +192,9 @@ var _ tea.Model = (*model)(nil)
 func newModel(dMap *dmap.Dmap) *model {
 	m := &model{
 		mode:          modeTree,
+		sortMode:      sortByTotalSize,
 		minDuplicates: dMap.MinDuplicates(),
+		lastGroupIdx:  -1,
 	}
 
 	for hash, files := range dMap.GetMap() {
@@ -186,10 +202,13 @@ func newModel(dMap *dmap.Dmap) *model {
 			continue
 		}
 
+		totalSize := estimateGroupTotalSize(files)
+
 		group := &duplicateGroup{
 			Hash:     hash,
-			Title:    formatGroupTitle(hash, files),
+			Title:    formatGroupTitle(hash, len(files), totalSize),
 			Expanded: true,
+			TotalSz:  totalSize,
 		}
 
 		for _, file := range files {
@@ -200,6 +219,7 @@ func newModel(dMap *dmap.Dmap) *model {
 		m.groups = append(m.groups, group)
 	}
 
+	m.sortGroups()
 	m.rebuildVisibleNodes()
 	return m
 }
@@ -296,6 +316,15 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "d":
 		m.startConfirmationPrompt()
+
+	case "1":
+		m.setSortMode(sortByTotalSize)
+
+	case "2":
+		m.setSortMode(sortByCount)
+
+	case "s", "S":
+		m.cycleSortMode()
 	}
 
 	// Also catch PageUp/PageDown by key type for wider terminal support.
@@ -441,7 +470,7 @@ func (m *model) renderTreeView() string {
 		sections = append(sections, resultStyle.Render(m.deleteResult))
 	}
 	// Navigation instructions.
-	sections = append(sections, footerStyle.Render("enter expand/fold • arrows/j/k nav. list • m toggle selection • a select all • u clear selection • d delete marked • esc/q exit"))
+	sections = append(sections, m.instructionsFooter(width))
 
 	return strings.Join(sections, "\n")
 }
@@ -701,6 +730,7 @@ func (m *model) rebuildVisibleNodes() {
 	if len(m.visible) == 0 {
 		m.cursor = 0
 		m.scroll = 0
+		m.lastGroupIdx = -1
 		return
 	}
 	if m.cursor >= len(m.visible) {
@@ -831,13 +861,89 @@ func (m *model) listAreaHeight() int {
 	if h <= 0 {
 		h = 24
 	}
-	// Static rows: title (1) + top divider (1) + bottom divider (1)
-	// + marked footer (1) + instructions (1) = 5
-	reserved := 5
+	width := m.effectiveWidth()
+	// Static rows: title (1) + top divider (1) + bottom divider (1) + marked footer (1)
+	reserved := 4
+	reserved += m.instructionsLineCount(width)
 	if m.deleteResult != "" {
 		reserved++ // extra line when we show the deletion result
 	}
 	return max(1, h-reserved)
+}
+
+func (m *model) instructionsText() string {
+	return "enter exp/fold • arrows nav • m toggle • a mark all • u clear • d delete marked • q exit"
+}
+
+func (m *model) sortHotkeysText() string {
+	return "1 sort by total size; by 2 dup count • s cycle"
+}
+
+func wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return ""
+	}
+
+	lines := make([]string, 0, 4)
+	line := ""
+	lineW := 0
+
+	for _, word := range words {
+		wordW := runewidth.StringWidth(word)
+		if wordW > width && width > 1 {
+			word = runewidth.Truncate(word, width, "…")
+			wordW = runewidth.StringWidth(word)
+		}
+
+		if line == "" {
+			line = word
+			lineW = wordW
+			continue
+		}
+
+		// +1 accounts for the space.
+		if lineW+1+wordW <= width {
+			line += " " + word
+			lineW += 1 + wordW
+			continue
+		}
+
+		lines = append(lines, line)
+		line = word
+		lineW = wordW
+	}
+
+	if line != "" {
+		lines = append(lines, line)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func (m *model) instructionsFooter(width int) string {
+	nav := m.instructionsText()
+	sort := m.sortHotkeysText()
+
+	if width <= 0 {
+		return footerStyle.Render(nav + "\n" + sort)
+	}
+
+	wrappedNav := wrapText(nav, width)
+	wrappedSort := wrapText(sort, width)
+	return footerStyle.Render(wrappedNav + "\n" + wrappedSort)
+}
+
+func (m *model) instructionsLineCount(width int) int {
+	text := m.instructionsText() + "\n" + m.sortHotkeysText()
+	if width <= 0 {
+		return max(1, lipgloss.Height(text))
+	}
+	return max(1, lipgloss.Height(wrapText(text, width)))
 }
 
 // listTopOffset returns the number of rows occupied above the list.
@@ -880,19 +986,116 @@ func (m *model) adjustScroll() {
 		m.scroll = max(m.cursor-contentH+1, 0)
 		m.scroll = min(m.scroll, maxScroll)
 	}
+
+	m.recordGroupFocus()
 }
 
-func formatGroupTitle(hash dmap.Digest, files []string) string {
+func (m *model) setSortMode(mode sortMode) {
+	if mode < 0 || int(mode) >= sortModeCount {
+		return
+	}
+	if m.sortMode == mode {
+		return
+	}
+	m.sortMode = mode
+	m.sortGroups()
+	m.rebuildVisibleNodes()
+}
+
+func (m *model) cycleSortMode() {
+	next := sortMode((int(m.sortMode) + 1) % sortModeCount)
+	m.setSortMode(next)
+}
+
+func (m *model) sortModeLabel() string {
+	switch m.sortMode {
+	case sortByTotalSize:
+		return "Total size"
+	case sortByCount:
+		return "Duplicate count"
+	default:
+		return "Total size"
+	}
+}
+
+func (m *model) sortGroups() {
+	if len(m.groups) == 0 {
+		return
+	}
+	switch m.sortMode {
+	case sortByTotalSize:
+		sort.SliceStable(m.groups, func(i, j int) bool {
+			if m.groups[i].TotalSz == m.groups[j].TotalSz {
+				return len(m.groups[i].Files) > len(m.groups[j].Files)
+			}
+			return m.groups[i].TotalSz > m.groups[j].TotalSz
+		})
+	case sortByCount:
+		sort.SliceStable(m.groups, func(i, j int) bool {
+			si := len(m.groups[i].Files)
+			sj := len(m.groups[j].Files)
+			if si == sj {
+				return m.groups[i].TotalSz > m.groups[j].TotalSz
+			}
+			return si > sj
+		})
+	default:
+		m.sortMode = sortByTotalSize
+		m.sortGroups()
+	}
+}
+
+func (m *model) recordGroupFocus() {
+	node := m.currentNode()
+	if node == nil || node.typ != nodeGroup {
+		return
+	}
+	if node.group < 0 || node.group >= len(m.groups) {
+		return
+	}
+	m.lastGroupIdx = node.group
+}
+
+func (m *model) hasSelectedGroupInfo() bool {
+	return m.lastGroupIdx >= 0 && m.lastGroupIdx < len(m.groups)
+}
+
+func (m *model) selectedGroupInfoLine() string {
+	if !m.hasSelectedGroupInfo() {
+		return ""
+	}
+	group := m.groups[m.lastGroupIdx]
+	if group == nil {
+		return ""
+	}
+	count := len(group.Files)
+	if count == 0 {
+		return ""
+	}
+	prefix := fmt.Sprintf("Selected group: %d files • Total size: ", count)
+	size := utils.DisplaySize(group.TotalSz)
+	// Make the size pop using an existing bold highlight style.
+	return footerStyle.Render(prefix) + confirmCodeStyle.Render(size)
+}
+
+func estimateGroupTotalSize(files []string) uint64 {
 	if len(files) == 0 {
+		return 0
+	}
+	perFile := dfs.GetFileSize(files[0])
+	return perFile * uint64(len(files))
+}
+
+// formatGroupTitle constructs a descriptive label for a digest-based group, summarizing its hash, file count, and approximate total size.
+func formatGroupTitle(hash dmap.Digest, count int, totalSize uint64) string {
+	if count == 0 {
 		return "Empty group"
 	}
 
 	const tmpl = "%s - %d files - (approx. size %s)"
-	fileSize := dfs.GetFileSize(files[0])
-	totalSize := uint64(fileSize) * uint64(len(files))
 	// Show 16 hex chars of SHA-256 hash.
 	hashHex := fmt.Sprintf("%x", hash[:16])
-	return fmt.Sprintf(tmpl, hashHex, len(files), utils.DisplaySize(totalSize))
+	return fmt.Sprintf(tmpl, hashHex, count, utils.DisplaySize(totalSize))
 }
 
 // autoMarkGroup marks all but one in the duplicate group. For UX, assumes users will want
