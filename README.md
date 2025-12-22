@@ -26,12 +26,17 @@ go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 
 This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default).
 
-Prefer cloning? Build locally via Make:
+## Build From Source
+
+Ensure you have
+
+* `go` (1.22+)
+* `gosec` (install via `go install github.com/securego/gosec/v2/cmd/gosec@latest`)
 
 ```bash
 git clone https://github.com/jdefrancesco/dskDitto
 cd dskDitto
-make          
+make
 ```
 
 The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
@@ -198,7 +203,7 @@ dskDitto --json-out dupes.json ~/Projects
 ## Development
 
 ```bash
-make debug         # Create development build 
+make debug         # Create development build
 make test          # go test ./...
 make bench         # run benchmarks (adds -benchmem)
 make bench-profile # capture cpu.prof and mem.prof into the repo root

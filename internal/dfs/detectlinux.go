@@ -13,9 +13,9 @@ func detectFilesystem(path string) (string, error) {
 		return "", err
 	}
 
-	magic := uint32(stat.Type)
+	magic := stat.Type
 
-	known := map[uint32]string{
+	known := map[int64]string{
 		0xEF53:     "ext2/ext3/ext4",
 		0x9123683E: "btrfs",
 		0x58465342: "xfs",
