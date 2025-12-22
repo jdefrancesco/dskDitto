@@ -8,7 +8,7 @@ files/
 app.log
 bin/
 .vscode/
-testdata/
+# testdata/
 test_files/
 
 ./bin/dskDitto
