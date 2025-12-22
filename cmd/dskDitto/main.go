@@ -145,13 +145,13 @@ func main() {
 		showHeader()
 	}
 
-	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
-
 	// Just show version then quit.
 	if *flShowVersion {
 		showVersion()
 		os.Exit(0)
 	}
+
+	fmt.Printf("[!] Press CTRL+C to stop dskDitto at any time.\n")
 
 	if *flDetectFS != "" {
 		fs, err := dfs.DetectFilesystem(".")
