@@ -63,8 +63,8 @@ gosec:
 	gosec -exclude=G104 ./...
 
 .PHONY: install
-install:
-	cp ./dskDitto $(PREFIX)/dskDitto
+install: build
+	install -m 0755 ./bin/$(BINARY_NAME) $(PREFIX)/$(BINARY_NAME)
 
 
 
