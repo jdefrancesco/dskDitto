@@ -25,7 +25,7 @@ import (
 )
 
 // Version
-const ver = "0.1"
+const ver = "0.2"
 
 func init() {
 
@@ -252,6 +252,7 @@ func main() {
 		targetDigest = dmap.Digest(targetDfile.Hash())
 		targetFilePath = targetDfile.FileName()
 		singleFileMode = true
+		dsklog.Dlogger.Infof("Single file mode enabled for %s (%d bytes)", targetFilePath, info.Size())
 		pterm.Info.Printf("Searching for duplicates of %s\n", targetFilePath)
 	}
 
@@ -345,19 +346,13 @@ MainLoop:
 	pprof.StopCPUProfile()
 
 	if singleFileMode {
-		filesMap := dMap.GetMap()
-		matches := append([]string(nil), filesMap[targetDigest]...)
-		dupCount := countDuplicates(matches, targetFilePath)
+		dupCount := applySingleFileFilter(dMap, targetDigest, targetFilePath)
 		if dupCount == 0 {
+			dsklog.Dlogger.Infof("Single file mode complete: no duplicates found for %s", targetFilePath)
 			pterm.Info.Printf("No duplicates of %s found in the provided paths.\n", targetFilePath)
 			os.Exit(0)
 		}
-		filesMap[targetDigest] = ensurePathFirst(matches, targetFilePath)
-		for hash := range filesMap {
-			if hash != targetDigest {
-				delete(filesMap, hash)
-			}
-		}
+		dsklog.Dlogger.Infof("Single file mode complete: found %d duplicates for %s", dupCount, targetFilePath)
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
 	}
 
@@ -427,6 +422,32 @@ MainLoop:
 	ui.LaunchTUI(dMap)
 }
 
+// applySingleFileFilter filters the provided Dmap to retain only the entries matching
+// the specified digest and prioritizes the given target path, returning the count of
+// duplicates found for that target.
+func applySingleFileFilter(dMap *dmap.Dmap, digest dmap.Digest, target string) int {
+	if dMap == nil {
+		return 0
+	}
+	filesMap := dMap.GetMap()
+	if len(filesMap) == 0 {
+		return 0
+	}
+	matches := append([]string(nil), filesMap[digest]...)
+	dupCount := countDuplicates(matches, target)
+	if dupCount == 0 {
+		return 0
+	}
+	filesMap[digest] = ensurePathFirst(matches, target)
+	for hash := range filesMap {
+		if hash != digest {
+			delete(filesMap, hash)
+		}
+	}
+	return dupCount
+}
+
+// countDuplicates returns the number of entries in paths that do not match the target path.
 func countDuplicates(paths []string, target string) int {
 	if len(paths) == 0 {
 		return 0
@@ -441,6 +462,8 @@ func countDuplicates(paths []string, target string) int {
 	return count
 }
 
+// ensurePathFirst reorders the provided paths so that target appears first, inserting it if absent,
+// or returning the original slice unchanged when target is empty or already leading.
 func ensurePathFirst(paths []string, target string) []string {
 	if target == "" {
 		return paths
