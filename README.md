@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/jdefrancesco/dskDitto.svg)](https://pkg.go.dev/github.com/jdefrancesco/dskDitto)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jdefrancesco/dskDitto)](https://goreportcard.com/report/github.com/jdefrancesco/dskDitto)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ![dskDitto gnome logo](./docs/gnome-small.png)
 
@@ -11,10 +12,8 @@
 
 - Concurrent directory walker tuned for large trees and multi-core systems
 - Pluggable hashing with SHA-256 (default) or BLAKE3
-- Pluggable hashing with SHA-256 (default) or BLAKE3
 - Targeted mode to search for duplicates of a single file
 - Multiple output modes: TUI, bullet lists, or text-friendly dumps
-- CSV and JSON output supported via flags.
 - Optional automated duplicate removal with confirmation safety rails
 - Profiling toggles and micro-benchmarks for power users
 

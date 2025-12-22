@@ -10,6 +10,7 @@ bin/
 .vscode/
 # testdata/
 test_files/
+fuzz/
 
 ./bin/dskDitto
 bench.test
