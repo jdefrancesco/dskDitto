@@ -11,7 +11,6 @@
 ## Features
 
 - Concurrent directory walker tuned for large trees and multi-core systems
-- Pluggable hashing with SHA-256 (default) or BLAKE3
 - Targeted mode to search for duplicates of a single file
 - Multiple output modes: TUI, bullet lists, or text-friendly dumps
 - Optional automated duplicate removal with confirmation safety rails
