@@ -47,6 +47,7 @@ type DWalk struct {
 	maxFileSize     uint
 	hashAlgo        dfs.HashAlgorithm
 	skipDirPrefixes []string
+	excludePaths    []string
 	maxDepth        int
 
 	// seenFiles tracks unique files by device+inode so multiple hardlinks
@@ -79,6 +80,8 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 		skipPrefixes = normalizeSkipPrefixes(defaultSkipDirPrefixes)
 	}
 
+	excludePaths := normalizeExcludePaths(cfg.ExcludePaths)
+
 	walker := &DWalk{
 		rootDirs:        rootDirs,
 		dFiles:          dFiles,
@@ -89,6 +92,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 		maxFileSize:     maxSize,
 		hashAlgo:        hashAlgo,
 		skipDirPrefixes: skipPrefixes,
+		excludePaths:    excludePaths,
 		maxDepth:        maxDepth,
 		seenFiles:       make(map[fileIdentity]struct{}),
 	}
@@ -105,7 +109,7 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 func (d *DWalk) Run(ctx context.Context) {
 
 	for _, root := range d.rootDirs {
-		if d.shouldSkipDir(root) {
+		if d.shouldSkipPath(root) {
 			dsklog.Dlogger.Infof("Skipping directory %s due to restricted filesystem", root)
 			continue
 		}
@@ -148,7 +152,7 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<-
 		return
 	}
 
-	if d.shouldSkipDir(dir) {
+	if d.shouldSkipPath(dir) {
 		dsklog.Dlogger.Debugf("Skipping directory %s due to restricted filesystem", dir)
 		return
 	}
@@ -168,7 +172,7 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<-
 
 		if entry.IsDir() {
 			subDir := filepath.Join(dir, name)
-			if d.shouldSkipDir(subDir) {
+			if d.shouldSkipPath(subDir) {
 				dsklog.Dlogger.Debugf("Skipping directory %s due to restricted filesystem", subDir)
 				continue
 			}
@@ -227,6 +231,10 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<-
 		}
 
 		absFileName := filepath.Join(dir, name)
+		if d.shouldSkipPath(absFileName) {
+			dsklog.Dlogger.Debugf("Skipping excluded path: %s", absFileName)
+			continue
+		}
 		if !dfs.CheckFilePerms(absFileName) {
 			dsklog.Dlogger.Debugf("Cannot access file. Invalid permissions: %s", absFileName)
 			continue
@@ -297,10 +305,35 @@ func normalizeSkipPrefixes(prefixes []string) []string {
 	return cleaned
 }
 
-func (d *DWalk) shouldSkipDir(path string) bool {
+func normalizeExcludePaths(paths []string) []string {
+	cleaned := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		normalized := cleanAbsPath(p)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		cleaned = append(cleaned, normalized)
+	}
+	return cleaned
+}
+
+func (d *DWalk) shouldSkipPath(path string) bool {
 	normalized := cleanAbsPath(path)
 	if normalized == "" {
 		return false
+	}
+	for _, excluded := range d.excludePaths {
+		if normalized == excluded || strings.HasPrefix(normalized, excluded+string(os.PathSeparator)) {
+			return true
+		}
 	}
 	for _, prefix := range d.skipDirPrefixes {
 		if normalized == prefix || strings.HasPrefix(normalized, prefix+string(os.PathSeparator)) {

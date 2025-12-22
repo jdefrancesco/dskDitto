@@ -66,6 +66,7 @@ Common flags:
 | `--min-size <bytes>` | Ignore files smaller than the provided size |
 | `--max-size <bytes>` | Skip files larger than the provided size (default 4 GiB) |
 | `--hidden` | Include dot files and dot-directories |
+| `--exclude <path>` | Exclude a path from scanning (repeatable; excludes descendants) |
 | `--no-symlinks` | Skip symbolic links |
 | `--empty` | Include zero-byte files |
 | `--include-vfs` | Include virtual filesystem directories such as `/proc` or `/dev` |
@@ -121,6 +122,12 @@ Scan your home directory and interactively review duplicates:
 
 ```bash
 dskDitto $HOME
+```
+
+Exclude a directory (or file) from scanning:
+
+```bash
+dskDitto --exclude $HOME/Library/Caches $HOME
 ```
 
 List duplicates for scripting or grepping, without launching the TUI:

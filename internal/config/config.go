@@ -13,6 +13,8 @@ type Config struct {
 	SkipHidden bool
 	// SkipVirtualFS controls whether well-known virtual filesystem mount points are skipped.
 	SkipVirtualFS bool
+	// ExcludePaths skips scanning any file or directory at these paths (and, for directories, all descendants).
+	ExcludePaths []string
 	// MaxDepth limits how deeply the walker will recurse into subdirectories. A value of -1 means unlimited.
 	MaxDepth int
 	// File size limits.

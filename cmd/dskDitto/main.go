@@ -25,7 +25,7 @@ import (
 )
 
 // Version
-const ver = "0.2"
+const ver = "0.3"
 
 func init() {
 
@@ -45,6 +45,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --empty                    Include empty files (default: ignore).\n")
 		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
 		fmt.Fprintf(os.Stderr, "  --hidden                   Include hidden dotfiles and directories (default: ignore).\n")
+		fmt.Fprintf(os.Stderr, "  --exclude <path>           Exclude a path from scanning (repeatable; excludes descendants).\n")
 		fmt.Fprintf(os.Stderr, "  --current                  Do not descend into subdirectories.\n")
 		fmt.Fprintf(os.Stderr, "  --depth <levels>           Limit recursion to <levels> directories below the start paths.\n")
 		fmt.Fprintf(os.Stderr, "  --include-vfs              Include virtual filesystem directories like /proc or /dev.\n")
@@ -59,6 +60,23 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Notes:\n")
 		fmt.Fprintf(os.Stderr, "  Display-oriented options like --bullet only render results; no files are removed.\n")
 	}
+}
+
+type stringListFlag []string
+
+func (s *stringListFlag) String() string {
+	if s == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", []string(*s))
+}
+
+func (s *stringListFlag) Set(value string) error {
+	if value == "" {
+		return nil
+	}
+	*s = append(*s, value)
+	return nil
 }
 
 // signalHandler will handle SIGINT and others in order to
@@ -117,6 +135,7 @@ func main() {
 		flIncludeEmpty  = flag.Bool("empty", false, "Include empty files (0 bytes).")
 		flSkipSymLinks  = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
 		flIncludeHidden = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
+		flExcludePaths  stringListFlag
 		flNoRecurse     = flag.Bool("current", false, "Only scan the provided directories without descending into subdirectories.")
 		flDepth         = flag.Int("depth", -1, "Maximum recursion depth; 0 inspects only the provided paths, -1 means unlimited.")
 		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
@@ -129,6 +148,8 @@ func main() {
 		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
 		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
 	)
+	// The exclude flag can take multiple path targets
+	flag.Var(&flExcludePaths, "exclude", "Exclude a path from scanning (repeatable).")
 	flag.Parse()
 
 	// Enable CPU profiling
@@ -279,6 +300,7 @@ func main() {
 		SkipSymLinks:  *flSkipSymLinks,
 		SkipHidden:    !*flIncludeHidden,
 		SkipVirtualFS: !*flIncludeVFS,
+		ExcludePaths:  []string(flExcludePaths),
 		MaxDepth:      maxDepth,
 		MinFileSize:   MinFileSize,
 		MaxFileSize:   MaxFileSize,
@@ -514,4 +536,6 @@ func showHeader() {
 func showVersion() {
 	fmt.Printf("Version: %s\n", ver)
 	fmt.Printf("Github: https://github.com/jdefrancesco/dskDitto\n")
+	// Get rid of pesky percent sign some shells show if new line isn't printed correctly.
+	fmt.Println("")
 }

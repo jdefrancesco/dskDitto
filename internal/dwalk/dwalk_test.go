@@ -124,12 +124,12 @@ func TestSkipVirtualFSToggle(t *testing.T) {
 	dFiles := make(chan *dfs.Dfile)
 
 	walkerSkip := NewDWalker([]string{"/"}, dFiles, config.Config{SkipVirtualFS: true, HashAlgorithm: dfs.HashSHA256, MaxDepth: -1})
-	if !walkerSkip.shouldSkipDir("/proc") {
+	if !walkerSkip.shouldSkipPath("/proc") {
 		t.Fatalf("expected /proc to be skipped when SkipVirtualFS is true")
 	}
 
 	walkerInclude := NewDWalker([]string{"/"}, dFiles, config.Config{SkipVirtualFS: false, HashAlgorithm: dfs.HashSHA256, MaxDepth: -1})
-	if walkerInclude.shouldSkipDir("/proc") {
+	if walkerInclude.shouldSkipPath("/proc") {
 		t.Fatalf("expected /proc not to be skipped when SkipVirtualFS is false")
 	}
 }
@@ -201,6 +201,41 @@ func TestMaxFileSizeLimit(t *testing.T) {
 
 	paths := collectRelativePaths(t, root, cfg)
 	expectPathsEqual(t, paths, []string{"small.dat"})
+}
+
+func TestExcludePaths(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	keepDir := filepath.Join(root, "keep")
+	skipDir := filepath.Join(root, "skip")
+
+	if err := os.MkdirAll(keepDir, 0o755); err != nil {
+		t.Fatalf("failed to create keep dir: %v", err)
+	}
+	if err := os.MkdirAll(skipDir, 0o755); err != nil {
+		t.Fatalf("failed to create skip dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(keepDir, "keep.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatalf("failed to write keep file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skipDir, "skip.txt"), []byte("skip"), 0o644); err != nil {
+		t.Fatalf("failed to write skip file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "root.txt"), []byte("root"), 0o644); err != nil {
+		t.Fatalf("failed to write root file: %v", err)
+	}
+
+	cfg := config.Config{
+		HashAlgorithm: dfs.HashSHA256,
+		SkipVirtualFS: true,
+		MaxDepth:      -1,
+		ExcludePaths:  []string{skipDir},
+	}
+
+	paths := collectRelativePaths(t, root, cfg)
+	expectPathsEqual(t, paths, []string{"keep/keep.txt", "root.txt"})
 }
 
 func collectRelativePaths(t *testing.T, root string, cfg config.Config) []string {
