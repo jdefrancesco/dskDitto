@@ -363,21 +363,29 @@ MainLoop:
 
 	// Dump to CSV, then exit without dropping into TUI
 	if *flCSVOut != "" {
-		pterm.Success.Printf("CSV file %s being written to disk...", *flCSVOut)
+		dsklog.Dlogger.Infof("CSV export requested: %s", *flCSVOut)
+		pterm.Info.Printf("Writing CSV to %s...\n", *flCSVOut)
 		if err := dMap.WriteCSV(*flCSVOut); err != nil {
+			dsklog.Dlogger.Errorf("CSV export failed for %s: %v", *flCSVOut, err)
 			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
 			os.Exit(1)
 		}
+		dsklog.Dlogger.Infof("CSV export complete: %s", *flCSVOut)
+		pterm.Success.Printf("CSV file %s written to disk.\n", *flCSVOut)
 		os.Exit(0)
 	}
 
 	// Dump files to JSON then exit.
 	if *flJSONOut != "" {
-		pterm.Success.Printf("JSON file %s being written to disk...", *flJSONOut)
+		dsklog.Dlogger.Infof("JSON export requested: %s", *flJSONOut)
+		pterm.Info.Printf("Writing JSON to %s...\n", *flJSONOut)
 		if err := dMap.WriteJSON(*flJSONOut); err != nil {
+			dsklog.Dlogger.Errorf("JSON export failed for %s: %v", *flJSONOut, err)
 			fmt.Fprintf(os.Stderr, "failed to write JSON output: %v\n", err)
 			os.Exit(1)
 		}
+		dsklog.Dlogger.Infof("JSON export complete: %s", *flJSONOut)
+		pterm.Success.Printf("JSON file %s written to disk.\n", *flJSONOut)
 		os.Exit(0)
 	}
 
