@@ -4,7 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/jdefrancesco/dskDitto)](https://goreportcard.com/report/github.com/jdefrancesco/dskDitto)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-![dskDitto gnome logo](./docs/gnome-small.png)
+![dskDitto gnome logo](./docs/banner.png)
 
 `dskDitto` is a fast, parallel duplicate-file detector with an sleek TUI that lets you review, keep, or safely delete redundant files.
 
