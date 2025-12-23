@@ -118,7 +118,15 @@ type fileStatus int
 const (
 	fileStatusPending fileStatus = iota
 	fileStatusDeleted
+	fileStatusLinked
 	fileStatusError
+)
+
+type confirmAction int
+
+const (
+	confirmDelete confirmAction = iota
+	confirmLink
 )
 
 // fileEntry represents a file tracked by the UI, capturing its path, marked state,
@@ -172,7 +180,8 @@ type model struct {
 	// Sticky group info tracking: last group header cursor was on.
 	lastGroupIdx int
 
-	mode viewMode
+	mode   viewMode
+	action confirmAction
 
 	confirmCode  string
 	confirmInput string
@@ -315,7 +324,10 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.toggleCurrentFileMark()
 
 	case "d":
-		m.startConfirmationPrompt()
+		m.startConfirmationPrompt(confirmDelete)
+
+	case "L":
+		m.startConfirmationPrompt(confirmLink)
 
 	case "1":
 		m.setSortMode(sortByTotalSize)
@@ -407,7 +419,12 @@ func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyEnter:
 		if m.confirmInput == m.confirmCode {
-			m.processDeletion()
+			switch m.action {
+			case confirmLink:
+				m.processLinking()
+			default:
+				m.processDeletion()
+			}
 		} else {
 			m.confirmError = "Incorrect code. Try again."
 			m.confirmInput = ""
@@ -480,9 +497,15 @@ func (m *model) renderTreeView() string {
 // this type of thing really is but it satisfies my OCD for time being.
 func (m *model) renderConfirmView() string {
 	width := m.effectiveWidth()
+	title := "Confirm Deletion"
+	verb := "delete"
+	if m.action == confirmLink {
+		title = "Confirm Symlink Conversion"
+		verb = "convert to symlinks"
+	}
 	content := []string{
-		titleStyle.Render("Confirm Deletion"),
-		statusInfoStyle.Render(fmt.Sprintf("You are about to delete %d file(s).", m.countMarked())),
+		titleStyle.Render(title),
+		statusInfoStyle.Render(fmt.Sprintf("You are about to %s %d file(s).", verb, m.countMarked())),
 		"",
 		fmt.Sprintf("Confirmation code: %s", confirmCodeStyle.Render(m.confirmCode)),
 		fmt.Sprintf("Your input: %s", confirmInputStyle.Render(m.confirmInput)),
@@ -641,10 +664,11 @@ func (m *model) unmarkAllFiles() {
 
 // startConfirmationPrompt is modal window to tell user what is about to happen
 // and asking them to confirm moving forward with file removal
-func (m *model) startConfirmationPrompt() {
+func (m *model) startConfirmationPrompt(action confirmAction) {
 	if m.countMarked() == 0 {
 		return
 	}
+	m.action = action
 	m.confirmCode = GenConfirmationCode()
 	m.confirmInput = ""
 	m.confirmError = ""
@@ -689,6 +713,86 @@ func (m *model) processDeletion() {
 		m.deleteResult = fmt.Sprintf("Failed to delete %d file(s).", failures)
 	default:
 		m.deleteResult = fmt.Sprintf("Deleted %d file(s); %d error(s) occurred.", deleted, failures)
+	}
+}
+
+func (m *model) processLinking() {
+	m.mode = modeTree
+	m.confirmInput = ""
+	m.confirmError = ""
+
+	if len(m.groups) == 0 {
+		return
+	}
+
+	var linked, failures int
+	for _, group := range m.groups {
+		var target *fileEntry
+		for _, entry := range group.Files {
+			if entry.Status == fileStatusDeleted {
+				continue
+			}
+			if !entry.Marked {
+				target = entry
+				break
+			}
+		}
+		if target == nil {
+			// No unmarked survivor to point to; mark all selected in this group as errors.
+			for _, entry := range group.Files {
+				if !entry.Marked {
+					continue
+				}
+				entry.Status = fileStatusError
+				entry.Message = "no unmarked file to link to"
+				entry.Marked = false
+				failures++
+			}
+			continue
+		}
+
+		for _, entry := range group.Files {
+			if !entry.Marked {
+				continue
+			}
+			if entry.Status == fileStatusDeleted {
+				entry.Marked = false
+				continue
+			}
+
+			if err := os.Remove(entry.Path); err != nil {
+				entry.Status = fileStatusError
+				entry.Message = err.Error()
+				dsklog.Dlogger.Errorf("Failed to remove file for relink %s: %v", entry.Path, err)
+				failures++
+				entry.Marked = false
+				continue
+			}
+			if err := os.Symlink(target.Path, entry.Path); err != nil {
+				entry.Status = fileStatusError
+				entry.Message = err.Error()
+				dsklog.Dlogger.Errorf("Failed to create symlink %s -> %s: %v", entry.Path, target.Path, err)
+				failures++
+				entry.Marked = false
+				continue
+			}
+			entry.Status = fileStatusLinked
+			entry.Message = fmt.Sprintf("linked -> %s", filepath.Base(target.Path))
+			dsklog.Dlogger.Infof("Converted duplicate to symlink: %s -> %s", entry.Path, target.Path)
+			linked++
+			entry.Marked = false
+		}
+	}
+
+	switch {
+	case linked == 0 && failures == 0:
+		m.deleteResult = "No files were converted."
+	case failures == 0:
+		m.deleteResult = fmt.Sprintf("Converted %d file(s) to symlinks.", linked)
+	case linked == 0:
+		m.deleteResult = fmt.Sprintf("Failed to convert %d file(s) to symlinks.", failures)
+	default:
+		m.deleteResult = fmt.Sprintf("Converted %d file(s); %d error(s) occurred.", linked, failures)
 	}
 }
 
@@ -827,6 +931,12 @@ func formatFileStatus(entry *fileEntry, maxWidth int) string {
 			text = runewidth.Truncate(text, maxWidth, "…")
 		}
 		return " " + statusDeletedStyle.Render(text)
+	case fileStatusLinked:
+		text := "LINKED"
+		if runewidth.StringWidth(text) > maxWidth {
+			text = runewidth.Truncate(text, maxWidth, "…")
+		}
+		return " " + statusDeletedStyle.Render(text)
 	case fileStatusError:
 		text := "ERROR"
 		if entry.Message != "" {
@@ -872,7 +982,7 @@ func (m *model) listAreaHeight() int {
 }
 
 func (m *model) instructionsText() string {
-	return "enter exp/fold • arrows nav • m toggle • a mark all • u clear • d delete marked • q exit"
+	return "enter exp/fold • arrows nav • m toggle • a mark all • u clear • d delete marked • L link marked • q exit"
 }
 
 func (m *model) sortHotkeysText() string {

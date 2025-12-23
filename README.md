@@ -92,6 +92,8 @@ Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or conve
 - **Delete extras:** use `--remove <keep>` to delete all but `<keep>` files in each duplicate group.
 - **Convert extras to symlinks:** combine `--remove <keep> --link` to replace extra duplicates with symlinks pointing at one kept file per group.
 
+In the TUI you can also convert the currently marked files into symlinks: mark the duplicates you want to replace, then press `L` and enter the confirmation code. Each group’s symlinks will point at one unmarked file in that group.
+
 On Unix-like systems, multiple hard links to the same underlying file are treated as a single entry during scanning: `dskDitto` hashes the content once and does not report those hard-link paths as separate space-wasting duplicates.
 
 When using `--link`, the on-disk layout after the operation looks like this for a group of 3 identical files and `--remove 1 --link`:
@@ -128,6 +130,16 @@ Exclude a directory (or file) from scanning:
 
 ```bash
 dskDitto --exclude $HOME/Library/Caches $HOME
+```
+
+Exclude multiple paths in one scan (repeat `--exclude`):
+
+```bash
+dskDitto \
+  --exclude $HOME/Library/Caches \
+  --exclude $HOME/.cache \
+  --exclude $HOME/Downloads \
+  $HOME
 ```
 
 List duplicates for scripting or grepping, without launching the TUI:
