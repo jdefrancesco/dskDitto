@@ -881,6 +881,9 @@ func (m *model) countMarked() int {
 	return count
 }
 
+// rebuildVisibleNodes regenerates the flattened list of UI nodes currently selected.
+// It also clamps the cursor/scroll state to valid bounds and ensures the cursor
+// always remains visible.
 func (m *model) rebuildVisibleNodes() {
 	m.visible = m.visible[:0]
 	for gi, group := range m.groups {
@@ -980,6 +983,8 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 	return line
 }
 
+// After action is performed we cam update the status of file so the user
+// can see what has actually happened.
 func formatFileStatus(entry *fileEntry, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
@@ -1175,17 +1180,6 @@ func (m *model) setSortMode(mode sortMode) {
 func (m *model) cycleSortMode() {
 	next := sortMode((int(m.sortMode) + 1) % sortModeCount)
 	m.setSortMode(next)
-}
-
-func (m *model) sortModeLabel() string {
-	switch m.sortMode {
-	case sortByTotalSize:
-		return "Total size"
-	case sortByCount:
-		return "Duplicate count"
-	default:
-		return "Total size"
-	}
 }
 
 func (m *model) sortGroups() {

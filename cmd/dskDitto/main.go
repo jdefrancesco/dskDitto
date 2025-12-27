@@ -25,7 +25,7 @@ import (
 )
 
 // Version
-const ver = "0.3"
+const ver = "0.3.1"
 
 func init() {
 
