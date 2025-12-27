@@ -81,6 +81,7 @@ Common flags:
 | `--csv-out <file>` | Write duplicate groups to CSV |
 | `--json-out <file>` | Write duplicate groups to JSON |
 | `--fs-detect <path>` | Print the filesystem type that contains `<path>` |
+| `--color-safe` | Use a high-compatibility TUI theme that avoids custom colors (best for problematic terminal themes) |
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
 

@@ -31,11 +31,12 @@ func init() {
 
 	// Custom help message
 	flag.Usage = func() {
-		showHeader()
+		showHeader(false)
 		fmt.Fprintf(os.Stderr, "Usage: dskDitto [options] PATHS\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fmt.Fprintf(os.Stderr, "  --no-banner                Do not show the dskDitto banner.\n")
 		fmt.Fprintf(os.Stderr, "  --version                  Display version information.\n")
+		fmt.Fprintf(os.Stderr, "  --color-safe               Use a high-compatibility theme for problematic terminal colors.\n")
 		fmt.Fprintf(os.Stderr, "  --profile <file>           Write CPU profile to disk for analysis.\n")
 		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
 		fmt.Fprintf(os.Stderr, "  --min-size <size>          Skip files smaller than the given size (e.g. 512K, 5MiB).\n")
@@ -147,10 +148,17 @@ func main() {
 		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV file.")
 		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
 		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
+		flColorSafe     = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
 	)
 	// The exclude flag can take multiple path targets
 	flag.Var(&flExcludePaths, "exclude", "Exclude a path from scanning (repeatable).")
 	flag.Parse()
+
+	// Turn off default color scheme. This flag can be used when users terminal color pallete isn't
+	// compatible with default TUI elements.
+	if *flColorSafe {
+		ui.EnableSafeColors()
+	}
 
 	// Enable CPU profiling
 	if *flCpuProfile != "" {
@@ -163,7 +171,7 @@ func main() {
 	}
 
 	if !*flNoBanner {
-		showHeader()
+		showHeader(*flColorSafe)
 	}
 
 	// Just show version then quit.
@@ -522,15 +530,23 @@ func ensurePathFirst(paths []string, target string) []string {
 	}
 }
 
-// showHeader prints colorful dskDitto banner.
-func showHeader() {
+// showHeader prints dskDitto banner.
+// When safe is true, it avoids explicit colors to maximize contrast across themes.
+func showHeader(safe bool) {
 
 	fmt.Println("")
 
+	leftStyle := pterm.NewStyle(pterm.FgLightGreen)
+	rightStyle := pterm.NewStyle(pterm.FgLightWhite)
+	if safe {
+		leftStyle = pterm.NewStyle()
+		rightStyle = pterm.NewStyle()
+	}
+
 	pterm.DefaultBigText.WithLetters(
-		putils.LettersFromStringWithStyle("dsk", pterm.NewStyle(pterm.FgLightGreen)),
-		putils.LettersFromStringWithStyle("Ditto", pterm.NewStyle(pterm.FgLightWhite))).
-		Render()
+		putils.LettersFromStringWithStyle("dsk", leftStyle),
+		putils.LettersFromStringWithStyle("Ditto", rightStyle),
+	).Render()
 }
 
 func showVersion() {

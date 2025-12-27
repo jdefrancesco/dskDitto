@@ -52,38 +52,98 @@ var (
 	currentProgram *tea.Program
 )
 
-// Color scheme to make things look good!
 var (
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#065F46", Dark: "#A6E22E"}).
-			Bold(true).
-			PaddingBottom(0)
+	styleMu sync.RWMutex
 
-	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#3F3F46"})
-	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#FF5555"}).Bold(true)
-	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#5C6370"})
-	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FFD866"}).Bold(false)
-	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FFD866"})
-	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E5E5E5"})
-	// selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
-	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#50FA7B"}).Bold(true)
-	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#6B7280"})
-	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#50FA7B"}).Bold(true)
-	statusErrorStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#FF5555"}).Bold(true)
-	statusInfoStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#4B5563", Dark: "#7F848E"})
-	footerStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#4B5563", Dark: "#9CA3AF"})
-	resultStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B45309", Dark: "#FFB86C"})
-	emptyStateStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#6C7086"}).Italic(true)
-
-	confirmPanelStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#86fb71ff"}).
-				Padding(1, 2)
-
-	confirmCodeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FBBF24"})
-	confirmInputStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E2E8F0"})
-	errorTextStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}).Bold(true)
+	titleStyle          lipgloss.Style
+	dividerStyle        lipgloss.Style
+	cursorActiveStyle   lipgloss.Style
+	cursorInactiveStyle lipgloss.Style
+	groupStyle          lipgloss.Style
+	groupCollapsedStyle lipgloss.Style
+	fileStyle           lipgloss.Style
+	markedStyle         lipgloss.Style
+	unmarkedStyle       lipgloss.Style
+	statusDeletedStyle  lipgloss.Style
+	statusErrorStyle    lipgloss.Style
+	statusInfoStyle     lipgloss.Style
+	footerStyle         lipgloss.Style
+	resultStyle         lipgloss.Style
+	emptyStateStyle     lipgloss.Style
+	confirmPanelStyle   lipgloss.Style
+	confirmCodeStyle    lipgloss.Style
+	confirmInputStyle   lipgloss.Style
+	errorTextStyle      lipgloss.Style
 )
+
+type uiTheme int
+
+const (
+	themeDefault uiTheme = iota
+	themeSafe
+)
+
+func init() {
+	applyTheme(themeDefault)
+}
+
+// EnableSafeColors switches the TUI to use a conservative ANSI palette.
+// This avoids custom truecolor/hex values for terminals with problematic color rendering.
+func EnableSafeColors() {
+	applyTheme(themeSafe)
+}
+
+func applyTheme(theme uiTheme) {
+	styleMu.Lock()
+	defer styleMu.Unlock()
+
+	switch theme {
+	case themeSafe:
+		// "Safe" theme: avoid picking colors entirely.
+		// Some terminals/themes remap both truecolor and ANSI palettes in surprising ways.
+		// Using terminal defaults plus basic text attributes tends to maximize contrast.
+		titleStyle = lipgloss.NewStyle().Bold(true).PaddingBottom(0)
+		dividerStyle = lipgloss.NewStyle().Faint(true)
+		cursorActiveStyle = lipgloss.NewStyle().Reverse(true).Bold(true)
+		cursorInactiveStyle = lipgloss.NewStyle()
+		groupStyle = lipgloss.NewStyle().Bold(true)
+		groupCollapsedStyle = lipgloss.NewStyle().Bold(true)
+		fileStyle = lipgloss.NewStyle()
+		markedStyle = lipgloss.NewStyle().Bold(true)
+		unmarkedStyle = lipgloss.NewStyle().Faint(true)
+		statusDeletedStyle = lipgloss.NewStyle().Bold(true)
+		statusErrorStyle = lipgloss.NewStyle().Bold(true).Underline(true)
+		statusInfoStyle = lipgloss.NewStyle().Faint(true)
+		footerStyle = lipgloss.NewStyle().Faint(true)
+		resultStyle = lipgloss.NewStyle().Bold(true)
+		emptyStateStyle = lipgloss.NewStyle().Faint(true).Italic(true)
+		confirmPanelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2)
+		confirmCodeStyle = lipgloss.NewStyle().Bold(true)
+		confirmInputStyle = lipgloss.NewStyle().Bold(true)
+		errorTextStyle = lipgloss.NewStyle().Bold(true).Underline(true)
+	default:
+		// Default theme: adaptive truecolor/hex tuned for light+dark.
+		titleStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#065F46", Dark: "#A6E22E"}).Bold(true).PaddingBottom(0)
+		dividerStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#3F3F46"})
+		cursorActiveStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#FF5555"}).Bold(true)
+		cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#5C6370"})
+		groupStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FFD866"}).Bold(false)
+		groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FFD866"})
+		fileStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E5E5E5"})
+		markedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#50FA7B"}).Bold(true)
+		unmarkedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#6B7280"})
+		statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#50FA7B"}).Bold(true)
+		statusErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#FF5555"}).Bold(true)
+		statusInfoStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#4B5563", Dark: "#7F848E"})
+		footerStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#4B5563", Dark: "#9CA3AF"})
+		resultStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B45309", Dark: "#FFB86C"})
+		emptyStateStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#6C7086"}).Italic(true)
+		confirmPanelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#86fb71ff"}).Padding(1, 2)
+		confirmCodeStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FBBF24"})
+		confirmInputStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E2E8F0"})
+		errorTextStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}).Bold(true)
+	}
+}
 
 func setCurrentProgram(p *tea.Program) {
 	programMu.Lock()
