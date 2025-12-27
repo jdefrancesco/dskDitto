@@ -13,14 +13,19 @@ PPROF_ADDR ?= localhost:6060
 
 PREFIX = /usr/local/bin
 
-all: test build
+all: check-gosec test build
 
-debug:
+.PHONY: check-gosec
+check-gosec:
+	@command -v gosec >/dev/null 2>&1 || \
+		(echo '\n`gosec` must be in $$PATH to build this!\n'; exit 1)
+
+debug: check-gosec
 	# Get rid of exposed profile webserver warning for now.
 	gosec -exclude=G108,G104 ./...
 	$(GOBUILD) -o ./bin/$(BINARY_NAME) -v -gcflags "all=-N -l" ./cmd/$(BINARY_NAME)
 
-build:
+build: check-gosec
 	gosec -exclude=G104,G108 ./...
 	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
@@ -59,7 +64,7 @@ pprof-web: bench-build
 
 
 .PHONY: gosec
-gosec:
+gosec: check-gosec
 	gosec -exclude=G104 ./...
 
 .PHONY: install
