@@ -55,34 +55,34 @@ var (
 // Color scheme to make things look good!
 var (
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#A6E22E")).
+			Foreground(lipgloss.AdaptiveColor{Light: "#065F46", Dark: "#A6E22E"}).
 			Bold(true).
 			PaddingBottom(0)
 
-	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#3F3F46"))
-	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
-	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5C6370"))
-	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD866")).Bold(false)
-	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD866"))
-	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E5E5"))
+	dividerStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#3F3F46"})
+	cursorActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#FF5555"}).Bold(true)
+	cursorInactiveStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#5C6370"})
+	groupStyle          = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FFD866"}).Bold(false)
+	groupCollapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FFD866"})
+	fileStyle           = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E5E5E5"})
 	// selectedLineStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#1F2937"))
-	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Bold(true)
-	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#4B5563"))
-	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Bold(true)
-	statusErrorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
-	statusInfoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#7F848E"))
-	footerStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	resultStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFB86C"))
-	emptyStateStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")).Italic(true)
+	markedStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#50FA7B"}).Bold(true)
+	unmarkedStyle      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#6B7280"})
+	statusDeletedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#50FA7B"}).Bold(true)
+	statusErrorStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#FF5555"}).Bold(true)
+	statusInfoStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#4B5563", Dark: "#7F848E"})
+	footerStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#4B5563", Dark: "#9CA3AF"})
+	resultStyle        = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B45309", Dark: "#FFB86C"})
+	emptyStateStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#6C7086"}).Italic(true)
 
 	confirmPanelStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#86fb71ff")).
+				BorderForeground(lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#86fb71ff"}).
 				Padding(1, 2)
 
-	confirmCodeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
-	confirmInputStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E2E8F0"))
-	errorTextStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+	confirmCodeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#92400E", Dark: "#FBBF24"})
+	confirmInputStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E2E8F0"})
+	errorTextStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}).Bold(true)
 )
 
 func setCurrentProgram(p *tea.Program) {
@@ -479,7 +479,7 @@ func (m *model) renderTreeView() string {
 	sections = append(sections, divider)
 	countStr := fmt.Sprintf("%d", m.countMarked())
 	markedLabel := "marked files: "
-	countStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Render(countStr)
+	countStyled := markedStyle.Render(countStr)
 	sections = append(sections,
 		footerStyle.Render(markedLabel)+countStyled,
 	)
