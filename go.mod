@@ -1,6 +1,6 @@
 module github.com/jdefrancesco/dskDitto
 
-go 1.24
+go 1.24.9
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
