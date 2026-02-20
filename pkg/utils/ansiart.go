@@ -10,7 +10,9 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // EXAMPLE
@@ -306,10 +308,26 @@ func RenderImageANSI(img image.Image, opts Options) {
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s image.(png|jpg) [width]\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "usage: image.(png|jpg) [width]")
+		os.Exit(2)
 	}
 
-	f, err := os.Open(os.Args[1])
+	inputPath := filepath.Clean(os.Args[1])
+	if inputPath == "" || inputPath == "." || inputPath == ".." {
+		fmt.Fprintln(os.Stderr, "invalid input path")
+		os.Exit(2)
+	}
+	if filepath.IsAbs(inputPath) {
+		fmt.Fprintln(os.Stderr, "absolute input paths are not allowed")
+		os.Exit(2)
+	}
+	if inputPath == ".." || strings.HasPrefix(inputPath, ".."+string(os.PathSeparator)) {
+		fmt.Fprintln(os.Stderr, "input path escapes working directory")
+		os.Exit(2)
+	}
+
+	// #nosec G703 -- CLI helper: user supplies a local path to read.
+	f, err := os.Open(inputPath)
 	if err != nil {
 		log.Fatal(err)
 	}
