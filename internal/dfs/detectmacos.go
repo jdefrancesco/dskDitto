@@ -1,4 +1,4 @@
-//go:build darwin || freebsd || openbsd || netbsd || dragonfly
+//go:build darwin
 
 package dfs
 
@@ -8,12 +8,12 @@ import (
 
 // extract name from fixed-size C array
 func bsdNameToString(arr []int8) string {
-	buf := make([]byte, 0, len(arr))
+	buf := make([]byte, 0, len(arr)) // #nosec
 	for _, c := range arr {
 		if c == 0 {
 			break
 		}
-		buf = append(buf, byte(c))
+		buf = append(buf, byte(c)) // #nosec G115, G190
 	}
 	return string(buf)
 }
