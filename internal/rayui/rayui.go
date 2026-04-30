@@ -17,9 +17,7 @@ import (
 )
 
 // TODO:
-// 1. The scrolling with mouse isn't always working.
 // 2. The hash dup batch header make stand out tiny bit more with some color.
-// 3. The legend at bottom needs no entry for 1/2 sort
 // 4. Banner, get rid of the Raylib mode thingy
 // 5. Add a flag so no need to enter code to remove files.
 
@@ -158,7 +156,7 @@ func Launch(dMap *dmap.Dmap) {
 	// Suppress raylib startup INFO output while still surfacing warnings and errors.
 	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.SetConfigFlags(rl.FlagWindowResizable | rl.FlagMsaa4xHint | rl.FlagWindowHighdpi)
-	rl.InitWindow(initialWidth, initialHeight, "dskDitto - Raylib Results")
+	rl.InitWindow(initialWidth, initialHeight, "dskDitto - Results")
 	defer rl.CloseWindow()
 	rl.SetWindowMinSize(minWidth, minHeight)
 	rl.SetExitKey(rl.KeyNull)
@@ -202,6 +200,7 @@ func (a *app) update() {
 	a.updateMouse()
 }
 
+// updateKeyboard checks for keyboard activity
 func (a *app) updateKeyboard() {
 	switch {
 	case rl.IsKeyPressed(rl.KeyQ):
@@ -410,21 +409,14 @@ func (a *app) drawList() {
 }
 
 func (a *app) drawRow(ref nodeRef, rect rl.Rectangle, selected bool) {
-	if selected {
-		rl.DrawRectangleRec(rect, colorSelected)
-	}
-	rl.DrawLine(int32(rect.X), int32(rect.Y+rect.Height), int32(rect.X+rect.Width), int32(rect.Y+rect.Height), colorBorder)
-
 	switch ref.typ {
 	case nodeGroup:
 		group := a.results.Groups[ref.group]
-		if selected {
-			rl.DrawRectangleRec(rl.NewRectangle(rect.X, rect.Y, 3, rect.Height), colorAccent)
-		}
-		drawChevron(rect.X+18, rect.Y+rect.Height/2, group.Expanded, colorAccent)
-		title := truncateText(formatCompactGroupTitle(group), a.layout.rowSize, rect.Width-58)
-		drawText(title, rect.X+40, textY(rect, a.layout.rowSize), a.layout.rowSize, colorText)
+		a.drawGroupHeaderRow(group, rect, selected)
 	case nodeFile:
+		if selected {
+			rl.DrawRectangleRec(rect, colorSelected)
+		}
 		entry := a.results.Groups[ref.group].Files[ref.file]
 		box := rl.NewRectangle(rect.X+32, rect.Y+(rect.Height-16)/2, 16, 16)
 		drawCheckbox(box, entry.Marked)
@@ -446,6 +438,47 @@ func (a *app) drawRow(ref nodeRef, rect rl.Rectangle, selected bool) {
 			drawText(status, rect.X+rect.Width-statusWidth-14, textY(rect, a.layout.smallSize), a.layout.smallSize, fileStatusColor(entry))
 		}
 	}
+
+	rl.DrawLine(int32(rect.X), int32(rect.Y+rect.Height), int32(rect.X+rect.Width), int32(rect.Y+rect.Height), colorBorder)
+}
+
+func (a *app) drawGroupHeaderRow(group *dupview.Group, rect rl.Rectangle, selected bool) {
+	fill := colorAccentSoft
+	if selected {
+		fill = colorSelected
+	}
+	rl.DrawRectangleRec(rect, fill)
+	rl.DrawRectangleRec(rl.NewRectangle(rect.X, rect.Y, 4, rect.Height), colorAccent)
+	drawChevron(rect.X+18, rect.Y+rect.Height/2, group.Expanded, colorAccent)
+
+	hash := hashPrefix(group)
+	hashSize := a.layout.rowSize
+	badgeSize := a.layout.smallSize - 1
+	if badgeSize < 12 {
+		badgeSize = 12
+	}
+	hashX := rect.X + 40
+	rightEdge := rect.X + rect.Width - 12
+	badgeGap := float32(8)
+
+	sizeLabel := utils.DisplaySize(group.TotalSz)
+	sizeWidth := badgeWidth(sizeLabel, badgeSize)
+	if rightEdge-hashX >= sizeWidth+96 {
+		rightEdge = drawBadgeRight(sizeLabel, rightEdge, rect, badgeSize, colorHeaderDeep, colorHeaderDeep, colorHeaderText) - badgeGap
+	}
+
+	filesLabel := fmt.Sprintf("%d files", len(group.Files))
+	filesWidth := badgeWidth(filesLabel, badgeSize)
+	if rightEdge-hashX >= filesWidth+136 {
+		rightEdge = drawBadgeRight(filesLabel, rightEdge, rect, badgeSize, colorSurface, colorBorder, colorMuted) - badgeGap
+	}
+
+	hashMaxWidth := max(rightEdge-hashX, float32(0))
+	hashLabel := truncateText(hash, hashSize, hashMaxWidth)
+	if hashLabel == "" {
+		return
+	}
+	drawTextStrong(hashLabel, hashX, textY(rect, hashSize), hashSize, colorHeaderDeep)
 }
 
 func (a *app) drawSelectionPanel() {
@@ -534,6 +567,8 @@ func (a *app) drawFooter() {
 	drawText(truncateText(help, a.layout.smallSize, helpMax), a.layout.margin, footer.Y+12, a.layout.smallSize, colorMuted)
 }
 
+// drawConfirmModal prevents user from shooting themselves in foot. Clobbering a bunch
+// of files warrants care
 func (a *app) drawConfirmModal() {
 	width := float32(rl.GetScreenWidth())
 	height := float32(rl.GetScreenHeight())
@@ -967,6 +1002,7 @@ func uiGlyphs() []rune {
 	return glyphs
 }
 
+// fontCandidates selects fonts based on users platform
 func fontCandidates(mono bool) []string {
 	if mono {
 		candidates := []string{os.Getenv("DSKDITTO_RAYLIB_MONO_FONT")}
@@ -1049,6 +1085,11 @@ func drawText(text string, x, y float32, size int32, color rl.Color) {
 	rl.DrawTextEx(activeFonts.regularFont(), text, rl.NewVector2(x, y), float32(size), 0, color)
 }
 
+func drawTextStrong(text string, x, y float32, size int32, color rl.Color) {
+	drawText(text, x, y, size, color)
+	drawText(text, x+0.45, y, size, color)
+}
+
 func drawMonoText(text string, x, y float32, size int32, color rl.Color) {
 	rl.DrawTextEx(activeFonts.monoFont(), text, rl.NewVector2(x, y), float32(size), 0, color)
 }
@@ -1074,12 +1115,12 @@ func truncateText(text string, size int32, maxWidth float32) string {
 	return truncateMeasuredText(text, size, maxWidth, measureText)
 }
 
-func truncateMonoText(text string, size int32, maxWidth float32) string {
-	if maxWidth <= 0 {
-		return ""
-	}
-	return truncateMeasuredText(text, size, maxWidth, measureMonoText)
-}
+// func truncateMonoText(text string, size int32, maxWidth float32) string {
+// 	if maxWidth <= 0 {
+// 		return ""
+// 	}
+// 	return truncateMeasuredText(text, size, maxWidth, measureMonoText)
+// }
 
 func truncateMeasuredText(text string, size int32, maxWidth float32, measure func(string, int32) float32) string {
 	if measure(text, size) <= maxWidth {
@@ -1102,6 +1143,22 @@ func truncateMeasuredText(text string, size int32, maxWidth float32, measure fun
 		}
 	}
 	return strings.TrimSpace(string(runes[:lo])) + suffix
+}
+
+func badgeWidth(text string, size int32) float32 {
+	if text == "" {
+		return 0
+	}
+	return measureText(text, size) + 18
+}
+
+func drawBadgeRight(text string, right float32, rect rl.Rectangle, size int32, fill, border, textColor rl.Color) float32 {
+	width := badgeWidth(text, size)
+	badge := rl.NewRectangle(right-width, rect.Y+(rect.Height-22)/2, width, 22)
+	rl.DrawRectangleRounded(badge, 0.42, 8, fill)
+	rl.DrawRectangleRoundedLinesEx(badge, 0.42, 8, 1, border)
+	drawText(text, badge.X+9, badge.Y+5, size, textColor)
+	return badge.X
 }
 
 func drawCheckbox(rect rl.Rectangle, checked bool) {
@@ -1159,14 +1216,15 @@ func hashPrefix(group *dupview.Group) string {
 	return hash
 }
 
+// footerHelp attempts to adapt to the window size.
 func footerHelp(width float32) string {
 	switch {
 	case width < 850:
-		return "Arrows navigate | Space marks | d delete | Shift+L link | q exits"
+		return "arrows navigate | space marks | d delete | shift+L link | q exits"
 	case width < 1180:
-		return "Arrows/jk navigate | Enter folds | Space marks | a mark all | u clear | d delete | q exits"
+		return "jk arrows navigate | enter folds | space marks | a mark all | u clear | d delete | q exits"
 	default:
-		return "Arrows/jk navigate | Enter folds | Space/m marks | a mark all | u clear | d delete | Shift+L link | 1/2 sort | q exits"
+		return "jk arrows navigate | enter folds | space/m mark | a mark all | u clear | d delete | shift+L link | q exits"
 	}
 }
 

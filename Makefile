@@ -14,25 +14,30 @@ PPROF_ADDR ?= localhost:6060
 
 PREFIX = /usr/local/bin
 
-all: check-gosec test build
+all: test build
+
+.PHONY: security-scan
+security-scan:
+	@if command -v gosec >/dev/null 2>&1; then \
+		gosec -exclude=G104,G108 ./...; \
+	else \
+		echo "Skipping gosec scan: gosec not installed"; \
+	fi
 
 .PHONY: check-gosec
 check-gosec:
 	@command -v gosec >/dev/null 2>&1 || \
 		(echo '\n`gosec` must be in $$PATH to build this!\n'; exit 1)
 
-debug: check-gosec
+debug: security-scan
 	# Get rid of exposed profile webserver warning for now.
-	gosec -exclude=G108,G104 ./...
 	$(GOBUILD) -o ./bin/$(BINARY_NAME) -v -gcflags "all=-N -l" ./cmd/$(BINARY_NAME)
 
-build: check-gosec
-	gosec -exclude=G104,G108 ./...
+build: security-scan
 	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
 .PHONY: build-gui
-build-gui: check-gosec
-	gosec -exclude=G104,G108 ./...
+build-gui: security-scan
 	CGO_ENABLED=1 $(GOBUILD) -o ./bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
 	@echo "GUI-capable binary built at ./bin/$(BINARY_NAME)"
 	@echo "Run it with: ./bin/$(BINARY_NAME) --gui <path>"

@@ -11,15 +11,15 @@ import (
 )
 
 func TestFooterHelpWidthBuckets(t *testing.T) {
-	if got := footerHelp(800); got != "Arrows navigate | Space marks | d delete | Shift+L link | q exits" {
+	if got := footerHelp(800); got != "arrows navigate | space marks | d delete | shift+L link | q exits" {
 		t.Fatalf("unexpected narrow footer help: %q", got)
 	}
 
-	if got := footerHelp(1000); got != "Arrows/jk navigate | Enter folds | Space marks | a mark all | u clear | d delete | q exits" {
+	if got := footerHelp(1000); got != "jk arrows navigate | enter folds | space marks | a mark all | u clear | d delete | q exits" {
 		t.Fatalf("unexpected medium footer help: %q", got)
 	}
 
-	if got := footerHelp(1400); got != "Arrows/jk navigate | Enter folds | Space/m marks | a mark all | u clear | d delete | Shift+L link | 1/2 sort | q exits" {
+	if got := footerHelp(1400); got != "jk arrows navigate | enter folds | space/m mark | a mark all | u clear | d delete | shift+L link | q exits" {
 		t.Fatalf("unexpected wide footer help: %q", got)
 	}
 }

@@ -236,7 +236,6 @@ func main() {
 	}
 
 	if *flDepth < -1 {
-		dsklog.Dlogger.Debugf("Invalid depth of %d \n", *flDepth)
 		fmt.Fprintf(os.Stderr, "invalid depth %d; must be -1 or greater\n", *flDepth)
 		os.Exit(1)
 	}
@@ -305,8 +304,8 @@ func main() {
 
 	// If we remove a set of duplicates keep at least this amount.
 	keepCount := *flKeep
-	if keepCount == 0 {
-		pterm.Info.Printf("Keep count set; will leave %d files at least", keepCount)
+	if keepCount != 0 {
+		pterm.Info.Printf("Keep count set; will leave %d files at least\n", keepCount)
 	}
 
 	// Hold app config.
@@ -443,9 +442,7 @@ MainLoop:
 		os.Exit(0)
 	}
 
-	fmt.Println()
-	// Dump results in various format. No interactive results are shown. These
-	// options are better for scripting or grepping through.
+	// Dump text formats. This assumes you don't wish to use the interactive UIs
 	switch {
 	case *flTextOutput:
 		dMap.PrintDmap()
