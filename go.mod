@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/cloudfoundry/gosigar v1.3.116
+	github.com/gen2brain/raylib-go/raylib v0.55.1
 	github.com/mattn/go-runewidth v0.0.20
 	github.com/pterm/pterm v0.12.82
 	github.com/sirupsen/logrus v1.9.4
@@ -26,6 +27,7 @@ require (
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/containerd/console v1.0.5 // indirect
+	github.com/ebitengine/purego v0.7.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/google/pprof v0.0.0-20251208000136-3d256cb9ff16 // indirect
 	github.com/gookit/color v1.6.0 // indirect

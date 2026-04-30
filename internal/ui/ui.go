@@ -2,19 +2,13 @@ package ui
 
 import (
 	"fmt"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
-	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
-
+	"github.com/jdefrancesco/dskDitto/internal/dupview"
 	"github.com/jdefrancesco/dskDitto/pkg/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -173,48 +167,34 @@ const (
 	nodeFile
 )
 
-type fileStatus int
+type fileStatus = dupview.FileStatus
 
 const (
-	fileStatusPending fileStatus = iota
-	fileStatusDeleted
-	fileStatusLinked
-	fileStatusError
+	fileStatusPending = dupview.FileStatusPending
+	fileStatusDeleted = dupview.FileStatusDeleted
+	fileStatusLinked  = dupview.FileStatusLinked
+	fileStatusError   = dupview.FileStatusError
 )
 
-type confirmAction int
+type confirmAction = dupview.Action
 
 const (
-	confirmDelete confirmAction = iota
-	confirmLink
+	confirmDelete = dupview.ActionDelete
+	confirmLink   = dupview.ActionLink
 )
 
-// fileEntry represents a file tracked by the UI, capturing its path, marked state,
-// status, and any associated message.
-type fileEntry struct {
-	Path    string
-	Marked  bool
-	Status  fileStatus
-	Message string
-}
+type fileEntry = dupview.FileEntry
 
-type sortMode int
+type sortMode = dupview.SortMode
 
 const (
-	sortByTotalSize sortMode = iota
-	sortByCount
+	sortByTotalSize = dupview.SortByTotalSize
+	sortByCount     = dupview.SortByCount
 )
 
-const sortModeCount = 2
+const sortModeCount = dupview.SortModeCount
 
-// These are batches of file dups
-type duplicateGroup struct {
-	Hash     dmap.Digest
-	Title    string
-	Files    []*fileEntry
-	Expanded bool
-	TotalSz  uint64
-}
+type duplicateGroup = dupview.Group
 
 type nodeRef struct {
 	// typ tracks the classification of the current node within the UI layer.
@@ -259,36 +239,15 @@ var _ tea.Model = (*model)(nil)
 // filtering out groups below the minimum duplicate threshold, preparing file entries, and
 // rebuilding the visible UI nodes before returning the result.
 func newModel(dMap *dmap.Dmap) *model {
+	shared := dupview.New(dMap)
 	m := &model{
 		mode:          modeTree,
-		sortMode:      sortByTotalSize,
-		minDuplicates: dMap.MinDuplicates(),
+		groups:        shared.Groups,
+		sortMode:      shared.SortMode,
+		minDuplicates: shared.MinDuplicates,
 		lastGroupIdx:  -1,
 	}
 
-	for hash, files := range dMap.GetMap() {
-		if uint(len(files)) < m.minDuplicates {
-			continue
-		}
-
-		totalSize := estimateGroupTotalSize(files)
-
-		group := &duplicateGroup{
-			Hash:     hash,
-			Title:    formatGroupTitle(hash, len(files), totalSize),
-			Expanded: true,
-			TotalSz:  totalSize,
-		}
-
-		for _, file := range files {
-			group.Files = append(group.Files, &fileEntry{Path: file})
-		}
-
-		autoMarkGroup(group)
-		m.groups = append(m.groups, group)
-	}
-
-	m.sortGroups()
 	m.rebuildVisibleNodes()
 	return m
 }
@@ -701,24 +660,13 @@ func (m *model) toggleCurrentFileMark() {
 
 // markAllFiles marks every non-deleted file in all groups.
 func (m *model) markAllFiles() {
-	for _, group := range m.groups {
-		for _, entry := range group.Files {
-			if entry.Status == fileStatusDeleted {
-				continue
-			}
-			entry.Marked = true
-		}
-	}
+	dupview.MarkAll(m.groups)
 	m.deleteResult = ""
 }
 
 // unmarkAllFiles clears the marked flag for every file.
 func (m *model) unmarkAllFiles() {
-	for _, group := range m.groups {
-		for _, entry := range group.Files {
-			entry.Marked = false
-		}
-	}
+	dupview.UnmarkAll(m.groups)
 	m.deleteResult = ""
 }
 
@@ -742,143 +690,23 @@ func (m *model) processDeletion() {
 	m.mode = modeTree
 	m.confirmInput = ""
 	m.confirmError = ""
-
-	if len(m.groups) == 0 {
-		return
-	}
-
-	var deleted, failures int
-	for _, entry := range m.markedEntries() {
-		err := os.Remove(entry.Path)
-		if err != nil {
-			entry.Status = fileStatusError
-			entry.Message = err.Error()
-			dsklog.Dlogger.Errorf("Failed to delete file %s: %v", entry.Path, err)
-			failures++
-		} else {
-			entry.Status = fileStatusDeleted
-			entry.Message = fmt.Sprintf("deleted (%s)", filepath.Base(entry.Path))
-			dsklog.Dlogger.Infof("Successfully deleted file: %s", entry.Path)
-			deleted++
-		}
-		entry.Marked = false
-	}
-
-	switch {
-	case deleted == 0 && failures == 0:
-		m.deleteResult = "No files were deleted."
-	case failures == 0:
-		m.deleteResult = fmt.Sprintf("Deleted %d file(s).", deleted)
-	case deleted == 0:
-		m.deleteResult = fmt.Sprintf("Failed to delete %d file(s).", failures)
-	default:
-		m.deleteResult = fmt.Sprintf("Deleted %d file(s); %d error(s) occurred.", deleted, failures)
-	}
+	m.deleteResult = dupview.DeleteMarked(m.groups)
 }
 
 func (m *model) processLinking() {
 	m.mode = modeTree
 	m.confirmInput = ""
 	m.confirmError = ""
-
-	if len(m.groups) == 0 {
-		return
-	}
-
-	var linked, failures int
-	for _, group := range m.groups {
-		var target *fileEntry
-		for _, entry := range group.Files {
-			if entry.Status == fileStatusDeleted {
-				continue
-			}
-			if !entry.Marked {
-				target = entry
-				break
-			}
-		}
-		if target == nil {
-			// No unmarked survivor to point to; mark all selected in this group as errors.
-			for _, entry := range group.Files {
-				if !entry.Marked {
-					continue
-				}
-				entry.Status = fileStatusError
-				entry.Message = "no unmarked file to link to"
-				entry.Marked = false
-				failures++
-			}
-			continue
-		}
-
-		for _, entry := range group.Files {
-			if !entry.Marked {
-				continue
-			}
-			if entry.Status == fileStatusDeleted {
-				entry.Marked = false
-				continue
-			}
-
-			if err := os.Remove(entry.Path); err != nil {
-				entry.Status = fileStatusError
-				entry.Message = err.Error()
-				dsklog.Dlogger.Errorf("Failed to remove file for relink %s: %v", entry.Path, err)
-				failures++
-				entry.Marked = false
-				continue
-			}
-			if err := os.Symlink(target.Path, entry.Path); err != nil {
-				entry.Status = fileStatusError
-				entry.Message = err.Error()
-				dsklog.Dlogger.Errorf("Failed to create symlink %s -> %s: %v", entry.Path, target.Path, err)
-				failures++
-				entry.Marked = false
-				continue
-			}
-			entry.Status = fileStatusLinked
-			entry.Message = fmt.Sprintf("linked -> %s", filepath.Base(target.Path))
-			dsklog.Dlogger.Infof("Converted duplicate to symlink: %s -> %s", entry.Path, target.Path)
-			linked++
-			entry.Marked = false
-		}
-	}
-
-	switch {
-	case linked == 0 && failures == 0:
-		m.deleteResult = "No files were converted."
-	case failures == 0:
-		m.deleteResult = fmt.Sprintf("Converted %d file(s) to symlinks.", linked)
-	case linked == 0:
-		m.deleteResult = fmt.Sprintf("Failed to convert %d file(s) to symlinks.", failures)
-	default:
-		m.deleteResult = fmt.Sprintf("Converted %d file(s); %d error(s) occurred.", linked, failures)
-	}
+	m.deleteResult = dupview.LinkMarked(m.groups)
 }
 
 // markedEntries return a slice of files selected (marked) for removal.
 func (m *model) markedEntries() []*fileEntry {
-	var entries []*fileEntry
-	for _, group := range m.groups {
-		for _, entry := range group.Files {
-			if entry.Marked {
-				entries = append(entries, entry)
-			}
-		}
-	}
-	return entries
+	return dupview.MarkedEntries(m.groups)
 }
 
 func (m *model) countMarked() int {
-	count := 0
-	for _, group := range m.groups {
-		for _, entry := range group.Files {
-			if entry.Marked {
-				count++
-			}
-		}
-	}
-	return count
+	return dupview.CountMarked(m.groups)
 }
 
 // rebuildVisibleNodes regenerates the flattened list of UI nodes currently selected.
@@ -960,7 +788,7 @@ func (m *model) renderNodeLine(ref nodeRef, selected bool) string {
 		path := entry.Path
 		// If this path is currently a symlink on disk, annotate it so the user
 		// can distinguish converted duplicates.
-		if fi, err := os.Lstat(entry.Path); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if dupview.IsSymlink(entry.Path) {
 			path += " [symlink]"
 		}
 		if runewidth.StringWidth(path) > pathMax {
@@ -1183,30 +1011,10 @@ func (m *model) cycleSortMode() {
 }
 
 func (m *model) sortGroups() {
-	if len(m.groups) == 0 {
-		return
-	}
-	switch m.sortMode {
-	case sortByTotalSize:
-		sort.SliceStable(m.groups, func(i, j int) bool {
-			if m.groups[i].TotalSz == m.groups[j].TotalSz {
-				return len(m.groups[i].Files) > len(m.groups[j].Files)
-			}
-			return m.groups[i].TotalSz > m.groups[j].TotalSz
-		})
-	case sortByCount:
-		sort.SliceStable(m.groups, func(i, j int) bool {
-			si := len(m.groups[i].Files)
-			sj := len(m.groups[j].Files)
-			if si == sj {
-				return m.groups[i].TotalSz > m.groups[j].TotalSz
-			}
-			return si > sj
-		})
-	default:
+	if m.sortMode < 0 || int(m.sortMode) >= sortModeCount {
 		m.sortMode = sortByTotalSize
-		m.sortGroups()
 	}
+	dupview.SortGroups(m.groups, m.sortMode)
 }
 
 func (m *model) recordGroupFocus() {
@@ -1243,54 +1051,25 @@ func (m *model) selectedGroupInfoLine() string {
 }
 
 func estimateGroupTotalSize(files []string) uint64 {
-	if len(files) == 0 {
-		return 0
-	}
-	perFile := dfs.GetFileSize(files[0])
-	return perFile * uint64(len(files))
+	return dupview.EstimateGroupTotalSize(files)
 }
 
 // formatGroupTitle constructs a descriptive label for a digest-based group, summarizing its hash, file count, and approximate total size.
 func formatGroupTitle(hash dmap.Digest, count int, totalSize uint64) string {
-	if count == 0 {
-		return "Empty group"
-	}
-
-	const tmpl = "%s - %d files - (approx. size %s)"
-	// Show 16 hex chars of SHA-256 hash.
-	hashHex := fmt.Sprintf("%x", hash[:16])
-	return fmt.Sprintf(tmpl, hashHex, count, utils.DisplaySize(totalSize))
+	return dupview.FormatGroupTitle(hash, count, totalSize)
 }
 
 // autoMarkGroup marks all but one in the duplicate group. For UX, assumes users will want
 // to probably keep at least one of the files.
 func autoMarkGroup(group *duplicateGroup) {
-	if group == nil {
-		return
-	}
-	for i, entry := range group.Files {
-		if i == 0 {
-			continue
-		}
-		entry.Marked = true
-		dsklog.Dlogger.Debugf("Auto-marked file for deletion: %s", entry.Path)
-	}
+	dupview.AutoMarkGroup(group)
 }
 
 func isAlphaNumeric(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r)
+	return dupview.IsAlphaNumeric(r)
 }
 
 // GenConfirmationCode generates a random alphanumeric confirmation code.
 func GenConfirmationCode() string {
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	// #nosec G404
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	codeLen := r.Intn(4) + 5 // between 5 and 8 characters
-	code := make([]byte, codeLen)
-	for i := range code {
-		code[i] = charset[r.Intn(len(charset))]
-	}
-	return string(code)
+	return dupview.GenConfirmationCode()
 }

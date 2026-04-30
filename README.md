@@ -6,13 +6,13 @@
 
 ![dskDitto gnome logo](./docs/banner.png)
 
-`dskDitto` is a fast, parallel duplicate-file detector with an sleek TUI that lets you review, keep, or safely delete redundant files.
+`dskDitto` is a fast, parallel duplicate-file detector with interactive review UIs that let you review, keep, or safely delete redundant files.
 
 ## Features
 
 - Concurrent directory walker tuned for large trees and multi-core systems
 - Targeted mode to search for duplicates of a single file
-- Multiple output modes: TUI, bullet lists, or text-friendly dumps
+- Multiple output modes: Bubble Tea TUI, Raylib GUI, bullet lists, or text-friendly dumps
 - Optional automated duplicate removal with confirmation safety rails
 - Profiling toggles and micro-benchmarks for power users
 
@@ -61,6 +61,7 @@ Common flags:
 | ---- | ----------- |
 | `--version` | Print the current version and exit |
 | `--no-banner` | Skip the startup banner |
+| `--ui <mode>` | Choose the interactive UI: `tui` (default) or `raylib` |
 | `--profile <file>` | Write a CPU profile to the given file |
 | `--time-only` | Exit immediately after the scan, printing only the elapsed time |
 | `--min-size <bytes>` | Ignore files smaller than the provided size |
@@ -125,6 +126,12 @@ Scan your home directory and interactively review duplicates:
 
 ```bash
 dskDitto $HOME
+```
+
+Use the experimental Raylib windowed UI:
+
+```bash
+dskDitto --ui raylib $HOME
 ```
 
 Exclude a directory (or file) from scanning:
