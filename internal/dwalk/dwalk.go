@@ -57,7 +57,6 @@ type DWalk struct {
 }
 
 // NewDWalker returns a new DWalk instance that accepts traversal options.
-// TODO: Fix blake3 support. Currently only SHA256 is properly implemented.
 func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) *DWalk {
 
 	hashAlgo := cfg.HashAlgorithm

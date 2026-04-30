@@ -16,6 +16,13 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
+// TODO:
+// 1. The scrolling with mouse isn't always working.
+// 2. The hash dup batch header make stand out tiny bit more with some color.
+// 3. The legend at bottom needs no entry for 1/2 sort
+// 4. Banner, get rid of the Raylib mode thingy
+// 5. Add a flag so no need to enter code to remove files.
+
 const (
 	initialWidth  int32 = 1000
 	initialHeight int32 = 760
