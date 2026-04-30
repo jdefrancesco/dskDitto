@@ -16,6 +16,10 @@
 - Optional automated duplicate removal with confirmation safety rails
 - Profiling toggles and micro-benchmarks for power users
 
+## Architecture
+
+A high-level runtime architecture diagram is available at [`docs/architecture.md`](./docs/architecture.md).
+
 ## Install
 
 Install straight from source using Go 1.22+:
