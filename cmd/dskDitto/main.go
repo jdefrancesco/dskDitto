@@ -197,6 +197,8 @@ func main() {
 	maxUint := ^uint(0)
 	MinFileSize := uint(0)
 
+	// XXX: NOTE: This logic started to get a little messy. I need to refactor several blocks. If anyone cares to refactor
+	//            things please do!
 	if *flMinFileSize != "" {
 		value, err := utils.ParseSize(*flMinFileSize)
 		if err != nil {
@@ -243,6 +245,8 @@ func main() {
 	if *flDepth >= 0 {
 		maxDepth = *flDepth
 	}
+
+	// Don't recuse into any sub-directories
 	if *flNoRecurse {
 		maxDepth = 0
 	}
@@ -258,33 +262,32 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unsupported hash algorithm %q; must be 'sha256' or 'blake3'\n", *flHashAlgo)
 		os.Exit(1)
 	}
+
 	dsklog.Dlogger.Debugf("Using hash algorithm: %s", hashAlgo)
 
+	// TODO: Refactor user messages and logging.
 	singleFileMode := false
 	var targetDigest dmap.Digest
 	var targetFilePath string
 	if *flSingleFile != "" {
-		dsklog.Dlogger.Debug("In single shot mode.")
 		info, statErr := os.Stat(*flSingleFile)
 		if statErr != nil {
 			dsklog.Dlogger.Debugf("Unable to stat --file path %s: %v\n", *flSingleFile, statErr)
-			fmt.Fprintf(os.Stderr, "unable to stat --file path %s: %v\n", *flSingleFile, statErr)
 			os.Exit(1)
 		}
 		if !info.Mode().IsRegular() {
-			fmt.Fprintf(os.Stderr, "--file path must be a regular file: %s\n", *flSingleFile)
+			dsklog.Dlogger.Debugf("filepath needs to be a regular file: %s\n", *flSingleFile)
 			os.Exit(1)
 		}
 		targetDfile, hashErr := dfs.NewDfile(*flSingleFile, info.Size(), hashAlgo)
 		if hashErr != nil {
 			dsklog.Dlogger.Debugf("Failed to hash --file target %s: %v\n", *flSingleFile, hashErr)
-			fmt.Fprintf(os.Stderr, "failed to hash --file target %s: %v\n", *flSingleFile, hashErr)
 			os.Exit(1)
 		}
 		targetDigest = dmap.Digest(targetDfile.Hash())
 		targetFilePath = targetDfile.FileName()
 		singleFileMode = true
-		dsklog.Dlogger.Infof("Single file mode enabled for %s (%d bytes)", targetFilePath, info.Size())
+
 		pterm.Info.Printf("Searching for duplicates of %s\n", targetFilePath)
 	}
 
@@ -296,13 +299,14 @@ func main() {
 	// Dmap stores duplicate file information. Failure is fatal.
 	minDups := *flMinDups
 	if minDups < 2 {
-		fmt.Fprintf(os.Stderr, "invalid duplicate threshold %d; must be at least 2\n", minDups)
+		pterm.Info.Printf("Duplicate threshold %d. Must be >= 2", minDups)
 		os.Exit(1)
 	}
 
+	// If we remove a set of duplicates keep at least this amount.
 	keepCount := *flKeep
 	if keepCount == 0 {
-		dsklog.Dlogger.Debug("No removal requested. keepCount is zero")
+		pterm.Info.Printf("Keep count set; will leave %d files at least", keepCount)
 	}
 
 	// Hold app config.
@@ -381,11 +385,9 @@ MainLoop:
 	if singleFileMode {
 		dupCount := applySingleFileFilter(dMap, targetDigest, targetFilePath)
 		if dupCount == 0 {
-			dsklog.Dlogger.Infof("Single file mode complete: no duplicates found for %s", targetFilePath)
 			pterm.Info.Printf("No duplicates of %s found in the provided paths.\n", targetFilePath)
 			os.Exit(0)
 		}
-		dsklog.Dlogger.Infof("Single file mode complete: found %d duplicates for %s", dupCount, targetFilePath)
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
 	}
 
@@ -396,28 +398,23 @@ MainLoop:
 
 	// Dump to CSV, then exit without dropping into TUI
 	if *flCSVOut != "" {
-		dsklog.Dlogger.Infof("CSV export requested: %s", *flCSVOut)
 		pterm.Info.Printf("Writing CSV to %s...\n", *flCSVOut)
 		if err := dMap.WriteCSV(*flCSVOut); err != nil {
 			dsklog.Dlogger.Errorf("CSV export failed for %s: %v", *flCSVOut, err)
 			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
 			os.Exit(1)
 		}
-		dsklog.Dlogger.Infof("CSV export complete: %s", *flCSVOut)
 		pterm.Success.Printf("CSV file %s written to disk.\n", *flCSVOut)
 		os.Exit(0)
 	}
 
 	// Dump files to JSON then exit.
 	if *flJSONOut != "" {
-		dsklog.Dlogger.Infof("JSON export requested: %s", *flJSONOut)
 		pterm.Info.Printf("Writing JSON to %s...\n", *flJSONOut)
 		if err := dMap.WriteJSON(*flJSONOut); err != nil {
-			dsklog.Dlogger.Errorf("JSON export failed for %s: %v", *flJSONOut, err)
 			fmt.Fprintf(os.Stderr, "failed to write JSON output: %v\n", err)
 			os.Exit(1)
 		}
-		dsklog.Dlogger.Infof("JSON export complete: %s", *flJSONOut)
 		pterm.Success.Printf("JSON file %s written to disk.\n", *flJSONOut)
 		os.Exit(0)
 	}

@@ -211,7 +211,7 @@ func (a *app) updateKeyboard() {
 	case rl.IsKeyPressed(rl.KeyHome):
 		a.cursor = 0
 	case rl.IsKeyPressed(rl.KeyEnd):
-		a.cursor = maxInt(len(a.visible)-1, 0)
+		a.cursor = max(len(a.visible)-1, 0)
 	case rl.IsKeyPressed(rl.KeyLeft) || rl.IsKeyPressed(rl.KeyH):
 		a.collapseCurrentGroup()
 	case rl.IsKeyPressed(rl.KeyRight):
@@ -386,8 +386,8 @@ func (a *app) drawList() {
 
 	content := insetRect(list, 1)
 	rows := a.visibleRows()
-	start := clampInt(a.scroll, 0, maxInt(len(a.visible)-1, 0))
-	end := minInt(start+rows, len(a.visible))
+	start := clamp(a.scroll, 0, max(len(a.visible)-1, 0))
+	end := min(start+rows, len(a.visible))
 	y := content.Y
 	rl.BeginScissorMode(int32(content.X), int32(content.Y), int32(content.Width), int32(content.Height))
 	for i := start; i < end; i++ {
@@ -455,8 +455,8 @@ func (a *app) drawSelectionPanel() {
 		chipX = panel.X + 112
 	}
 	drawText("Selection", panel.X+18, panel.Y+18, a.layout.titleSize, colorText)
-	chipMaxW := maxFloat(panel.Width-(chipX-panel.X)-18, 0)
-	chip := rl.NewRectangle(chipX, chipY, minFloat(chipW, chipMaxW), 28)
+	chipMaxW := max(panel.Width-(chipX-panel.X)-18, 0)
+	chip := rl.NewRectangle(chipX, chipY, min(chipW, chipMaxW), 28)
 	rl.DrawRectangleRounded(chip, 0.45, 12, colorMarkedSoft)
 	drawText(truncateText(markedLabel, a.layout.bodySize, chip.Width-22), chip.X+11, chip.Y+7, a.layout.bodySize, colorMarked)
 
@@ -518,7 +518,7 @@ func (a *app) drawFooter() {
 	helpMax := a.layout.screenWidth - a.layout.margin*2
 	if a.results.Result != "" {
 		resultWidth := measureText(a.results.Result, a.layout.smallSize)
-		helpMax = maxFloat(120, a.layout.screenWidth-resultWidth-a.layout.margin*3)
+		helpMax = max(120, a.layout.screenWidth-resultWidth-a.layout.margin*3)
 		drawText(a.results.Result, a.layout.screenWidth-resultWidth-a.layout.margin, footer.Y+12, a.layout.smallSize, colorSuccess)
 	}
 	drawText(truncateText(help, a.layout.smallSize, helpMax), a.layout.margin, footer.Y+12, a.layout.smallSize, colorMuted)
@@ -594,9 +594,9 @@ func (a *app) refreshLayout() {
 	var list rl.Rectangle
 	var sidebar rl.Rectangle
 	if showSidebar {
-		sidebarW := clampFloat(width*0.18, 240, 280)
+		sidebarW := clamp(width*0.18, 240, 280)
 		listW := width - sidebarW - gap - margin*2
-		list = rl.NewRectangle(margin, contentTop, maxFloat(listW, 280), contentBottom-contentTop)
+		list = rl.NewRectangle(margin, contentTop, max(listW, 280), contentBottom-contentTop)
 		sidebar = rl.NewRectangle(list.X+list.Width+gap, contentTop, sidebarW, list.Height)
 	} else {
 		inspectorH := bottomInspectorH
@@ -604,8 +604,8 @@ func (a *app) refreshLayout() {
 			inspectorH = 96
 		}
 		available := contentBottom - contentTop
-		listH := maxFloat(available-inspectorH-gap, minListHeight)
-		sidebar = rl.NewRectangle(margin, contentTop+listH+gap, width-margin*2, minFloat(inspectorH, maxFloat(available-listH-gap, 0)))
+		listH := max(available-inspectorH-gap, minListHeight)
+		sidebar = rl.NewRectangle(margin, contentTop+listH+gap, width-margin*2, min(inspectorH, max(available-listH-gap, 0)))
 		list = rl.NewRectangle(margin, contentTop, width-margin*2, listH)
 	}
 
@@ -686,7 +686,7 @@ func (a *app) visibleRows() int {
 	if a.layout.rowHeight <= 0 {
 		return 1
 	}
-	return maxInt(int(insetRect(a.layout.list, 1).Height/a.layout.rowHeight), 1)
+	return max(int(insetRect(a.layout.list, 1).Height/a.layout.rowHeight), 1)
 }
 
 func (a *app) rebuildVisibleNodes() {
@@ -707,7 +707,7 @@ func (a *app) moveCursor(delta int) {
 		a.cursor = 0
 		return
 	}
-	a.cursor = clampInt(a.cursor+delta, 0, len(a.visible)-1)
+	a.cursor = clamp(a.cursor+delta, 0, len(a.visible)-1)
 	a.adjustScroll()
 }
 
@@ -804,7 +804,7 @@ func (a *app) adjustScroll() {
 		a.lastGroupIdx = -1
 		return
 	}
-	a.cursor = clampInt(a.cursor, 0, len(a.visible)-1)
+	a.cursor = clamp(a.cursor, 0, len(a.visible)-1)
 	a.clampScroll()
 	if a.cursor < a.scroll {
 		a.scroll = a.cursor
@@ -835,8 +835,8 @@ func (a *app) applyWheelScroll(wheel float32) {
 }
 
 func (a *app) clampScroll() {
-	maxScroll := maxInt(len(a.visible)-a.visibleRows(), 0)
-	a.scroll = clampInt(a.scroll, 0, maxScroll)
+	maxScroll := max(len(a.visible)-a.visibleRows(), 0)
+	a.scroll = clamp(a.scroll, 0, maxScroll)
 }
 
 func (a *app) recordGroupFocus() {
@@ -934,11 +934,11 @@ func boundedGlyphCount(glyphs []rune) int32 {
 
 func fontAtlasSize() int32 {
 	dpi := rl.GetWindowScaleDPI()
-	scale := maxFloat(dpi.X, dpi.Y)
+	scale := max(dpi.X, dpi.Y)
 	if scale < 1 {
 		scale = 1
 	}
-	return int32(clampFloat(96*scale, 96, 192))
+	return int32(clamp(96*scale, 96, 192))
 }
 
 func uiGlyphs() []rune {
@@ -1153,7 +1153,7 @@ func footerHelp(width float32) string {
 }
 
 func insetRect(rect rl.Rectangle, amount float32) rl.Rectangle {
-	return rl.NewRectangle(rect.X+amount, rect.Y+amount, maxFloat(rect.Width-amount*2, 0), maxFloat(rect.Height-amount*2, 0))
+	return rl.NewRectangle(rect.X+amount, rect.Y+amount, max(rect.Width-amount*2, 0), max(rect.Height-amount*2, 0))
 }
 
 func textY(rect rl.Rectangle, size int32) float32 {
@@ -1195,7 +1195,7 @@ func shiftDown() bool {
 	return rl.IsKeyDown(rl.KeyLeftShift) || rl.IsKeyDown(rl.KeyRightShift)
 }
 
-func clampInt(v, minValue, maxValue int) int {
+func clamp[T int | float32](v, minValue, maxValue T) T {
 	if v < minValue {
 		return minValue
 	}
@@ -1205,38 +1205,14 @@ func clampInt(v, minValue, maxValue int) int {
 	return v
 }
 
-func minInt(a, b int) int {
+func min[T int | float32](a, b T) T {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func clampFloat(v, minValue, maxValue float32) float32 {
-	if v < minValue {
-		return minValue
-	}
-	if v > maxValue {
-		return maxValue
-	}
-	return v
-}
-
-func minFloat(a, b float32) float32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func maxFloat(a, b float32) float32 {
+func max[T int | float32](a, b T) T {
 	if a > b {
 		return a
 	}
