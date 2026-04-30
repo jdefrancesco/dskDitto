@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
-	"strings"
 	"syscall"
 	"time"
 
@@ -39,7 +38,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "  --no-banner                Do not show the dskDitto banner.\n")
 		fmt.Fprintf(os.Stderr, "  --version                  Display version information.\n")
 		fmt.Fprintf(os.Stderr, "  --color-safe               Use a high-compatibility theme for problematic terminal colors.\n")
-		fmt.Fprintf(os.Stderr, "  --ui <mode>                Interactive UI mode: tui (default) or raylib.\n")
+		fmt.Fprintf(os.Stderr, "  --gui                      Display results in the experimental Raylib GUI.\n")
 		fmt.Fprintf(os.Stderr, "  --profile <file>           Write CPU profile to disk for analysis.\n")
 		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
 		fmt.Fprintf(os.Stderr, "  --min-size <size>          Skip files smaller than the given size (e.g. 512K, 5MiB).\n")
@@ -152,17 +151,11 @@ func main() {
 		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
 		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
 		flColorSafe     = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
-		flInteractiveUI = flag.String("ui", "gui", "Interactive UI mode: tui (default) or raylib.")
+		flGui           = flag.Bool("gui", false, "Show results in an interactive raylib GUI")
 	)
 	// The exclude flag can take multiple path targets
 	flag.Var(&flExcludePaths, "exclude", "Exclude a path from scanning (repeatable).")
 	flag.Parse()
-
-	interactiveUI, err := normalizeInteractiveUI(*flInteractiveUI)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
 
 	// Turn off default color scheme. This flag can be used when users terminal color pallete isn't
 	// compatible with default TUI elements.
@@ -466,22 +459,11 @@ MainLoop:
 		os.Exit(0)
 	}
 
-	switch interactiveUI {
-	case "raylib":
+	// Can now use a Raylib GUI or the sleeker TUI
+	if *flGui {
 		rayui.Launch(dMap)
-	default:
+	} else {
 		ui.LaunchTUI(dMap)
-	}
-}
-
-func normalizeInteractiveUI(mode string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "", "tui", "bubbletea", "bubble-tea":
-		return "tui", nil
-	case "raylib", "gui":
-		return "raylib", nil
-	default:
-		return "", fmt.Errorf("invalid --ui %q; expected tui or raylib", mode)
 	}
 }
 

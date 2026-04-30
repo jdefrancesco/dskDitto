@@ -4,6 +4,7 @@ GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
 BINARY_NAME = dskDitto
+GUI_PATH ?= .
 
 BENCH_BIN = ./bin/bench.test
 CPU_PROFILE ?= cpu.prof
@@ -28,6 +29,17 @@ debug: check-gosec
 build: check-gosec
 	gosec -exclude=G104,G108 ./...
 	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
+
+.PHONY: build-gui
+build-gui: check-gosec
+	gosec -exclude=G104,G108 ./...
+	CGO_ENABLED=1 $(GOBUILD) -o ./bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
+	@echo "GUI-capable binary built at ./bin/$(BINARY_NAME)"
+	@echo "Run it with: ./bin/$(BINARY_NAME) --gui <path>"
+
+.PHONY: run-gui
+run-gui: build-gui
+	./bin/$(BINARY_NAME) --gui $(GUI_PATH)
 
 .PHONY: build-darwin-arm64
 build-darwin-arm64:

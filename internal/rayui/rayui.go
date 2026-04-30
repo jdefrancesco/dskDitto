@@ -17,17 +17,18 @@ import (
 )
 
 const (
-	initialWidth  int32 = 1180
+	initialWidth  int32 = 1000
 	initialHeight int32 = 760
-	minWidth            = 860
-	minHeight           = 560
+	minWidth            = 760
+	minHeight           = 520
 
-	margin        float32 = 18
-	headerHeight  float32 = 66
-	toolbarHeight float32 = 58
-	footerHeight  float32 = 38
-	sidebarWidth  float32 = 316
-	rowHeight     float32 = 34
+	defaultMargin       float32 = 18
+	defaultGap          float32 = 14
+	defaultHeaderHeight float32 = 66
+	defaultFooterHeight float32 = 38
+	defaultRowHeight    float32 = 34
+	minListHeight       float32 = 150
+	bottomInspectorH    float32 = 116
 )
 
 var (
@@ -81,6 +82,29 @@ type button struct {
 	primary bool
 }
 
+type layout struct {
+	screenWidth  float32
+	screenHeight float32
+	margin       float32
+	gap          float32
+
+	header  rl.Rectangle
+	toolbar rl.Rectangle
+	list    rl.Rectangle
+	sidebar rl.Rectangle
+	footer  rl.Rectangle
+
+	showSidebar bool
+	rowHeight   float32
+
+	titleSize int32
+	bodySize  int32
+	rowSize   int32
+	smallSize int32
+
+	toolbarButtons []button
+}
+
 type fontSet struct {
 	regular       rl.Font
 	mono          rl.Font
@@ -91,6 +115,7 @@ type fontSet struct {
 type app struct {
 	results *dupview.Model
 	visible []nodeRef
+	layout  layout
 
 	cursor int
 	scroll int
@@ -106,7 +131,8 @@ type app struct {
 	lastClickAt  time.Time
 	lastGroupIdx int
 
-	quit bool
+	wheelRemainder float32
+	quit           bool
 }
 
 var activeFonts fontSet
@@ -146,11 +172,18 @@ func newApp(results *dupview.Model) *app {
 		lastClickIdx: -1,
 		lastGroupIdx: -1,
 	}
+	a.refreshLayout()
 	a.rebuildVisibleNodes()
 	return a
 }
 
 func (a *app) update() {
+	oldRows := a.visibleRows()
+	a.refreshLayout()
+	if rl.IsWindowResized() || oldRows != a.visibleRows() {
+		a.adjustScroll()
+	}
+
 	if a.mode == modeConfirm {
 		a.updateConfirm()
 		return
@@ -213,7 +246,7 @@ func (a *app) updateKeyboard() {
 
 func (a *app) updateMouse() {
 	mouse := rl.GetMousePosition()
-	for _, b := range a.toolbarButtons() {
+	for _, b := range a.layout.toolbarButtons {
 		if !b.enabled || !rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 			continue
 		}
@@ -223,21 +256,20 @@ func (a *app) updateMouse() {
 		}
 	}
 
-	list := a.listRect()
-	if !rl.CheckCollisionPointRec(mouse, list) {
+	listContent := insetRect(a.layout.list, 1)
+	if !rl.CheckCollisionPointRec(mouse, listContent) {
 		return
 	}
 
 	if wheel := rl.GetMouseWheelMove(); wheel != 0 {
-		a.scroll -= int(wheel * 3)
-		a.clampScroll()
+		a.applyWheelScroll(wheel)
 	}
 
 	if !rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 		return
 	}
 
-	row := int((mouse.Y-list.Y)/rowHeight) + a.scroll
+	row := int((mouse.Y-listContent.Y)/a.layout.rowHeight) + a.scroll
 	if row < 0 || row >= len(a.visible) {
 		return
 	}
@@ -254,7 +286,7 @@ func (a *app) updateMouse() {
 		a.lastClickAt = time.Time{}
 		return
 	}
-	if ref.typ == nodeFile && mouse.X <= list.X+68 {
+	if ref.typ == nodeFile && mouse.X <= listContent.X+68 {
 		a.toggleCurrentFileMark()
 	}
 
@@ -305,7 +337,7 @@ func (a *app) draw() {
 	a.drawHeader()
 	a.drawToolbar()
 	a.drawList()
-	a.drawSidebar()
+	a.drawSelectionPanel()
 	a.drawFooter()
 	if a.mode == modeConfirm {
 		a.drawConfirmModal()
@@ -313,32 +345,31 @@ func (a *app) draw() {
 }
 
 func (a *app) drawHeader() {
-	width := float32(rl.GetScreenWidth())
-	rl.DrawRectangleRec(rl.NewRectangle(0, 0, width, headerHeight), colorHeaderDeep)
-	rl.DrawRectangleRec(rl.NewRectangle(0, 0, width, headerHeight-5), colorHeader)
-	rl.DrawRectangleRec(rl.NewRectangle(0, headerHeight-5, width, 5), colorAccent)
-	drawText("dskDitto", margin, 13, 28, colorHeaderText)
-	drawText("Duplicate review", margin+126, 23, 16, rl.NewColor(204, 251, 241, 255))
+	l := a.layout
+	rl.DrawRectangleRec(l.header, colorHeaderDeep)
+	rl.DrawRectangleRec(rl.NewRectangle(0, 0, l.screenWidth, l.header.Height-5), colorHeader)
+	rl.DrawRectangleRec(rl.NewRectangle(0, l.header.Height-5, l.screenWidth, 5), colorAccent)
+	drawText("dskDitto", l.margin, 13, 28, colorHeaderText)
+	drawText("Duplicate review", l.margin+126, 23, 16, rl.NewColor(204, 251, 241, 255))
 
 	pill := "Raylib mode"
 	pillW := measureText(pill, 14) + 24
-	pillRect := rl.NewRectangle(width-pillW-margin, 18, pillW, 28)
+	pillRect := rl.NewRectangle(l.screenWidth-pillW-l.margin, 18, pillW, 28)
 	rl.DrawRectangleRounded(pillRect, 0.45, 12, rl.NewColor(9, 65, 57, 255))
 	drawText(pill, pillRect.X+12, pillRect.Y+7, 14, rl.NewColor(217, 249, 240, 255))
 }
 
 func (a *app) drawToolbar() {
-	width := float32(rl.GetScreenWidth())
-	y := headerHeight
-	rl.DrawRectangleRec(rl.NewRectangle(0, y, width, toolbarHeight), colorBackground)
-	rl.DrawLine(0, int32(y+toolbarHeight), int32(width), int32(y+toolbarHeight), colorBorderSoft)
-	for _, b := range a.toolbarButtons() {
+	l := a.layout
+	rl.DrawRectangleRec(l.toolbar, colorBackground)
+	rl.DrawLine(0, int32(l.toolbar.Y+l.toolbar.Height), int32(l.screenWidth), int32(l.toolbar.Y+l.toolbar.Height), colorBorderSoft)
+	for _, b := range l.toolbarButtons {
 		drawButton(b)
 	}
 }
 
 func (a *app) drawList() {
-	list := a.listRect()
+	list := a.layout.list
 	drawPanel(list)
 
 	if len(a.visible) == 0 {
@@ -353,16 +384,19 @@ func (a *app) drawList() {
 		return
 	}
 
+	content := insetRect(list, 1)
 	rows := a.visibleRows()
 	start := clampInt(a.scroll, 0, maxInt(len(a.visible)-1, 0))
 	end := minInt(start+rows, len(a.visible))
-	y := list.Y
+	y := content.Y
+	rl.BeginScissorMode(int32(content.X), int32(content.Y), int32(content.Width), int32(content.Height))
 	for i := start; i < end; i++ {
 		ref := a.visible[i]
-		row := rl.NewRectangle(list.X, y, list.Width, rowHeight)
+		row := rl.NewRectangle(content.X, y, content.Width, a.layout.rowHeight)
 		a.drawRow(ref, row, i == a.cursor)
-		y += rowHeight
+		y += a.layout.rowHeight
 	}
+	rl.EndScissorMode()
 }
 
 func (a *app) drawRow(ref nodeRef, rect rl.Rectangle, selected bool) {
@@ -378,75 +412,116 @@ func (a *app) drawRow(ref nodeRef, rect rl.Rectangle, selected bool) {
 			rl.DrawRectangleRec(rl.NewRectangle(rect.X, rect.Y, 3, rect.Height), colorAccent)
 		}
 		drawChevron(rect.X+18, rect.Y+rect.Height/2, group.Expanded, colorAccent)
-		title := truncateText(group.Title, 15, rect.Width-58)
-		drawText(title, rect.X+40, rect.Y+9, 15, colorText)
+		title := truncateText(formatCompactGroupTitle(group), a.layout.rowSize, rect.Width-58)
+		drawText(title, rect.X+40, textY(rect, a.layout.rowSize), a.layout.rowSize, colorText)
 	case nodeFile:
 		entry := a.results.Groups[ref.group].Files[ref.file]
-		drawCheckbox(rl.NewRectangle(rect.X+32, rect.Y+9, 16, 16), entry.Marked)
+		box := rl.NewRectangle(rect.X+32, rect.Y+(rect.Height-16)/2, 16, 16)
+		drawCheckbox(box, entry.Marked)
 
 		path := entry.Path
 		if dupview.IsSymlink(entry.Path) {
 			path += " [symlink]"
 		}
 		status := fileStatusLabel(entry)
-		statusWidth := measureText(status, 13)
+		statusWidth := measureText(status, a.layout.smallSize)
 		pathMax := rect.Width - 82 - statusWidth
 		if pathMax < 80 {
 			pathMax = rect.Width - 82
 			status = ""
 			statusWidth = 0
 		}
-		drawText(truncateText(path, 14, pathMax), rect.X+68, rect.Y+10, 14, colorText)
+		drawText(truncateText(path, a.layout.rowSize, pathMax), rect.X+68, textY(rect, a.layout.rowSize), a.layout.rowSize, colorText)
 		if status != "" {
-			drawText(status, rect.X+rect.Width-statusWidth-14, rect.Y+10, 13, fileStatusColor(entry))
+			drawText(status, rect.X+rect.Width-statusWidth-14, textY(rect, a.layout.smallSize), a.layout.smallSize, fileStatusColor(entry))
 		}
 	}
 }
 
-func (a *app) drawSidebar() {
-	sidebar := a.sidebarRect()
-	drawPanel(sidebar)
-	drawText("Selection", sidebar.X+18, sidebar.Y+18, 20, colorText)
+func (a *app) drawSelectionPanel() {
+	panel := a.layout.sidebar
+	if panel.Width <= 0 || panel.Height <= 0 {
+		return
+	}
+	drawPanel(panel)
 
 	marked := dupview.CountMarked(a.results.Groups)
 	markedLabel := fmt.Sprintf("%d marked files", marked)
-	chipW := measureText(markedLabel, 15) + 22
-	chip := rl.NewRectangle(sidebar.X+18, sidebar.Y+54, chipW, 28)
+	chipW := measureText(markedLabel, a.layout.bodySize) + 22
+	chipY := panel.Y + 54
+	chipX := panel.X + 18
+	if !a.layout.showSidebar {
+		chipY = panel.Y + 14
+		chipX = panel.X + 112
+	}
+	drawText("Selection", panel.X+18, panel.Y+18, a.layout.titleSize, colorText)
+	chipMaxW := maxFloat(panel.Width-(chipX-panel.X)-18, 0)
+	chip := rl.NewRectangle(chipX, chipY, minFloat(chipW, chipMaxW), 28)
 	rl.DrawRectangleRounded(chip, 0.45, 12, colorMarkedSoft)
-	drawText(markedLabel, chip.X+11, chip.Y+7, 15, colorMarked)
+	drawText(truncateText(markedLabel, a.layout.bodySize, chip.Width-22), chip.X+11, chip.Y+7, a.layout.bodySize, colorMarked)
 
 	group := a.selectedGroup()
 	if group == nil {
-		drawText("Select a group to inspect it.", sidebar.X+18, sidebar.Y+104, 15, colorMuted)
+		y := panel.Y + 104
+		if !a.layout.showSidebar {
+			y = panel.Y + 58
+		}
+		drawText("Select a group to inspect it.", panel.X+18, y, a.layout.bodySize, colorMuted)
 		return
 	}
 
-	y := sidebar.Y + 108
-	drawText("Current group", sidebar.X+18, y, 15, colorMuted)
+	if a.layout.showSidebar {
+		a.drawSidebarDetails(panel, group)
+		return
+	}
+	a.drawBottomInspector(panel, group)
+}
+
+func (a *app) drawSidebarDetails(panel rl.Rectangle, group *dupview.Group) {
+	y := panel.Y + 108
+	drawText("Current group", panel.X+18, y, a.layout.bodySize, colorMuted)
 	y += 30
-	drawText(fmt.Sprintf("%d files", len(group.Files)), sidebar.X+18, y, 18, colorText)
+	drawText(fmt.Sprintf("%d files", len(group.Files)), panel.X+18, y, 18, colorText)
 	y += 28
-	drawText(utils.DisplaySize(group.TotalSz), sidebar.X+18, y, 18, colorText)
+	drawText(utils.DisplaySize(group.TotalSz), panel.X+18, y, 18, colorText)
 	y += 34
 
-	hash := fmt.Sprintf("%x", group.Hash)
-	drawText("Hash", sidebar.X+18, y, 15, colorMuted)
+	hash := hashPrefix(group)
+	drawText("Hash prefix", panel.X+18, y, a.layout.bodySize, colorMuted)
 	y += 26
-	drawMonoText(truncateMonoText(hash, 13, sidebar.Width-36), sidebar.X+18, y, 13, colorText)
+	drawText(truncateText(hash, 16, panel.Width-36), panel.X+18, y, 16, colorText)
+}
+
+func (a *app) drawBottomInspector(panel rl.Rectangle, group *dupview.Group) {
+	y := panel.Y + 58
+	x := panel.X + 18
+	metricGap := float32(120)
+	drawText("Current group", x, y, a.layout.bodySize, colorMuted)
+	drawText(fmt.Sprintf("%d files", len(group.Files)), x, y+24, 17, colorText)
+	drawText(utils.DisplaySize(group.TotalSz), x+metricGap, y+24, 17, colorText)
+
+	hash := hashPrefix(group)
+	hashX := x + metricGap*2.25
+	available := panel.X + panel.Width - hashX - 18
+	if available > 80 {
+		drawText("Hash prefix", hashX, y, a.layout.bodySize, colorMuted)
+		drawText(truncateText(hash, 15, available), hashX, y+26, 15, colorText)
+	}
 }
 
 func (a *app) drawFooter() {
-	y := float32(rl.GetScreenHeight()) - footerHeight
-	width := float32(rl.GetScreenWidth())
-	rl.DrawRectangleRec(rl.NewRectangle(0, y, width, footerHeight), colorSurface)
-	rl.DrawLine(0, int32(y), int32(width), int32(y), colorBorder)
+	footer := a.layout.footer
+	rl.DrawRectangleRec(footer, colorSurface)
+	rl.DrawLine(0, int32(footer.Y), int32(a.layout.screenWidth), int32(footer.Y), colorBorder)
 
-	help := "Arrows/jk navigate | Enter folds | Space/m marks | a mark all | u clear | d delete | Shift+L link | 1/2 sort | q exits"
-	drawText(truncateText(help, 13, width-margin*2), margin, y+13, 13, colorMuted)
+	help := footerHelp(a.layout.screenWidth)
+	helpMax := a.layout.screenWidth - a.layout.margin*2
 	if a.results.Result != "" {
-		resultWidth := measureText(a.results.Result, 13)
-		drawText(a.results.Result, width-resultWidth-margin, y+13, 13, colorSuccess)
+		resultWidth := measureText(a.results.Result, a.layout.smallSize)
+		helpMax = maxFloat(120, a.layout.screenWidth-resultWidth-a.layout.margin*3)
+		drawText(a.results.Result, a.layout.screenWidth-resultWidth-a.layout.margin, footer.Y+12, a.layout.smallSize, colorSuccess)
 	}
+	drawText(truncateText(help, a.layout.smallSize, helpMax), a.layout.margin, footer.Y+12, a.layout.smallSize, colorMuted)
 }
 
 func (a *app) drawConfirmModal() {
@@ -485,9 +560,78 @@ func (a *app) drawConfirmModal() {
 	}
 }
 
-func (a *app) toolbarButtons() []button {
-	y := headerHeight + 14
+func (a *app) refreshLayout() {
+	width := float32(rl.GetScreenWidth())
+	height := float32(rl.GetScreenHeight())
+	margin := defaultMargin
+	gap := defaultGap
+	if width < 920 {
+		margin = 12
+		gap = 10
+	}
+
+	rowHeight := defaultRowHeight
+	rowSize := int32(14)
+	bodySize := int32(15)
+	smallSize := int32(13)
+	if height < 620 {
+		rowHeight = 30
+		rowSize = 13
+		bodySize = 14
+		smallSize = 12
+	}
+
+	buttons, toolbarHeight := a.buildToolbarButtons(width, margin, gap)
+	footerHeight := defaultFooterHeight
+	headerHeight := defaultHeaderHeight
+	contentTop := headerHeight + toolbarHeight + gap
+	contentBottom := height - footerHeight - margin
+	if contentBottom < contentTop+minListHeight {
+		contentBottom = contentTop + minListHeight
+	}
+
+	showSidebar := width >= 1040
+	var list rl.Rectangle
+	var sidebar rl.Rectangle
+	if showSidebar {
+		sidebarW := clampFloat(width*0.18, 240, 280)
+		listW := width - sidebarW - gap - margin*2
+		list = rl.NewRectangle(margin, contentTop, maxFloat(listW, 280), contentBottom-contentTop)
+		sidebar = rl.NewRectangle(list.X+list.Width+gap, contentTop, sidebarW, list.Height)
+	} else {
+		inspectorH := bottomInspectorH
+		if height < 650 {
+			inspectorH = 96
+		}
+		available := contentBottom - contentTop
+		listH := maxFloat(available-inspectorH-gap, minListHeight)
+		sidebar = rl.NewRectangle(margin, contentTop+listH+gap, width-margin*2, minFloat(inspectorH, maxFloat(available-listH-gap, 0)))
+		list = rl.NewRectangle(margin, contentTop, width-margin*2, listH)
+	}
+
+	a.layout = layout{
+		screenWidth:    width,
+		screenHeight:   height,
+		margin:         margin,
+		gap:            gap,
+		header:         rl.NewRectangle(0, 0, width, headerHeight),
+		toolbar:        rl.NewRectangle(0, headerHeight, width, toolbarHeight),
+		list:           list,
+		sidebar:        sidebar,
+		footer:         rl.NewRectangle(0, height-footerHeight, width, footerHeight),
+		showSidebar:    showSidebar,
+		rowHeight:      rowHeight,
+		titleSize:      20,
+		bodySize:       bodySize,
+		rowSize:        rowSize,
+		smallSize:      smallSize,
+		toolbarButtons: buttons,
+	}
+}
+
+func (a *app) buildToolbarButtons(width, margin, gap float32) ([]button, float32) {
 	x := margin
+	y := defaultHeaderHeight + 14
 	marked := dupview.CountMarked(a.results.Groups)
 	sortLabel := "Sort: size"
 	if a.results.SortMode == dupview.SortByCount {
@@ -503,13 +647,21 @@ func (a *app) toolbarButtons() []button {
 	}
 
 	buttons := make([]button, 0, len(specs))
+	buttonHeight := float32(32)
+	rowGap := float32(8)
+	maxX := width - margin
 	for _, spec := range specs {
 		width := measureText(spec.label, 14) + 30
+		if x > margin && x+width > maxX {
+			x = margin
+			y += buttonHeight + rowGap
+		}
 		spec.rect = rl.NewRectangle(x, y, width, 32)
 		buttons = append(buttons, spec)
-		x += width + 9
+		x += width + gap
 	}
-	return buttons
+	toolbarHeight := (y - defaultHeaderHeight) + buttonHeight + 14
+	return buttons, toolbarHeight
 }
 
 func (a *app) handleButton(id string) {
@@ -530,21 +682,11 @@ func (a *app) handleButton(id string) {
 	}
 }
 
-func (a *app) listRect() rl.Rectangle {
-	width := float32(rl.GetScreenWidth())
-	height := float32(rl.GetScreenHeight())
-	y := headerHeight + toolbarHeight + 6
-	return rl.NewRectangle(margin, y, width-sidebarWidth-margin*3, height-y-footerHeight-margin)
-}
-
-func (a *app) sidebarRect() rl.Rectangle {
-	width := float32(rl.GetScreenWidth())
-	list := a.listRect()
-	return rl.NewRectangle(width-sidebarWidth-margin, list.Y, sidebarWidth, list.Height)
-}
-
 func (a *app) visibleRows() int {
-	return maxInt(int(a.listRect().Height/rowHeight), 1)
+	if a.layout.rowHeight <= 0 {
+		return 1
+	}
+	return maxInt(int(insetRect(a.layout.list, 1).Height/a.layout.rowHeight), 1)
 }
 
 func (a *app) rebuildVisibleNodes() {
@@ -675,6 +817,23 @@ func (a *app) adjustScroll() {
 	a.recordGroupFocus()
 }
 
+func (a *app) applyWheelScroll(wheel float32) {
+	if len(a.visible) == 0 {
+		a.wheelRemainder = 0
+		return
+	}
+
+	a.wheelRemainder += wheel * 3
+	delta := int(a.wheelRemainder)
+	if delta == 0 {
+		return
+	}
+
+	a.scroll -= delta
+	a.wheelRemainder -= float32(delta)
+	a.clampScroll()
+}
+
 func (a *app) clampScroll() {
 	maxScroll := maxInt(len(a.visible)-a.visibleRows(), 0)
 	a.scroll = clampInt(a.scroll, 0, maxScroll)
@@ -731,8 +890,10 @@ func drawPanel(rect rl.Rectangle) {
 }
 
 func loadFonts() fontSet {
-	regular, regularLoaded := loadFontFromCandidates(fontCandidates(false))
-	mono, monoLoaded := loadFontFromCandidates(fontCandidates(true))
+	atlasSize := fontAtlasSize()
+	glyphs := uiGlyphs()
+	regular, regularLoaded := loadFontFromCandidates(fontCandidates(false), atlasSize, glyphs)
+	mono, monoLoaded := loadFontFromCandidates(fontCandidates(true), atlasSize, glyphs)
 	if !monoLoaded && regularLoaded {
 		mono = regular
 	}
@@ -744,19 +905,48 @@ func loadFonts() fontSet {
 	}
 }
 
-func loadFontFromCandidates(paths []string) (rl.Font, bool) {
+func loadFontFromCandidates(paths []string, atlasSize int32, glyphs []rune) (rl.Font, bool) {
+	glyphCount := boundedGlyphCount(glyphs)
+	if glyphCount == 0 {
+		return rl.Font{}, false
+	}
 	for _, path := range paths {
 		if path == "" || !fileExists(path) {
 			continue
 		}
-		font := rl.LoadFontEx(path, 96, nil, 0)
+		font := rl.LoadFontEx(path, atlasSize, glyphs, glyphCount)
 		if !rl.IsFontValid(font) {
 			continue
 		}
-		rl.SetTextureFilter(font.Texture, rl.FilterBilinear)
+		rl.GenTextureMipmaps(&font.Texture)
+		rl.SetTextureFilter(font.Texture, rl.FilterTrilinear)
 		return font, true
 	}
 	return rl.Font{}, false
+}
+
+func boundedGlyphCount(glyphs []rune) int32 {
+	if len(glyphs) > 1<<31-1 {
+		return 0
+	}
+	return int32(len(glyphs)) // #nosec G115 -- guarded above for Raylib's int32 API.
+}
+
+func fontAtlasSize() int32 {
+	dpi := rl.GetWindowScaleDPI()
+	scale := maxFloat(dpi.X, dpi.Y)
+	if scale < 1 {
+		scale = 1
+	}
+	return int32(clampFloat(96*scale, 96, 192))
+}
+
+func uiGlyphs() []rune {
+	glyphs := make([]rune, 0, 224)
+	for r := rune(32); r <= 255; r++ {
+		glyphs = append(glyphs, r)
+	}
+	return glyphs
 }
 
 func fontCandidates(mono bool) []string {
@@ -765,9 +955,9 @@ func fontCandidates(mono bool) []string {
 		switch runtime.GOOS {
 		case "darwin":
 			candidates = append(candidates,
-				"/System/Library/Fonts/SFNSMono.ttf",
 				"/System/Library/Fonts/Menlo.ttc",
 				"/System/Library/Fonts/Supplemental/Courier New.ttf",
+				"/System/Library/Fonts/SFNSMono.ttf",
 			)
 		case "windows":
 			winDir := os.Getenv("WINDIR")
@@ -789,9 +979,9 @@ func fontCandidates(mono bool) []string {
 	switch runtime.GOOS {
 	case "darwin":
 		candidates = append(candidates,
-			"/System/Library/Fonts/SFNS.ttf",
 			"/System/Library/Fonts/Supplemental/Arial.ttf",
 			"/System/Library/Fonts/Helvetica.ttc",
+			"/System/Library/Fonts/SFNS.ttf",
 		)
 	case "windows":
 		winDir := os.Getenv("WINDIR")
@@ -932,6 +1122,44 @@ func drawChevron(x, y float32, expanded bool, color rl.Color) {
 	)
 }
 
+func formatCompactGroupTitle(group *dupview.Group) string {
+	if group == nil {
+		return ""
+	}
+	hash := hashPrefix(group)
+	return fmt.Sprintf("%s - %d files - approx. %s", hash, len(group.Files), utils.DisplaySize(group.TotalSz))
+}
+
+func hashPrefix(group *dupview.Group) string {
+	if group == nil {
+		return ""
+	}
+	hash := fmt.Sprintf("%x", group.Hash)
+	if len(hash) > 16 {
+		return hash[:16]
+	}
+	return hash
+}
+
+func footerHelp(width float32) string {
+	switch {
+	case width < 850:
+		return "Arrows navigate | Space marks | d delete | Shift+L link | q exits"
+	case width < 1180:
+		return "Arrows/jk navigate | Enter folds | Space marks | a mark all | u clear | d delete | q exits"
+	default:
+		return "Arrows/jk navigate | Enter folds | Space/m marks | a mark all | u clear | d delete | Shift+L link | 1/2 sort | q exits"
+	}
+}
+
+func insetRect(rect rl.Rectangle, amount float32) rl.Rectangle {
+	return rl.NewRectangle(rect.X+amount, rect.Y+amount, maxFloat(rect.Width-amount*2, 0), maxFloat(rect.Height-amount*2, 0))
+}
+
+func textY(rect rl.Rectangle, size int32) float32 {
+	return rect.Y + (rect.Height-float32(size))/2 - 1
+}
+
 func fileStatusLabel(entry *dupview.FileEntry) string {
 	switch entry.Status {
 	case dupview.FileStatusDeleted:
@@ -985,6 +1213,30 @@ func minInt(a, b int) int {
 }
 
 func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func clampFloat(v, minValue, maxValue float32) float32 {
+	if v < minValue {
+		return minValue
+	}
+	if v > maxValue {
+		return maxValue
+	}
+	return v
+}
+
+func minFloat(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxFloat(a, b float32) float32 {
 	if a > b {
 		return a
 	}

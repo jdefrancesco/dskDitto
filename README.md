@@ -41,6 +41,13 @@ make
 
 The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
 
+To explicitly build and smoke-run the Raylib GUI path:
+
+```bash
+make build-gui
+make run-gui GUI_PATH=$HOME
+```
+
 Install the built binary somewhere on your path (defaults to `/usr/local/bin`) with:
 
 ```bash
@@ -61,7 +68,7 @@ Common flags:
 | ---- | ----------- |
 | `--version` | Print the current version and exit |
 | `--no-banner` | Skip the startup banner |
-| `--ui <mode>` | Choose the interactive UI: `tui` (default) or `raylib` |
+| `--gui` | Review results in the experimental Raylib GUI instead of the default TUI |
 | `--profile <file>` | Write a CPU profile to the given file |
 | `--time-only` | Exit immediately after the scan, printing only the elapsed time |
 | `--min-size <bytes>` | Ignore files smaller than the provided size |
@@ -131,7 +138,7 @@ dskDitto $HOME
 Use the experimental Raylib windowed UI:
 
 ```bash
-dskDitto --ui raylib $HOME
+dskDitto --gui $HOME
 ```
 
 Exclude a directory (or file) from scanning:
@@ -239,6 +246,8 @@ dskDitto --json-out dupes.json ~/Projects
 
 ```bash
 make debug         # Create development build
+make build-gui     # Build a GUI-capable binary
+make run-gui       # Build and launch the Raylib GUI against GUI_PATH (default ".")
 make test          # go test ./...
 make bench         # run benchmarks (adds -benchmem)
 make bench-profile # capture cpu.prof and mem.prof into the repo root
