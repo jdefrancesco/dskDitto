@@ -155,6 +155,8 @@ func Launch(dMap *dmap.Dmap) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	// Suppress raylib startup INFO output while still surfacing warnings and errors.
+	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.SetConfigFlags(rl.FlagWindowResizable | rl.FlagMsaa4xHint | rl.FlagWindowHighdpi)
 	rl.InitWindow(initialWidth, initialHeight, "dskDitto - Raylib Results")
 	defer rl.CloseWindow()
@@ -198,7 +200,6 @@ func (a *app) update() {
 
 	a.updateKeyboard()
 	a.updateMouse()
-	a.adjustScroll()
 }
 
 func (a *app) updateKeyboard() {
@@ -217,8 +218,10 @@ func (a *app) updateKeyboard() {
 		a.pageMove(1)
 	case rl.IsKeyPressed(rl.KeyHome):
 		a.cursor = 0
+		a.adjustScroll()
 	case rl.IsKeyPressed(rl.KeyEnd):
 		a.cursor = max(len(a.visible)-1, 0)
+		a.adjustScroll()
 	case rl.IsKeyPressed(rl.KeyLeft) || rl.IsKeyPressed(rl.KeyH):
 		a.collapseCurrentGroup()
 	case rl.IsKeyPressed(rl.KeyRight):
@@ -836,9 +839,17 @@ func (a *app) applyWheelScroll(wheel float32) {
 		return
 	}
 
+	oldScroll := a.scroll
 	a.scroll -= delta
 	a.wheelRemainder -= float32(delta)
 	a.clampScroll()
+	appliedShift := a.scroll - oldScroll
+	if appliedShift == 0 {
+		return
+	}
+
+	a.cursor = clamp(a.cursor+appliedShift, 0, len(a.visible)-1)
+	a.recordGroupFocus()
 }
 
 func (a *app) clampScroll() {

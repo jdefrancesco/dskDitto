@@ -26,7 +26,7 @@ import (
 )
 
 // Version
-const ver = "0.3.2"
+const ver = "0.4.0"
 
 func init() {
 
@@ -299,7 +299,7 @@ func main() {
 	// Dmap stores duplicate file information. Failure is fatal.
 	minDups := *flMinDups
 	if minDups < 2 {
-		pterm.Info.Printf("Duplicate threshold %d. Must be >= 2", minDups)
+		pterm.Info.Printf("Duplicate threshold %d. Mu400Gst be >= 2", minDups)
 		os.Exit(1)
 	}
 
@@ -400,7 +400,6 @@ MainLoop:
 	if *flCSVOut != "" {
 		pterm.Info.Printf("Writing CSV to %s...\n", *flCSVOut)
 		if err := dMap.WriteCSV(*flCSVOut); err != nil {
-			dsklog.Dlogger.Errorf("CSV export failed for %s: %v", *flCSVOut, err)
 			fmt.Fprintf(os.Stderr, "failed to write CSV output: %v\n", err)
 			os.Exit(1)
 		}

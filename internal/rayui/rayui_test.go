@@ -164,3 +164,68 @@ func TestAdjustScrollKeepsCursorVisible(t *testing.T) {
 		t.Fatalf("expected scroll clamped to max, got %d want %d", got, want)
 	}
 }
+
+func TestApplyWheelScrollMovesCursorWithViewport(t *testing.T) {
+	a := &app{
+		layout: layout{
+			rowHeight: 20,
+			// insetRect(list, 1).Height => 58, so visibleRows() == 2
+			list: rl.NewRectangle(0, 0, 120, 60),
+		},
+		visible: []nodeRef{
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+		},
+		cursor: 1,
+		scroll: 0,
+	}
+
+	a.applyWheelScroll(-1)
+
+	if got, want := a.scroll, 3; got != want {
+		t.Fatalf("expected viewport to scroll, got %d want %d", got, want)
+	}
+	if got, want := a.cursor, 4; got != want {
+		t.Fatalf("expected cursor to move with viewport, got %d want %d", got, want)
+	}
+	if got := a.wheelRemainder; got != 0 {
+		t.Fatalf("expected wheel remainder to be cleared after whole-step scroll, got %v", got)
+	}
+}
+
+func TestApplyWheelScrollKeepsCursorStableAtClamp(t *testing.T) {
+	a := &app{
+		layout: layout{
+			rowHeight: 20,
+			// insetRect(list, 1).Height => 58, so visibleRows() == 2
+			list: rl.NewRectangle(0, 0, 120, 60),
+		},
+		visible: []nodeRef{
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+			{typ: nodeGroup, group: 0},
+		},
+		cursor: 6,
+		scroll: 6,
+	}
+
+	a.applyWheelScroll(-1)
+
+	if got, want := a.scroll, 6; got != want {
+		t.Fatalf("expected viewport to stay clamped at bottom, got %d want %d", got, want)
+	}
+	if got, want := a.cursor, 6; got != want {
+		t.Fatalf("expected cursor to stay put when viewport cannot move, got %d want %d", got, want)
+	}
+}
