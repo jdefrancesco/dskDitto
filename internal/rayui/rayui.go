@@ -34,6 +34,8 @@ const (
 	defaultRowHeight    float32 = 34
 	minListHeight       float32 = 150
 	bottomInspectorH    float32 = 116
+
+	hashHeaderLetterSpacing float32 = 1.15
 )
 
 var (
@@ -451,7 +453,7 @@ func (a *app) drawGroupHeaderRow(group *dupview.Group, rect rl.Rectangle, select
 	rl.DrawRectangleRec(rl.NewRectangle(rect.X, rect.Y, 4, rect.Height), colorAccent)
 	drawChevron(rect.X+18, rect.Y+rect.Height/2, group.Expanded, colorAccent)
 
-	hash := hashPrefix(group)
+	hash := strings.ToUpper(hashPrefix(group))
 	hashSize := a.layout.rowSize
 	badgeSize := a.layout.smallSize - 1
 	if badgeSize < 12 {
@@ -474,11 +476,11 @@ func (a *app) drawGroupHeaderRow(group *dupview.Group, rect rl.Rectangle, select
 	}
 
 	hashMaxWidth := max(rightEdge-hashX, float32(0))
-	hashLabel := truncateText(hash, hashSize, hashMaxWidth)
+	hashLabel := truncateHashHeaderText(hash, hashSize, hashMaxWidth)
 	if hashLabel == "" {
 		return
 	}
-	drawTextStrong(hashLabel, hashX, textY(rect, hashSize), hashSize, colorHeaderDeep)
+	drawHashHeaderText(hashLabel, hashX, textY(rect, hashSize), hashSize, colorHeaderDeep)
 }
 
 func (a *app) drawSelectionPanel() {
@@ -1006,21 +1008,53 @@ func uiGlyphs() []rune {
 func fontCandidates(mono bool) []string {
 	if mono {
 		candidates := []string{os.Getenv("DSKDITTO_RAYLIB_MONO_FONT")}
+		homeDir, _ := os.UserHomeDir()
 		switch runtime.GOOS {
 		case "darwin":
+			if homeDir != "" {
+				candidates = append(candidates,
+					filepath.Join(homeDir, "Library", "Fonts", "JetBrainsMono-Regular.ttf"),
+					filepath.Join(homeDir, "Library", "Fonts", "JetBrainsMonoNL-Regular.ttf"),
+					filepath.Join(homeDir, "Library", "Fonts", "JetBrainsMono-Medium.ttf"),
+					filepath.Join(homeDir, "Library", "Fonts", "JetBrainsMonoNL-Medium.ttf"),
+				)
+			}
 			candidates = append(candidates,
+				"/Library/Fonts/JetBrainsMono-Regular.ttf",
+				"/Library/Fonts/JetBrainsMonoNL-Regular.ttf",
+				"/System/Library/Fonts/SFNSMono.ttf",
 				"/System/Library/Fonts/Menlo.ttc",
 				"/System/Library/Fonts/Supplemental/Courier New.ttf",
-				"/System/Library/Fonts/SFNSMono.ttf",
 			)
 		case "windows":
 			winDir := os.Getenv("WINDIR")
+			localAppData := os.Getenv("LOCALAPPDATA")
+			if localAppData != "" {
+				candidates = append(candidates,
+					filepath.Join(localAppData, "Microsoft", "Windows", "Fonts", "JetBrainsMono-Regular.ttf"),
+					filepath.Join(localAppData, "Microsoft", "Windows", "Fonts", "JetBrainsMonoNL-Regular.ttf"),
+				)
+			}
 			candidates = append(candidates,
-				filepath.Join(winDir, "Fonts", "consola.ttf"),
+				filepath.Join(winDir, "Fonts", "JetBrainsMono-Regular.ttf"),
+				filepath.Join(winDir, "Fonts", "JetBrainsMonoNL-Regular.ttf"),
 				filepath.Join(winDir, "Fonts", "CascadiaMono.ttf"),
+				filepath.Join(winDir, "Fonts", "consola.ttf"),
 			)
 		default:
+			if homeDir != "" {
+				candidates = append(candidates,
+					filepath.Join(homeDir, ".local", "share", "fonts", "JetBrainsMono-Regular.ttf"),
+					filepath.Join(homeDir, ".local", "share", "fonts", "JetBrainsMonoNL-Regular.ttf"),
+					filepath.Join(homeDir, ".fonts", "JetBrainsMono-Regular.ttf"),
+					filepath.Join(homeDir, ".fonts", "JetBrainsMonoNL-Regular.ttf"),
+				)
+			}
 			candidates = append(candidates,
+				"/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+				"/usr/share/fonts/truetype/jetbrainsmono/JetBrainsMono-Regular.ttf",
+				"/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf",
+				"/usr/share/fonts/jetbrains-mono/JetBrainsMono-Regular.ttf",
 				"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 				"/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf",
 				"/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
@@ -1085,13 +1119,12 @@ func drawText(text string, x, y float32, size int32, color rl.Color) {
 	rl.DrawTextEx(activeFonts.regularFont(), text, rl.NewVector2(x, y), float32(size), 0, color)
 }
 
-func drawTextStrong(text string, x, y float32, size int32, color rl.Color) {
-	drawText(text, x, y, size, color)
-	drawText(text, x+0.45, y, size, color)
-}
-
 func drawMonoText(text string, x, y float32, size int32, color rl.Color) {
 	rl.DrawTextEx(activeFonts.monoFont(), text, rl.NewVector2(x, y), float32(size), 0, color)
+}
+
+func drawHashHeaderText(text string, x, y float32, size int32, color rl.Color) {
+	rl.DrawTextEx(activeFonts.monoFont(), text, rl.NewVector2(x, y), float32(size), hashHeaderLetterSpacing, color)
 }
 
 func measureText(text string, size int32) float32 {
@@ -1108,11 +1141,25 @@ func measureMonoText(text string, size int32) float32 {
 	return rl.MeasureTextEx(activeFonts.monoFont(), text, float32(size), 0).X
 }
 
+func measureHashHeaderText(text string, size int32) float32 {
+	if text == "" {
+		return 0
+	}
+	return rl.MeasureTextEx(activeFonts.monoFont(), text, float32(size), hashHeaderLetterSpacing).X
+}
+
 func truncateText(text string, size int32, maxWidth float32) string {
 	if maxWidth <= 0 {
 		return ""
 	}
 	return truncateMeasuredText(text, size, maxWidth, measureText)
+}
+
+func truncateHashHeaderText(text string, size int32, maxWidth float32) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	return truncateMeasuredText(text, size, maxWidth, measureHashHeaderText)
 }
 
 // func truncateMonoText(text string, size int32, maxWidth float32) string {
