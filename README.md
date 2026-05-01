@@ -228,23 +228,21 @@ dskDitto --json-out dupes.json ~/Projects
 
 ## Screenshots
 
-### `dskDitto` rendered as a table
+### Keyboard-first TUI for reviewing duplicate groups
+
+![Screenshot: interactive TUI](./ss/ss-tui-modern.png)
+
+### Windowed Raylib GUI for visual duplicate triage
+
+![Screenshot: Raylib GUI duplicate review](./ss/ss-gui-modern.png)
+
+### Pretty terminal output for quick scans and scripting
 
 ![Screenshot: pretty table output](./ss/ss-pretty.png)
 
-### TUI for interactively selecting files to remove or keep
-
-![Screenshot: interactive TUI](./ss/ss-tui.png)
-
-### Confirmation window keeps you from deleting the wrong files
+### Confirmation prompts add a final safety check before deletion
 
 ![Confirmation dialog screenshot](./ss/ss-confirm.png)
-
-### Legacy UI shots
-
-![Legacy screenshot 3](./ss/dskDitto-ss-one.png)
-
-![Legacy screenshot 4](./ss/dskDitto-ss-two.png)
 
 ## Development
 
