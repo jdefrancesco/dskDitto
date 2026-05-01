@@ -8,6 +8,9 @@ GUI_PATH ?= .
 DEFAULT_VERSION = 0.4.0
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || printf '%s' $(DEFAULT_VERSION))
 VERSION_LDFLAGS = -X github.com/jdefrancesco/dskDitto/internal/buildinfo.Version=$(VERSION)
+INSTALL_PKG = github.com/jdefrancesco/dskDitto/cmd/$(BINARY_NAME)
+REMOTE_NAME ?= origin
+RELEASE_BRANCH ?= master
 
 BENCH_BIN = ./bin/bench.test
 CPU_PROFILE ?= cpu.prof
@@ -90,6 +93,24 @@ gosec: check-gosec
 .PHONY: install
 install: build
 	install -m 0755 ./bin/$(BINARY_NAME) $(PREFIX)/$(BINARY_NAME)
+
+
+.PHONY: release-check
+release-check:
+	@echo "Release checklist for $(BINARY_NAME):"
+	@echo "1. Ensure internal/buildinfo/version.go matches the tag you plan to publish."
+	@echo "2. Push the release commit: git push $(REMOTE_NAME) $(RELEASE_BRANCH)"
+	@echo "3. Create and push the tag: git tag -a vX.Y.Z -m 'vX.Y.Z' && git push $(REMOTE_NAME) vX.Y.Z"
+	@echo "4. Verify the public install path after the tag is visible:"
+	@echo '   tmpdir=$$(mktemp -d) && GOBIN="$$tmpdir" go install $(INSTALL_PKG)@latest && "$$tmpdir/$(BINARY_NAME)" --version && rm -rf "$$tmpdir"'
+	@echo "Note: go install builds the tagged source directly and does not use Makefile ldflags."
+
+.PHONY: release-install-check
+release-install-check:
+	@tmpdir=$$(mktemp -d); \
+	trap 'rm -rf "$$tmpdir"' EXIT; \
+	GOBIN="$$tmpdir" $(GOCMD) install $(INSTALL_PKG)@latest; \
+	"$$tmpdir/$(BINARY_NAME)" --version
 
 
 
