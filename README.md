@@ -6,19 +6,22 @@
 
 ![dskDitto gnome logo](./docs/banner.png)
 
-`dskDitto` is a fast, parallel duplicate-file detector with interactive review UIs that let you review, keep, or safely delete redundant files.
+`dskDitto` The ultra-fast, parallel duplicate-file detector with interactive menus that make clearing unnecessary duplicates hassle free!
+
 
 ## Features
 
+- Crawl your SSD in seconds for most runs. 
 - Concurrent directory walker tuned for large trees and multi-core systems
-- Targeted mode to search for duplicates of a single file
-- Multiple output modes: Bubble Tea TUI, Raylib GUI, bullet lists, or text-friendly dumps
+- Targeted mode lets you check if a specific file has a duplicate somewhere.
+- Sleek Bubble Tea TUI displays results by default.
+- Prefer managing results with a GUI? Supply `--gui` flag for the awesome Raylib GUI
 - Optional automated duplicate removal with confirmation safety rails
-- Profiling toggles and micro-benchmarks for power users
+- Dump results to various text formats if you wish to feed results over a pipe
+- BLAKE3 and SHA256 are available for hashing
+- Skip over files that are too big, small, empty, etc..
+- Profiling toggling/micro-benchmarks for power users
 
-## Architecture
-
-A high-level runtime architecture diagram is available at [`docs/architecture.md`](./docs/architecture.md).
 
 ## Install
 
@@ -30,40 +33,11 @@ go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 
 This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default).
 
-## Build From Source
-
-Ensure you have
-
-- `go` (1.22+)
-- `gosec` (install via `go install github.com/securego/gosec/v2/cmd/gosec@latest`)
-
-```bash
-git clone https://github.com/jdefrancesco/dskDitto
-cd dskDitto
-make
-```
-
-The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
-
-To explicitly build and smoke-run the Raylib GUI path:
-
-```bash
-make build-gui
-make run-gui GUI_PATH=$HOME
-```
-
-Install the built binary somewhere on your path (defaults to `/usr/local/bin`) with:
-
-```bash
-sudo make install PREFIX=/usr/local/bin
-```
-
-Override `PREFIX` (for example `make install PREFIX=$HOME/.local/bin`) if you prefer a user-local install and want to skip `sudo`.
 
 ## Usage
 
 ```bash
-dskDitto [options] PATH...
+dskDitto [options] PATH ...
 ```
 
 Common flags:
@@ -220,31 +194,49 @@ dskDitto --json-out dupes.json ~/Projects
   dskDitto --csv-out dupes.csv /data
   ```
 
-## Configuration
 
-- **Log level:** set `DSKDITTO_LOG_LEVEL` to `debug`, `info`, `warn`, etc.
-- **Default options:** wrap `dskDitto` in a shell alias or script with your favorite defaults.
-- **Profiling:** supply `--pprof host:port` to expose Go's `pprof` endpoints while the tool runs.
 
-## Screenshots
-
-### Keyboard-first TUI for reviewing duplicate groups
+## Result Display Menus
 
 ![Screenshot: interactive TUI](./ss/ss-tui-modern.png)
 
-### Windowed Raylib GUI for visual duplicate triage
+[Bubble Tea](https://github.com/charmbracelet/bubbletea) was used for TUI
+
+## GUI Result Display
 
 ![Screenshot: Raylib GUI duplicate review](./ss/ss-gui-modern.png)
 
-### Pretty terminal output for quick scans and scripting
+GUI built with [Raylib](https://github.com/raysan5/raylib)
 
-![Screenshot: pretty table output](./ss/ss-pretty.png)
+## Build From Source (Development)
 
-### Confirmation prompts add a final safety check before deletion
+Ensure you have
 
-![Confirmation dialog screenshot](./ss/ss-confirm.png)
+- `go` (1.22+)
+- `gosec` (install via `go install github.com/securego/gosec/v2/cmd/gosec@latest`)
 
-## Development
+```bash
+git clone https://github.com/jdefrancesco/dskDitto
+cd dskDitto
+make
+```
+
+The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
+To explicitly build and smoke-run the `Raylib` GUI path:
+
+```bash
+make build-gui
+make run-gui GUI_PATH=$HOME
+```
+
+Install the built binary somewhere on your path (defaults to `/usr/local/bin`) with:
+
+```bash
+sudo make install PREFIX=/usr/local/bin
+```
+
+Override `PREFIX` (for example `make install PREFIX=$HOME/.local/bin`) if you prefer a user-local install and want to skip `sudo`.
+
 
 ```bash
 make debug         # Create development build
@@ -258,9 +250,20 @@ make bench-profile # capture cpu.prof and mem.prof into the repo root
 make pprof-web     # launch go tool pprof with HTTP UI for the latest profile
 ```
 
+## Architecture
+
+Coming soon.
+
+## Configuration
+
+- **Log level:** set `DSKDITTO_LOG_LEVEL` to `debug`, `info`, `warn`, etc.
+- **Default options:** wrap `dskDitto` in a shell alias or script with your favorite defaults.
+- **Profiling:** supply `--pprof host:port` to expose Go's `pprof` endpoints while the tool runs.
+
 ## Contributing
 
-Issues and PRs are welcome. Open an issue if you have ideas for improvements, new output modes, or performance tweaks.
+Issues and PRs are welcome. Open an issue if you have ideas for improvements, new output modes, or performance tweaks. I only
+develop this in my spare time which is less and less these days. New contributors are definitely something the project needs.
 
 ## License
 

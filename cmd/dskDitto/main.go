@@ -339,7 +339,8 @@ func main() {
 
 	start := time.Now()
 
-	showProgress := !*flTimeOnly && !*flTextOutput && !*flShowBullets && *flCSVOut == "" && *flJSONOut == "" && keepCount == 0
+	// Tried some weird stuff with progress timing
+	showProgress := true
 	var tickC <-chan time.Time
 	updateProgress := func(string) {}
 	stopProgress := func() {}
