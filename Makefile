@@ -5,7 +5,7 @@ GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
 BINARY_NAME = dskDitto
 GUI_PATH ?= .
-DEFAULT_VERSION = 0.4.1
+DEFAULT_VERSION = 0.4.2
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || printf '%s' $(DEFAULT_VERSION))
 VERSION_LDFLAGS = -X github.com/jdefrancesco/dskDitto/internal/buildinfo.Version=$(VERSION)
 INSTALL_PKG = github.com/jdefrancesco/dskDitto/cmd/$(BINARY_NAME)
