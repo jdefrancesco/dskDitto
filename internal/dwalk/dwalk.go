@@ -39,6 +39,7 @@ type DWalk struct {
 
 	// Channel used to communicate with main monitor goroutine.
 	dFiles          chan<- *dfs.Dfile
+	candidateFiles  chan<- FileCandidate
 	sem             *semaphore.Weighted
 	skipHidden      bool
 	skipEmpty       bool
@@ -56,8 +57,26 @@ type DWalk struct {
 	seenFiles map[fileIdentity]struct{}
 }
 
+// FileCandidate is a regular file that survived the cheap walker filters.
+// The content hash is intentionally deferred so callers can skip files that
+// cannot be duplicates by size.
+type FileCandidate struct {
+	Path string
+	Size int64
+}
+
 // NewDWalker returns a new DWalk instance that accepts traversal options.
 func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) *DWalk {
+	return newDWalker(rootDirs, dFiles, nil, cfg)
+}
+
+// NewCandidateWalker returns a walker that emits file path and size without
+// hashing file contents.
+func NewCandidateWalker(rootDirs []string, candidates chan<- FileCandidate, cfg config.Config) *DWalk {
+	return newDWalker(rootDirs, nil, candidates, cfg)
+}
+
+func newDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, candidates chan<- FileCandidate, cfg config.Config) *DWalk {
 
 	hashAlgo := cfg.HashAlgorithm
 	if hashAlgo == "" {
@@ -82,8 +101,9 @@ func NewDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, cfg config.Config) 
 	excludePaths := normalizeExcludePaths(cfg.ExcludePaths)
 
 	walker := &DWalk{
-		rootDirs:        rootDirs,
+		rootDirs:        normalizeRootDirs(rootDirs),
 		dFiles:          dFiles,
+		candidateFiles:  candidates,
 		skipHidden:      cfg.SkipHidden,
 		skipEmpty:       cfg.SkipEmpty,
 		skipSymLinks:    cfg.SkipSymLinks,
@@ -113,13 +133,18 @@ func (d *DWalk) Run(ctx context.Context) {
 			continue
 		}
 		d.wg.Add(1)
-		go walkDir(ctx, root, 0, d, d.dFiles)
+		go walkDir(ctx, root, 0, d)
 	}
 
 	// Wait for all goroutines to finish.
 	go func() {
 		d.wg.Wait()
-		close(d.dFiles)
+		if d.dFiles != nil {
+			close(d.dFiles)
+		}
+		if d.candidateFiles != nil {
+			close(d.candidateFiles)
+		}
 	}()
 
 }
@@ -138,7 +163,7 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<- *dfs.Dfile) {
+func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 	defer func() {
 		if r := recover(); r != nil {
 			dsklog.Dlogger.Errorf("Recovered panic while walking directory %s: %v", dir, r)
@@ -180,42 +205,43 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<-
 				continue
 			}
 			d.wg.Add(1)
-			go walkDir(ctx, subDir, depth+1, d, d.dFiles)
+			go walkDir(ctx, subDir, depth+1, d)
 			continue
 		}
 
-		info, err := entry.Info()
+		absFileName := filepath.Join(dir, name)
+		meta, err := statFile(absFileName)
 		if err != nil {
-			dsklog.Dlogger.Debugf("Error getting file info for %s: %v", name, err)
+			dsklog.Dlogger.Debugf("Error getting file info for %s: %v", absFileName, err)
 			continue
 		}
 
-		if d.skipSymLinks && info.Mode()&os.ModeSymlink != 0 {
-			dsklog.Dlogger.Debugf("Skipping symlink (resolved): %s", filepath.Join(dir, name))
+		if d.skipSymLinks && meta.mode&os.ModeSymlink != 0 {
+			dsklog.Dlogger.Debugf("Skipping symlink (resolved): %s", absFileName)
 			continue
 		}
 
 		// Skip non-regular files (sockets, pipes, device files, etc.)
-		if !info.Mode().IsRegular() {
-			dsklog.Dlogger.Debugf("Skipping non-regular file: %s (mode: %s)", entry.Name(), info.Mode())
+		if !meta.mode.IsRegular() {
+			dsklog.Dlogger.Debugf("Skipping non-regular file: %s (mode: %s)", entry.Name(), meta.mode)
 			continue
 		}
 
 		// Treat multiple hardlinks to the same underlying inode as a single file
 		// to avoid redundant hashing and duplicate entries.
-		if id, ok := getFileIdentity(info); ok {
+		if meta.hasIdentity {
 			d.seenMu.Lock()
-			if _, exists := d.seenFiles[id]; exists {
+			if _, exists := d.seenFiles[meta.identity]; exists {
 				d.seenMu.Unlock()
 				dsklog.Dlogger.Debugf("Skipping hardlink duplicate: %s", filepath.Join(dir, name))
 				continue
 			}
-			d.seenFiles[id] = struct{}{}
+			d.seenFiles[meta.identity] = struct{}{}
 			d.seenMu.Unlock()
 		}
 
 		// Check file size properties the user set.
-		fileSize := uint(max(info.Size(), 0)) // #nosec G115
+		fileSize := uint(max(meta.size, 0)) // #nosec G115
 		if d.skipEmpty && fileSize == 0 {
 			dsklog.Dlogger.Debugf("Skipping empty file: %s", name)
 			continue
@@ -229,20 +255,34 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk, dFiles chan<-
 			continue
 		}
 
-		absFileName := filepath.Join(dir, name)
 		if d.shouldSkipPath(absFileName) {
 			dsklog.Dlogger.Debugf("Skipping excluded path: %s", absFileName)
 			continue
 		}
-		if !dfs.CheckFilePerms(absFileName) {
-			dsklog.Dlogger.Debugf("Cannot access file. Invalid permissions: %s", absFileName)
-			continue
-		}
+		d.emitFile(ctx, absFileName, meta.size)
+	}
+}
 
-		dFileEntry, err := dfs.NewDfile(absFileName, info.Size(), d.hashAlgo)
-		if err == nil {
-			dFiles <- dFileEntry
+func (d *DWalk) emitFile(ctx context.Context, path string, size int64) {
+	if d.candidateFiles != nil {
+		select {
+		case <-ctx.Done():
+		case d.candidateFiles <- FileCandidate{Path: path, Size: size}:
 		}
+		return
+	}
+
+	if d.dFiles == nil {
+		return
+	}
+
+	dFileEntry, err := dfs.NewDfile(path, size, d.hashAlgo)
+	if err != nil {
+		return
+	}
+	select {
+	case <-ctx.Done():
+	case d.dFiles <- dFileEntry:
 	}
 }
 
@@ -324,7 +364,25 @@ func normalizeExcludePaths(paths []string) []string {
 	return cleaned
 }
 
+func normalizeRootDirs(paths []string) []string {
+	if len(paths) == 0 {
+		return paths
+	}
+	roots := make([]string, 0, len(paths))
+	for _, p := range paths {
+		normalized := cleanAbsPath(p)
+		if normalized == "" {
+			continue
+		}
+		roots = append(roots, normalized)
+	}
+	return roots
+}
+
 func (d *DWalk) shouldSkipPath(path string) bool {
+	if len(d.excludePaths) == 0 && len(d.skipDirPrefixes) == 0 {
+		return false
+	}
 	normalized := cleanAbsPath(path)
 	if normalized == "" {
 		return false

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 
@@ -30,6 +31,8 @@ const (
 	HashBLAKE3 HashAlgorithm = "blake3"
 )
 
+const sampleChunkSize = 4 * 1024
+
 // Dfile structure will describe a given file. We
 // only care about the few file properties that will
 // allow us to detect a duplicate.
@@ -38,6 +41,11 @@ type Dfile struct {
 	fileSize int64
 	algo     HashAlgorithm
 	fileHash [32]byte
+}
+
+type FileHashSample struct {
+	Digest          [32]byte
+	CoversWholeFile bool
 }
 
 // New creates a new Dfile.
@@ -105,6 +113,13 @@ var bufPool = sync.Pool{
 	},
 }
 
+var sampleBufPool = sync.Pool{
+	New: func() any {
+		var arr [sampleChunkSize]byte
+		return &arr
+	},
+}
+
 func (d *Dfile) hashFile() error {
 	sema <- struct{}{}
 	defer func() { <-sema }()
@@ -130,6 +145,87 @@ func (d *Dfile) hashFile() error {
 	sum := h.Sum(nil)
 	copy(d.fileHash[:], sum)
 	return nil
+}
+
+func HashFileSample(path string, size int64, algo HashAlgorithm) (FileHashSample, error) {
+	var sample FileHashSample
+	if path == "" {
+		return sample, errors.New("file name needs to be specified")
+	}
+
+	// #nosec G304
+	fd, err := syscall.Open(path, syscall.O_RDONLY, 0)
+	if err != nil {
+		return sample, fmt.Errorf("failed to open file %s: %w", path, err)
+	}
+	defer func() {
+		_ = syscall.Close(fd)
+	}()
+
+	h, err := newHash(algo)
+	if err != nil {
+		return sample, err
+	}
+
+	bufPtr := sampleBufPool.Get().(*[sampleChunkSize]byte)
+	defer sampleBufPool.Put(bufPtr)
+	buf := bufPtr[:]
+
+	if size <= int64(len(buf)) {
+		if err := hashFD(h, fd, buf, size); err != nil {
+			return sample, fmt.Errorf("failed to sample file %s: %w", path, err)
+		}
+		sum := h.Sum(nil)
+		copy(sample.Digest[:], sum)
+		sample.CoversWholeFile = true
+		return sample, nil
+	}
+
+	n, err := readFD(fd, buf)
+	if err != nil {
+		return sample, fmt.Errorf("failed to sample start of file %s: %w", path, err)
+	}
+	if n == 0 {
+		return sample, fmt.Errorf("failed to sample start of file %s: %w", path, io.ErrUnexpectedEOF)
+	}
+	_, _ = h.Write(buf[:n])
+
+	sum := h.Sum(nil)
+	copy(sample.Digest[:], sum)
+	return sample, nil
+}
+
+func hashFD(h hash.Hash, fd int, buf []byte, size int64) error {
+	remaining := size
+	for remaining > 0 {
+		want := len(buf)
+		if remaining < int64(want) {
+			want = int(remaining)
+		}
+		n, err := readFD(fd, buf[:want])
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrUnexpectedEOF
+		}
+		_, _ = h.Write(buf[:n])
+		remaining -= int64(n)
+	}
+	return nil
+}
+
+func readFD(fd int, buf []byte) (int, error) {
+	for {
+		n, err := syscall.Read(fd, buf)
+		if err == syscall.EINTR {
+			continue
+		}
+		if err != nil {
+			return n, err
+		}
+		return n, nil
+	}
 }
 
 func newHash(algo HashAlgorithm) (hash.Hash, error) {

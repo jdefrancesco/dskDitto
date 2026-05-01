@@ -8,6 +8,20 @@ import "os"
 // currently attempt inode-based hardlink deduplication.
 type fileIdentity struct{}
 
-func getFileIdentity(info os.FileInfo) (fileIdentity, bool) {
-	return fileIdentity{}, false
+type fileMeta struct {
+	size        int64
+	mode        os.FileMode
+	identity    fileIdentity
+	hasIdentity bool
+}
+
+func statFile(path string) (fileMeta, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return fileMeta{}, err
+	}
+	return fileMeta{
+		size: info.Size(),
+		mode: info.Mode(),
+	}, nil
 }

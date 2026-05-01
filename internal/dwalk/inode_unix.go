@@ -13,16 +13,44 @@ type fileIdentity struct {
 	ino uint64
 }
 
-// getFileIdentity extracts a stable identity for a regular file based on its
-// underlying Stat_t. If the platform or info does not expose this, the
-// second return value is false.
-func getFileIdentity(info os.FileInfo) (fileIdentity, bool) {
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || stat == nil {
-		return fileIdentity{}, false
+type fileMeta struct {
+	size        int64
+	mode        os.FileMode
+	identity    fileIdentity
+	hasIdentity bool
+}
+
+func statFile(path string) (fileMeta, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Lstat(path, &stat); err != nil {
+		return fileMeta{}, err
 	}
-	return fileIdentity{
-		dev: uint64(stat.Dev), // #nosec G115 -- platform-defined but safely representable in uint64
-		ino: uint64(stat.Ino), // #nosec G115 -- platform-defined but safely representable in uint64
-	}, true
+	return fileMeta{
+		size: stat.Size,
+		mode: modeFromStat(uint32(stat.Mode)),
+		identity: fileIdentity{
+			dev: uint64(stat.Dev), // #nosec G115 -- platform-defined but safely representable in uint64
+			ino: uint64(stat.Ino), // #nosec G115 -- platform-defined but safely representable in uint64
+		},
+		hasIdentity: true,
+	}, nil
+}
+
+func modeFromStat(mode uint32) os.FileMode {
+	fileMode := os.FileMode(mode & 0o777)
+	switch mode & syscall.S_IFMT {
+	case syscall.S_IFDIR:
+		fileMode |= os.ModeDir
+	case syscall.S_IFLNK:
+		fileMode |= os.ModeSymlink
+	case syscall.S_IFBLK:
+		fileMode |= os.ModeDevice
+	case syscall.S_IFCHR:
+		fileMode |= os.ModeDevice | os.ModeCharDevice
+	case syscall.S_IFIFO:
+		fileMode |= os.ModeNamedPipe
+	case syscall.S_IFSOCK:
+		fileMode |= os.ModeSocket
+	}
+	return fileMode
 }

@@ -8,7 +8,9 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
+	"sync"
 	"syscall"
 	"time"
 
@@ -266,6 +268,8 @@ func main() {
 	singleFileMode := false
 	var targetDigest dmap.Digest
 	var targetFilePath string
+	var targetFileSize int64
+	var targetSampleDigest dmap.Digest
 	if *flSingleFile != "" {
 		info, statErr := os.Stat(*flSingleFile)
 		if statErr != nil {
@@ -283,6 +287,13 @@ func main() {
 		}
 		targetDigest = dmap.Digest(targetDfile.Hash())
 		targetFilePath = targetDfile.FileName()
+		targetFileSize = info.Size()
+		targetSample, sampleErr := dfs.HashFileSample(targetFilePath, targetFileSize, hashAlgo)
+		if sampleErr != nil {
+			dsklog.Dlogger.Debugf("Failed to sample --file target %s: %v\n", *flSingleFile, sampleErr)
+			os.Exit(1)
+		}
+		targetSampleDigest = dmap.Digest(targetSample.Digest)
 		singleFileMode = true
 
 		pterm.Info.Printf("Searching for duplicates of %s\n", targetFilePath)
@@ -326,53 +337,204 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Receive files we need to process via this channel.
-	// Settled on using 1 for high throughput and no hidden back pressure that
-	// I may have been hiding with buffered channel.
-	dFiles := make(chan *dfs.Dfile, 1)
-
-	walker := dwalk.NewDWalker(rootDirs, dFiles, appCfg)
-	walker.Run(ctx)
-
 	start := time.Now()
 
-	// Show progress to user at intervals specified by tick.
-	tick := time.Tick(time.Duration(500) * time.Millisecond)
-	infoSpinner, _ := pterm.DefaultSpinner.Start()
-
-	// Number of files we have processed so far.
-	var nfiles uint
-
-MainLoop:
-	for {
-		select {
-		case <-ctx.Done():
-			// Drain dFiles.
-			for range dFiles {
-			}
-			break MainLoop
-
-		case dFile, ok := <-dFiles:
-			if !ok {
-				break MainLoop
-			}
-
-			if dFile == nil {
-				dsklog.Dlogger.Warn("Received nil dFile, skipping...")
-				continue
-			}
-			// Add the file to our map.
-			dMap.Add(dFile)
-			nfiles++
-
-		case <-tick:
-			// Display progress information.
-			progressMsg := fmt.Sprintf("Processed %d files...", nfiles)
-			infoSpinner.UpdateText(progressMsg)
+	showProgress := !*flTimeOnly && !*flTextOutput && !*flShowBullets && *flCSVOut == "" && *flJSONOut == "" && keepCount == 0
+	var tickC <-chan time.Time
+	updateProgress := func(string) {}
+	stopProgress := func() {}
+	if showProgress {
+		tick := time.NewTicker(time.Duration(500) * time.Millisecond)
+		defer tick.Stop()
+		tickC = tick.C
+		infoSpinner, _ := pterm.DefaultSpinner.Start()
+		updateProgress = func(msg string) {
+			infoSpinner.UpdateText(msg)
+		}
+		stopProgress = func() {
+			infoSpinner.Stop()
 		}
 	}
 
-	infoSpinner.Stop()
+	// First collect cheap file metadata. Hashing waits until after this pass so
+	// unique file sizes never touch the expensive content path.
+	candidateFiles := make(chan dwalk.FileCandidate, 4096)
+	walker := dwalk.NewCandidateWalker(rootDirs, candidateFiles, appCfg)
+	walker.Run(ctx)
+
+	sizeGroups := make(map[int64][]dwalk.FileCandidate, 4096)
+	var scannedFiles uint
+
+CollectLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			for range candidateFiles {
+			}
+			break CollectLoop
+
+		case candidate, ok := <-candidateFiles:
+			if !ok {
+				break CollectLoop
+			}
+			scannedFiles++
+			if singleFileMode && candidate.Size != targetFileSize {
+				continue
+			}
+			sizeGroups[candidate.Size] = append(sizeGroups[candidate.Size], candidate)
+
+		case <-tickC:
+			progressMsg := fmt.Sprintf("Scanned %d files...", scannedFiles)
+			updateProgress(progressMsg)
+		}
+	}
+
+	sampleList, skippedBySize := eligibleHashCandidates(sizeGroups, minDups, singleFileMode)
+	sizeGroups = nil
+	dsklog.Dlogger.Debugf("Skipped %d files with unique sizes before sample hashing", skippedBySize)
+
+	sampleGroups := make(map[sampleKey][]sampledFile, 4096)
+	var sampledFiles uint
+
+	if len(sampleList) > 0 {
+		sampleJobs := make(chan dwalk.FileCandidate, min(len(sampleList), 4096))
+		sampledFileCh := make(chan sampledFile, min(len(sampleList), 4096))
+		workerCount := sampleWorkerCount(len(sampleList))
+
+		var sampleWG sync.WaitGroup
+		sampleWG.Add(workerCount)
+		for i := 0; i < workerCount; i++ {
+			go func() {
+				defer sampleWG.Done()
+				for candidate := range sampleJobs {
+					sample, sampleErr := dfs.HashFileSample(candidate.Path, candidate.Size, hashAlgo)
+					if sampleErr != nil {
+						dsklog.Dlogger.Debugf("Skipping file after sample failure %s: %v", candidate.Path, sampleErr)
+						continue
+					}
+					select {
+					case <-ctx.Done():
+						return
+					case sampledFileCh <- sampledFile{
+						candidate:       candidate,
+						digest:          dmap.Digest(sample.Digest),
+						coversWholeFile: sample.CoversWholeFile,
+					}:
+					}
+				}
+			}()
+		}
+
+		go func() {
+			defer close(sampleJobs)
+			for _, candidate := range sampleList {
+				select {
+				case <-ctx.Done():
+					return
+				case sampleJobs <- candidate:
+				}
+			}
+		}()
+
+		go func() {
+			sampleWG.Wait()
+			close(sampledFileCh)
+		}()
+
+	SampleLoop:
+		for {
+			select {
+			case sample, ok := <-sampledFileCh:
+				if !ok {
+					break SampleLoop
+				}
+				sampledFiles++
+				if singleFileMode && sample.digest != targetSampleDigest {
+					continue
+				}
+				key := sampleKey{size: sample.candidate.Size, digest: sample.digest}
+				sampleGroups[key] = append(sampleGroups[key], sample)
+
+			case <-tickC:
+				progressMsg := fmt.Sprintf("Sampled %d/%d candidate files...", sampledFiles, len(sampleList))
+				updateProgress(progressMsg)
+			}
+		}
+	}
+
+	directFiles, fullHashList, skippedBySample := eligibleSampleCandidates(sampleGroups, minDups, singleFileMode)
+	sampleGroups = nil
+	dsklog.Dlogger.Debugf("Skipped %d files with unique samples before full hashing", skippedBySample)
+
+	for _, file := range directFiles {
+		dMap.AddPath(file.digest, file.candidate.Path)
+	}
+
+	var fullHashedFiles uint
+
+	if len(fullHashList) > 0 {
+		hashJobs := make(chan dwalk.FileCandidate, min(len(fullHashList), 4096))
+		hashedFiles := make(chan *dfs.Dfile, min(len(fullHashList), 4096))
+		workerCount := hashWorkerCount(len(fullHashList))
+
+		var hashWG sync.WaitGroup
+		hashWG.Add(workerCount)
+		for i := 0; i < workerCount; i++ {
+			go func() {
+				defer hashWG.Done()
+				for candidate := range hashJobs {
+					dFile, hashErr := dfs.NewDfile(candidate.Path, candidate.Size, hashAlgo)
+					if hashErr != nil {
+						dsklog.Dlogger.Debugf("Skipping file after hash failure %s: %v", candidate.Path, hashErr)
+						continue
+					}
+					select {
+					case <-ctx.Done():
+						return
+					case hashedFiles <- dFile:
+					}
+				}
+			}()
+		}
+
+		go func() {
+			defer close(hashJobs)
+			for _, candidate := range fullHashList {
+				select {
+				case <-ctx.Done():
+					return
+				case hashJobs <- candidate:
+				}
+			}
+		}()
+
+		go func() {
+			hashWG.Wait()
+			close(hashedFiles)
+		}()
+
+	HashLoop:
+		for {
+			select {
+			case dFile, ok := <-hashedFiles:
+				if !ok {
+					break HashLoop
+				}
+				if dFile == nil {
+					dsklog.Dlogger.Warn("Received nil dFile, skipping...")
+					continue
+				}
+				dMap.Add(dFile)
+				fullHashedFiles++
+
+			case <-tickC:
+				progressMsg := fmt.Sprintf("Hashed %d/%d full candidate files...", fullHashedFiles, len(fullHashList))
+				updateProgress(progressMsg)
+			}
+		}
+	}
+
+	stopProgress()
 	duration := time.Since(start)
 
 	// Stop profiling after this point. Profile data should now be
@@ -389,8 +551,9 @@ MainLoop:
 	}
 
 	// Status bar update
-	finalInfo := "Total of " + pterm.LightWhite(nfiles) + " files processed in " +
-		pterm.LightWhite(duration)
+	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
+		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
+		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
 
 	// Dump to CSV, then exit without dropping into TUI
@@ -456,6 +619,91 @@ MainLoop:
 	} else {
 		ui.LaunchTUI(dMap)
 	}
+}
+
+func eligibleHashCandidates(sizeGroups map[int64][]dwalk.FileCandidate, minDups uint, singleFileMode bool) ([]dwalk.FileCandidate, uint) {
+	if minDups < 2 {
+		minDups = 2
+	}
+
+	total := 0
+	for _, files := range sizeGroups {
+		if singleFileMode || uint(len(files)) >= minDups {
+			total += len(files)
+		}
+	}
+
+	candidates := make([]dwalk.FileCandidate, 0, total)
+	var skipped uint
+	for _, files := range sizeGroups {
+		if singleFileMode || uint(len(files)) >= minDups {
+			candidates = append(candidates, files...)
+			continue
+		}
+		skipped += uint(len(files))
+	}
+
+	return candidates, skipped
+}
+
+type sampleKey struct {
+	size   int64
+	digest dmap.Digest
+}
+
+type sampledFile struct {
+	candidate       dwalk.FileCandidate
+	digest          dmap.Digest
+	coversWholeFile bool
+}
+
+func eligibleSampleCandidates(sampleGroups map[sampleKey][]sampledFile, minDups uint, singleFileMode bool) ([]sampledFile, []dwalk.FileCandidate, uint) {
+	if minDups < 2 {
+		minDups = 2
+	}
+
+	var directFiles []sampledFile
+	var fullHashList []dwalk.FileCandidate
+	var skipped uint
+
+	for _, files := range sampleGroups {
+		if len(files) == 0 {
+			continue
+		}
+		if !singleFileMode && uint(len(files)) < minDups {
+			skipped += uint(len(files))
+			continue
+		}
+		if files[0].coversWholeFile {
+			directFiles = append(directFiles, files...)
+			continue
+		}
+		for _, file := range files {
+			fullHashList = append(fullHashList, file.candidate)
+		}
+	}
+
+	return directFiles, fullHashList, skipped
+}
+
+func sampleWorkerCount(total int) int {
+	return boundedWorkerCount(total, 8)
+}
+
+func hashWorkerCount(total int) int {
+	return boundedWorkerCount(total, 8)
+}
+
+func boundedWorkerCount(total int, procMultiplier int) int {
+	if total <= 0 {
+		return 0
+	}
+	workers := runtime.GOMAXPROCS(0) * procMultiplier
+	if workers < 1 {
+		workers = 1
+	}
+	workers = min(workers, 128)
+	return min(workers, total)
 }
 
 // applySingleFileFilter filters the provided Dmap to retain only the entries matching

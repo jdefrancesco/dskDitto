@@ -74,8 +74,15 @@ func NewDmap(minDuplicates uint) (*Dmap, error) {
 
 // Add will take a dfile and add it the map.
 func (d *Dmap) Add(dfile *dfs.Dfile) {
-	hash := Digest(dfile.Hash())
-	d.filesMap[hash] = append(d.filesMap[hash], dfile.FileName())
+	d.AddPath(Digest(dfile.Hash()), dfile.FileName())
+}
+
+// AddPath records a path under an already computed digest.
+func (d *Dmap) AddPath(hash Digest, path string) {
+	if path == "" {
+		return
+	}
+	d.filesMap[hash] = append(d.filesMap[hash], path)
 	d.fileCount++
 }
 
