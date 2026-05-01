@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jdefrancesco/dskDitto/internal/buildinfo"
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 	"github.com/jdefrancesco/dskDitto/internal/dupview"
@@ -15,11 +16,6 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
-
-// TODO:
-// 2. The hash dup batch header make stand out tiny bit more with some color.
-// 4. Banner, get rid of the Raylib mode thingy
-// 5. Add a flag so no need to enter code to remove files.
 
 const (
 	initialWidth  int32 = 1000
@@ -50,12 +46,14 @@ var (
 	colorText       = rl.NewColor(17, 24, 39, 255)
 	colorMuted      = rl.NewColor(96, 111, 128, 255)
 	colorAccent     = rl.NewColor(15, 118, 110, 255)
+	colorAccentBtn  = rl.NewColor(13, 148, 136, 255)
 	colorAccentSoft = rl.NewColor(218, 242, 238, 255)
 	colorSelected   = rl.NewColor(228, 244, 240, 255)
 	colorMarked     = rl.NewColor(180, 83, 9, 255)
 	colorMarkedSoft = rl.NewColor(255, 247, 237, 255)
 	colorSuccess    = rl.NewColor(22, 101, 52, 255)
 	colorDanger     = rl.NewColor(185, 28, 28, 255)
+	colorDangerBtn  = rl.NewColor(248, 113, 113, 255) // Soft red color for Delete button
 	colorDangerSoft = rl.NewColor(254, 226, 226, 255)
 	colorDisabled   = rl.NewColor(232, 238, 244, 255)
 )
@@ -363,7 +361,10 @@ func (a *app) drawHeader() {
 	drawText("dskDitto", l.margin, 13, 28, colorHeaderText)
 	drawText("Duplicate review", l.margin+126, 23, 16, rl.NewColor(204, 251, 241, 255))
 
-	pill := "Raylib mode"
+	pill := buildinfo.Version
+	if !strings.HasPrefix(pill, "v") {
+		pill = "v" + pill
+	}
 	pillW := measureText(pill, 14) + 24
 	pillRect := rl.NewRectangle(l.screenWidth-pillW-l.margin, 18, pillW, 28)
 	rl.DrawRectangleRounded(pillRect, 0.45, 12, rl.NewColor(9, 65, 57, 255))
@@ -677,7 +678,6 @@ func (a *app) refreshLayout() {
 }
 
 func (a *app) buildToolbarButtons(width, margin, gap float32) ([]button, float32) {
-	x := margin
 	y := defaultHeaderHeight + 14
 	marked := dupview.CountMarked(a.results.Groups)
 	sortLabel := "Sort: size"
@@ -685,30 +685,75 @@ func (a *app) buildToolbarButtons(width, margin, gap float32) ([]button, float32
 		sortLabel = "Sort: count"
 	}
 
-	specs := []button{
+	viewSpecs := []button{
 		{id: "mark", label: "Mark all", enabled: len(a.results.Groups) > 0},
 		{id: "clear", label: "Clear", enabled: marked > 0},
-		{id: "delete", label: "Delete", enabled: marked > 0, danger: true},
-		{id: "link", label: "Link", enabled: marked > 0, primary: true},
+		{id: "collapse-all", label: "Collapse all", enabled: a.hasExpandedGroups()},
+		{id: "expand-all", label: "Expand all", enabled: a.hasCollapsedGroups()},
 		{id: "sort", label: sortLabel, enabled: len(a.results.Groups) > 0},
 	}
+	actionSpecs := []button{
+		{id: "delete", label: "Delete", enabled: marked > 0, danger: true},
+		{id: "link", label: "Link", enabled: marked > 0, primary: true},
+	}
 
-	buttons := make([]button, 0, len(specs))
+	buttons := make([]button, 0, len(viewSpecs)+len(actionSpecs))
 	buttonHeight := float32(32)
 	rowGap := float32(8)
 	maxX := width - margin
-	for _, spec := range specs {
-		width := measureText(spec.label, 14) + 30
-		if x > margin && x+width > maxX {
+	actionWidth := buttonGroupWidth(actionSpecs, gap)
+	actionX := maxX - actionWidth
+	actionY := y
+	actionBelowView := false
+	viewMaxX := actionX - gap*2
+	if viewMaxX < margin+buttonWidth(viewSpecs[0].label) {
+		viewMaxX = maxX
+		actionY = y + buttonHeight + rowGap
+		actionBelowView = true
+	}
+
+	x := margin
+	viewY := y
+	for _, spec := range viewSpecs {
+		width := buttonWidth(spec.label)
+		if x > margin && x+width > viewMaxX {
 			x = margin
-			y += buttonHeight + rowGap
+			viewY += buttonHeight + rowGap
 		}
-		spec.rect = rl.NewRectangle(x, y, width, 32)
+		spec.rect = rl.NewRectangle(x, viewY, width, buttonHeight)
 		buttons = append(buttons, spec)
 		x += width + gap
 	}
-	toolbarHeight := (y - defaultHeaderHeight) + buttonHeight + 14
+	if actionBelowView {
+		actionY = viewY + buttonHeight + rowGap
+	}
+
+	actionX = maxX - actionWidth
+	for _, spec := range actionSpecs {
+		width := buttonWidth(spec.label)
+		spec.rect = rl.NewRectangle(actionX, actionY, width, buttonHeight)
+		buttons = append(buttons, spec)
+		actionX += width + gap
+	}
+
+	bottomY := max(viewY, actionY) + buttonHeight
+	toolbarHeight := (bottomY - defaultHeaderHeight) + 14
 	return buttons, toolbarHeight
+}
+
+func buttonWidth(label string) float32 {
+	return measureText(label, 14) + 30
+}
+
+func buttonGroupWidth(buttons []button, gap float32) float32 {
+	width := float32(0)
+	for i, b := range buttons {
+		if i > 0 {
+			width += gap
+		}
+		width += buttonWidth(b.label)
+	}
+	return width
 }
 
 func (a *app) handleButton(id string) {
@@ -726,6 +771,10 @@ func (a *app) handleButton(id string) {
 	case "sort":
 		a.results.CycleSortMode()
 		a.rebuildVisibleNodes()
+	case "collapse-all":
+		a.setAllGroupsExpanded(false)
+	case "expand-all":
+		a.setAllGroupsExpanded(true)
 	}
 }
 
@@ -806,6 +855,38 @@ func (a *app) toggleCurrentGroup() {
 	group := a.results.Groups[node.group]
 	group.Expanded = !group.Expanded
 	a.rebuildVisibleNodes()
+}
+
+func (a *app) setAllGroupsExpanded(expanded bool) {
+	changed := false
+	for _, group := range a.results.Groups {
+		if group.Expanded == expanded {
+			continue
+		}
+		group.Expanded = expanded
+		changed = true
+	}
+	if changed {
+		a.rebuildVisibleNodes()
+	}
+}
+
+func (a *app) hasExpandedGroups() bool {
+	for _, group := range a.results.Groups {
+		if group.Expanded {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *app) hasCollapsedGroups() bool {
+	for _, group := range a.results.Groups {
+		if !group.Expanded {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *app) toggleCurrentFileMark() {
@@ -922,19 +1003,24 @@ func drawButton(b button) {
 		text = colorMuted
 		border = colorBorderSoft
 	} else if b.danger {
-		fill = colorDanger
+		fill = colorDangerBtn
 		text = rl.White
-		border = colorDanger
+		border = colorDangerBtn
 	} else if b.primary {
-		fill = colorAccent
+		fill = colorAccentBtn
 		text = rl.White
-		border = colorAccent
+		border = colorAccentBtn
 	}
 	rl.DrawRectangleRounded(b.rect, 0.20, 10, fill)
 	rl.DrawRectangleRoundedLinesEx(b.rect, 0.20, 10, 1, border)
 
 	textWidth := measureText(b.label, 14)
-	drawText(b.label, b.rect.X+(b.rect.Width-textWidth)/2, b.rect.Y+9, 14, text)
+	drawButtonText(b.label, b.rect.X+(b.rect.Width-textWidth)/2, b.rect.Y+9, 14, text)
+}
+
+func drawButtonText(text string, x, y float32, size int32, color rl.Color) {
+	drawText(text, x, y, size, color)
+	drawText(text, x+0.3, y, size, color)
 }
 
 func drawPanel(rect rl.Rectangle) {

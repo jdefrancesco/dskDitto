@@ -5,6 +5,9 @@ GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
 BINARY_NAME = dskDitto
 GUI_PATH ?= .
+DEFAULT_VERSION = 0.4.0
+VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || printf '%s' $(DEFAULT_VERSION))
+VERSION_LDFLAGS = -X github.com/jdefrancesco/dskDitto/internal/buildinfo.Version=$(VERSION)
 
 BENCH_BIN = ./bin/bench.test
 CPU_PROFILE ?= cpu.prof
@@ -31,14 +34,14 @@ check-gosec:
 
 debug: security-scan
 	# Get rid of exposed profile webserver warning for now.
-	$(GOBUILD) -o ./bin/$(BINARY_NAME) -v -gcflags "all=-N -l" ./cmd/$(BINARY_NAME)
+	$(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o ./bin/$(BINARY_NAME) -v -gcflags "all=-N -l" ./cmd/$(BINARY_NAME)
 
 build: security-scan
-	go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
+	$(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
 .PHONY: build-gui
 build-gui: security-scan
-	CGO_ENABLED=1 $(GOBUILD) -o ./bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
+	CGO_ENABLED=1 $(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o ./bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
 	@echo "GUI-capable binary built at ./bin/$(BINARY_NAME)"
 	@echo "Run it with: ./bin/$(BINARY_NAME) --gui <path>"
 
@@ -48,7 +51,7 @@ run-gui: build-gui
 
 .PHONY: build-darwin-arm64
 build-darwin-arm64:
-	GOOS=darwin GOARCH=arm64 go build -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o ./bin/dskDitto ./cmd/$(BINARY_NAME)
 
 .PHONY: test
 test:

@@ -128,6 +128,58 @@ func TestRebuildVisibleNodesAndToggleMark(t *testing.T) {
 	}
 }
 
+func TestHandleButtonExpandsAndCollapsesAllGroups(t *testing.T) {
+	groups := []*dupview.Group{
+		{
+			Expanded: true,
+			Files: []*dupview.FileEntry{
+				{Path: "/tmp/a"},
+				{Path: "/tmp/b"},
+			},
+		},
+		{
+			Expanded: false,
+			Files: []*dupview.FileEntry{
+				{Path: "/tmp/c"},
+			},
+		},
+	}
+
+	a := &app{
+		results: &dupview.Model{Groups: groups},
+		layout: layout{
+			rowHeight: 20,
+			list:      rl.NewRectangle(0, 0, 120, 120),
+		},
+		lastClickIdx: -1,
+		lastGroupIdx: -1,
+	}
+	a.rebuildVisibleNodes()
+
+	if !a.hasExpandedGroups() {
+		t.Fatalf("expected expanded groups before collapsing")
+	}
+	if !a.hasCollapsedGroups() {
+		t.Fatalf("expected collapsed groups before expanding")
+	}
+
+	a.handleButton("collapse-all")
+	if a.hasExpandedGroups() {
+		t.Fatalf("expected all groups to collapse")
+	}
+	if got, want := len(a.visible), 2; got != want {
+		t.Fatalf("expected only group rows after collapse, got %d want %d", got, want)
+	}
+
+	a.handleButton("expand-all")
+	if a.hasCollapsedGroups() {
+		t.Fatalf("expected all groups to expand")
+	}
+	if got, want := len(a.visible), 5; got != want {
+		t.Fatalf("expected group and file rows after expand, got %d want %d", got, want)
+	}
+}
+
 func TestAdjustScrollKeepsCursorVisible(t *testing.T) {
 	groups := []*dupview.Group{
 		{Expanded: true, Files: []*dupview.FileEntry{{Path: "/tmp/a"}}},

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jdefrancesco/dskDitto/internal/buildinfo"
 	"github.com/jdefrancesco/dskDitto/internal/config"
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
@@ -24,9 +25,6 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
 )
-
-// Version
-const ver = "0.4.0"
 
 func init() {
 
@@ -550,7 +548,7 @@ func showHeader(safe bool) {
 }
 
 func showVersion() {
-	fmt.Printf("Version: %s\n", ver)
+	fmt.Printf("Version: %s\n", buildinfo.Version)
 	fmt.Printf("Github: https://github.com/jdefrancesco/dskDitto\n")
 	// Get rid of pesky percent sign some shells show if new line isn't printed correctly.
 	fmt.Println("")
