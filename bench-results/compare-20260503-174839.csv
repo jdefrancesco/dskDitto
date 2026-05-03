@@ -1,0 +1,2 @@
+tool,hash,profile,cache_mode,iteration,user_sec,system_sec,cpu_pct,wall_raw,wall_sec,max_rss_kb,vol_ctx,invol_ctx
+dskDitto,sha256,ssd,warm,1,26.40,210.27,649.66,36.43,36.430000,898088960,3104906,5442844
