@@ -20,6 +20,7 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
+	"github.com/jdefrancesco/dskDitto/internal/manifest"
 	"github.com/jdefrancesco/dskDitto/internal/rayui"
 	"github.com/jdefrancesco/dskDitto/internal/ui"
 	"github.com/jdefrancesco/dskDitto/pkg/utils"
@@ -34,38 +35,43 @@ func init() {
 	flag.Usage = func() {
 		showHeader(false)
 		fmt.Fprintf(os.Stderr, "Usage: dskDitto [options] PATHS\n\n")
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  --no-banner                Do not show the dskDitto banner.\n")
-		fmt.Fprintf(os.Stderr, "  --version                  Display version information.\n")
-		fmt.Fprintf(os.Stderr, "  --color-safe               Use a high-compatibility theme for problematic terminal colors.\n")
-		fmt.Fprintf(os.Stderr, "  --gui                      Display results in the experimental Raylib GUI.\n")
-		fmt.Fprintf(os.Stderr, "  --profile <file>           Write CPU profile to disk for analysis.\n")
-		fmt.Fprintf(os.Stderr, "  --time-only                Report scan duration only (for development).\n")
-		fmt.Fprintf(os.Stderr, "  --min-size <size>          Skip files smaller than the given size (e.g. 512K, 5MiB).\n")
-		fmt.Fprintf(os.Stderr, "  --max-size <size>          Skip files larger than the given size (default 4GiB).\n")
-		fmt.Fprintf(os.Stderr, "  --text               	     Emit duplicate results in text-friendly format.\n")
-		fmt.Fprintf(os.Stderr, "  --bullet                   Show duplicates as a formatted bullet list.\n")
-		fmt.Fprintf(os.Stderr, "  --empty                    Include empty files (default: ignore).\n")
-		fmt.Fprintf(os.Stderr, "  --no-symlinks              Skip symbolic links (default true).\n")
-		fmt.Fprintf(os.Stderr, "  --hidden                   Include hidden dotfiles and directories (default: ignore).\n")
-		fmt.Fprintf(os.Stderr, "  --exclude <path>           Exclude a path from scanning (repeatable; excludes descendants).\n")
-		fmt.Fprintf(os.Stderr, "  --current                  Do not descend into subdirectories.\n")
-		fmt.Fprintf(os.Stderr, "  --depth <levels>           Limit recursion to <levels> directories below the start paths.\n")
-		fmt.Fprintf(os.Stderr, "  --include-vfs              Include virtual filesystem directories like /proc or /dev.\n")
-		fmt.Fprintf(os.Stderr, "  --dups <count>             Require at least this many files per duplicate group (default 2).\n")
-		fmt.Fprintf(os.Stderr, "  --remove <keep>            Operate on duplicates, keeping only <keep> files per group.\n")
-		fmt.Fprintf(os.Stderr, "  --link                     With --remove, convert extra duplicates into symlinks instead of deleting them.\n")
-		fmt.Fprintf(os.Stderr, "  --hash <algo>              Hash algorithm: sha256 (default) or blake3.\n")
-		fmt.Fprintf(os.Stderr, "  --file <path>              Only report duplicates of the specified file.\n")
-		fmt.Fprintf(os.Stderr, "  --csv-out <file>           Write duplicate groups to a CSV file.\n")
-		fmt.Fprintf(os.Stderr, "  --json-out <file>          Write duplicate groups to a JSON file.\n")
-		fmt.Fprintf(os.Stderr, "  --fs-detect <path>         Detect and display the filesystem containing path.\n\n")
+		printFlagHelpTable()
 		fmt.Fprintf(os.Stderr, "Notes:\n")
 		fmt.Fprintf(os.Stderr, "  Display-oriented options like --bullet only render results; no files are removed.\n")
 	}
 }
 
 type stringListFlag []string
+
+func printFlagHelpTable() {
+	type helpRow struct {
+		option string
+		usage  string
+	}
+
+	rows := make([]helpRow, 0, 24)
+	maxOptionWidth := 0
+	flag.VisitAll(func(fl *flag.Flag) {
+		argName, usage := flag.UnquoteUsage(fl)
+		option := "--" + fl.Name
+		if argName != "" {
+			option += " <" + argName + ">"
+		}
+		if len(option) > maxOptionWidth {
+			maxOptionWidth = len(option)
+		}
+		rows = append(rows, helpRow{
+			option: option,
+			usage:  usage,
+		})
+	})
+
+	fmt.Fprintf(os.Stderr, "Options:\n")
+	for _, row := range rows {
+		fmt.Fprintf(os.Stderr, "  %-*s  %s\n", maxOptionWidth, row.option, row.usage)
+	}
+	fmt.Fprintln(os.Stderr)
+}
 
 func (s *stringListFlag) String() string {
 	if s == nil {
@@ -129,10 +135,10 @@ func main() {
 	var (
 		flNoBanner      = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
 		flShowVersion   = flag.Bool("version", false, "Display version")
-		flCpuProfile    = flag.String("profile", "", "Write CPU profile to disk for analysis.")
+		flCpuProfile    = flag.String("profile", "", "Write CPU profile to `file` for analysis.")
 		flTimeOnly      = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
-		flMinFileSize   = flag.String("min-size", "", "Skip files smaller than this size (supports suffixes like 512K, 5MiB).")
-		flMaxFileSize   = flag.String("max-size", "", "Skip files larger than this size (default 4GiB).")
+		flMinFileSize   = flag.String("min-size", "", "Skip files smaller than this `size` (supports suffixes like 512K, 5MiB).")
+		flMaxFileSize   = flag.String("max-size", "", "Skip files larger than this `size` (default 4GiB).")
 		flTextOutput    = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets   = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
 		flIncludeEmpty  = flag.Bool("empty", false, "Include empty files (0 bytes).")
@@ -140,21 +146,25 @@ func main() {
 		flIncludeHidden = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
 		flExcludePaths  stringListFlag
 		flNoRecurse     = flag.Bool("current", false, "Only scan the provided directories without descending into subdirectories.")
-		flDepth         = flag.Int("depth", -1, "Maximum recursion depth; 0 inspects only the provided paths, -1 means unlimited.")
+		flDepth         = flag.Int("depth", -1, "Maximum recursion `levels`; 0 inspects only the provided paths, -1 means unlimited.")
 		flIncludeVFS    = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
-		flMinDups       = flag.Uint("dups", 2, "Minimum number of duplicates required to display a group.")
-		flHashAlgo      = flag.String("hash", "sha256", "Hash algorithm to use: sha256 (default) or blake3.")
-		flKeep          = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many files per group.")
+		flMinDups       = flag.Uint("dups", 2, "Minimum duplicate file `count` required to display a group.")
+		flHashAlgo      = flag.String("hash", "sha256", "Hash algorithm `algo`: sha256 (default) or blake3.")
+		flKeep          = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many `keep` files per group.")
 		flLinkMode      = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
-		flSingleFile    = flag.String("file", "", "Only search for duplicates of the specified file.")
-		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV file.")
-		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON file.")
-		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified path")
+		flSingleFile    = flag.String("file", "", "Only search for duplicates of the specified `path` file.")
+		flCSVOut        = flag.String("csv-out", "", "Write duplicate groups to the specified CSV `file`.")
+		flJSONOut       = flag.String("json-out", "", "Write duplicate groups to the specified JSON `file`.")
+		flDetectFS      = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
 		flColorSafe     = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
 		flGui           = flag.Bool("gui", false, "Show results in an interactive raylib GUI")
+		flBackupFile    = flag.String("backup", "", "Write duplicate restore backup JSONL to the specified `file`.")
+		flRestoreFile   = flag.String("restore", "", "Restore duplicate files from the specified JSONL `file`.")
+		flDryRun        = flag.Bool("dry-run", false, "With --restore, print actions without writing files.")
+		flVerifyHash    = flag.Bool("verify-hash", true, "With --restore, verify canonical file hashes before replay.")
 	)
 	// The exclude flag can take multiple path targets
-	flag.Var(&flExcludePaths, "exclude", "Exclude a path from scanning (repeatable).")
+	flag.Var(&flExcludePaths, "exclude", "Exclude a `path` from scanning (repeatable).")
 	flag.Parse()
 
 	// Turn off default color scheme. This flag can be used when users terminal color pallete isn't
@@ -191,6 +201,26 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Filesystem: %s\n\n", fs)
+	}
+
+	if *flRestoreFile != "" {
+		if err := validateRestoreMode(*flRestoreFile, *flBackupFile, flag.Args(), *flGui, *flTextOutput, *flShowBullets, *flCSVOut, *flJSONOut, *flSingleFile, *flKeep, *flLinkMode); err != nil {
+			fmt.Fprintf(os.Stderr, "invalid restore invocation: %v\n", err)
+			os.Exit(1)
+		}
+		restoreOptions := manifest.RestoreOptions{
+			DryRun:       *flDryRun,
+			Overwrite:    false,
+			VerifyHash:   *flVerifyHash,
+			RestoreMode:  true,
+			RestoreMTime: true,
+		}
+		if err := manifest.RestoreManifest(*flRestoreFile, restoreOptions); err != nil {
+			fmt.Fprintf(os.Stderr, "restore failed: %v\n", err)
+			os.Exit(1)
+		}
+		pterm.Success.Printf("Restore completed from manifest %s.\n", *flRestoreFile)
+		os.Exit(0)
 	}
 
 	// Maximum uint size.
@@ -551,11 +581,31 @@ CollectLoop:
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
 	}
 
+	if *flBackupFile != "" {
+		if err := manifest.CanonicalizeDmapGroups(dMap); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to normalize duplicate groups for manifest: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Status bar update
 	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
 		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
 		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
+
+	if *flBackupFile != "" {
+		entries, manifestErr := manifest.EntriesFromDmap(dMap, hashAlgo)
+		if manifestErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to build restore manifest: %v\n", manifestErr)
+			os.Exit(1)
+		}
+		if manifestErr := manifest.Write(*flBackupFile, entries); manifestErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to write restore manifest: %v\n", manifestErr)
+			os.Exit(1)
+		}
+		pterm.Success.Printf("Restore backup file with %d entries written to %s.\n", len(entries), *flBackupFile)
+	}
 
 	// Dump to CSV, then exit without dropping into TUI
 	if *flCSVOut != "" {
@@ -775,6 +825,22 @@ func ensurePathFirst(paths []string, target string) []string {
 		result = append(result, paths...)
 		return result
 	}
+}
+
+func validateRestoreMode(restoreManifest, backupFile string, args []string, gui, textOutput, bulletOutput bool, csvOut, jsonOut, singleFile string, keep uint, linkMode bool) error {
+	if restoreManifest == "" {
+		return fmt.Errorf("--restore path must not be empty")
+	}
+	if backupFile != "" {
+		return fmt.Errorf("--restore cannot be combined with --backup")
+	}
+	if len(args) > 0 {
+		return fmt.Errorf("path arguments are not allowed with --restore")
+	}
+	if gui || textOutput || bulletOutput || csvOut != "" || jsonOut != "" || keep > 0 || linkMode || singleFile != "" {
+		return fmt.Errorf("--restore cannot be combined with scan/output/mutation flags")
+	}
+	return nil
 }
 
 // showHeader prints dskDitto banner.

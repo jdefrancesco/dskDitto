@@ -5,8 +5,9 @@ GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
 BINARY_NAME = dskDitto
 GUI_PATH ?= .
-DEFAULT_VERSION = 0.4.2
-VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || printf '%s' $(DEFAULT_VERSION))
+# Keep Makefile fallback version aligned with source buildinfo.Version.
+SOURCE_VERSION ?= $(shell awk -F'"' '/^[[:space:]]*var[[:space:]]+Version[[:space:]]*=[[:space:]]*"/ { print $$2; exit }' internal/buildinfo/version.go)
+VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || printf '%s' $(SOURCE_VERSION))
 VERSION_LDFLAGS = -X github.com/jdefrancesco/dskDitto/internal/buildinfo.Version=$(VERSION)
 INSTALL_PKG = github.com/jdefrancesco/dskDitto/cmd/$(BINARY_NAME)
 REMOTE_NAME ?= origin

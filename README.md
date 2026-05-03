@@ -8,20 +8,17 @@
 
 `dskDitto` The ultra-fast, parallel duplicate-file detector with interactive menus that make clearing unnecessary duplicates hassle free!
 
-
 ## Features
 
-- Crawl your SSD in seconds for most runs. 
-- Concurrent directory walker tuned for large trees and multi-core systems
-- Targeted mode lets you check if a specific file has a duplicate somewhere.
-- Sleek Bubble Tea TUI displays results by default.
-- Prefer managing results with a GUI? Supply `--gui` flag for the awesome Raylib GUI
-- Optional automated duplicate removal with confirmation safety rails
-- Dump results to various text formats if you wish to feed results over a pipe
-- BLAKE3 and SHA256 are available for hashing
-- Skip over files that are too big, small, empty, etc..
-- Profiling toggling/micro-benchmarks for power users
-
+- **Blazingly fast duplicate scanning** — Parallel processing finds duplicates across large disks instantly.
+- **Interactive TUI by default** — Browse, compare, and manage duplicates with an intuitive terminal interface powered by Bubble Tea.
+- **Optional GUI** — Use the experimental Raylib GUI for a graphical alternative to the TUI.
+- **Safe deletion & symlink conversion** — Remove duplicates or replace them with symlinks, with confirmation dialogs to prevent accidents.
+- **Smart single-file search** — Hash a specific file and instantly find all its duplicates across your filesystem.
+- **Flexible hashing** — Choose between SHA-256 (default) or BLAKE3 for content verification.
+- **Fine-grained filtering** — Skip files by size, depth, hidden files, symlinks, and virtual filesystems.
+- **Export results** — Save findings to CSV, JSON, or plain text for reporting or automation.
+- **Unix hard-link aware** — Treats hard-linked files intelligently to avoid false duplicates.
 
 ## Install
 
@@ -33,7 +30,6 @@ go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 
 This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default).
 
-
 ## Usage
 
 ```bash
@@ -42,32 +38,32 @@ dskDitto [options] PATH ...
 
 Common flags:
 
-| Flag | Description |
-| ---- | ----------- |
-| `--version` | Print the current version and exit |
-| `--no-banner` | Skip the startup banner |
-| `--gui` | Review results in the experimental Raylib GUI instead of the default TUI |
-| `--profile <file>` | Write a CPU profile to the given file |
-| `--time-only` | Exit immediately after the scan, printing only the elapsed time |
-| `--min-size <bytes>` | Ignore files smaller than the provided size |
-| `--max-size <bytes>` | Skip files larger than the provided size (default 4 GiB) |
-| `--hidden` | Include dot files and dot-directories |
-| `--exclude <path>` | Exclude a path from scanning (repeatable; excludes descendants) |
-| `--no-symlinks` | Skip symbolic links |
-| `--empty` | Include zero-byte files |
-| `--include-vfs` | Include virtual filesystem directories such as `/proc` or `/dev` |
-| `--current` | Restrict the scan to only the specified paths (no recursion) |
-| `--depth <levels>` | Limit recursion to `<levels>` directories below the starting paths |
-| `--dups <count>` | Only show groups that contain at least `<count>` files |
-| `--text`, `--bullet` | Render duplicates without launching the TUI |
-| `--remove <keep>` | Operate on duplicates, keeping the first `<keep>` entries per group |
-| `--link` | With `--remove`, convert extra duplicates to symlinks instead of deleting them |
-| `--file <path>` | Only report duplicates of the given file |
-| `--hash <algo>` | Select hash algorithm: `sha256` (default) or `blake3` |
-| `--csv-out <file>` | Write duplicate groups to CSV |
-| `--json-out <file>` | Write duplicate groups to JSON |
-| `--fs-detect <path>` | Print the filesystem type that contains `<path>` |
-| `--color-safe` | Use a high-compatibility TUI theme that avoids custom colors (best for problematic terminal themes) |
+| Flag                 | Description                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `--version`          | Print the current version and exit                                                                  |
+| `--no-banner`        | Skip the startup banner                                                                             |
+| `--gui`              | Review results in the experimental Raylib GUI instead of the default TUI                            |
+| `--profile <file>`   | Write a CPU profile to the given file                                                               |
+| `--time-only`        | Exit immediately after the scan, printing only the elapsed time                                     |
+| `--min-size <bytes>` | Ignore files smaller than the provided size                                                         |
+| `--max-size <bytes>` | Skip files larger than the provided size (default 4 GiB)                                            |
+| `--hidden`           | Include dot files and dot-directories                                                               |
+| `--exclude <path>`   | Exclude a path from scanning (repeatable; excludes descendants)                                     |
+| `--no-symlinks`      | Skip symbolic links                                                                                 |
+| `--empty`            | Include zero-byte files                                                                             |
+| `--include-vfs`      | Include virtual filesystem directories such as `/proc` or `/dev`                                    |
+| `--current`          | Restrict the scan to only the specified paths (no recursion)                                        |
+| `--depth <levels>`   | Limit recursion to `<levels>` directories below the starting paths                                  |
+| `--dups <count>`     | Only show groups that contain at least `<count>` files                                              |
+| `--text`, `--bullet` | Render duplicates without launching the TUI                                                         |
+| `--remove <keep>`    | Operate on duplicates, keeping the first `<keep>` entries per group                                 |
+| `--link`             | With `--remove`, convert extra duplicates to symlinks instead of deleting them                      |
+| `--file <path>`      | Only report duplicates of the given file                                                            |
+| `--hash <algo>`      | Select hash algorithm: `sha256` (default) or `blake3`                                               |
+| `--csv-out <file>`   | Write duplicate groups to CSV                                                                       |
+| `--json-out <file>`  | Write duplicate groups to JSON                                                                      |
+| `--fs-detect <path>` | Print the filesystem type that contains `<path>`                                                    |
+| `--color-safe`       | Use a high-compatibility TUI theme that avoids custom colors (best for problematic terminal themes) |
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
 
@@ -103,7 +99,6 @@ By default, `dskDitto` uses SHA-256 for content hashing:
 
 - **SHA-256 (`--hash sha256`)**: conservative, widely-supported choice with strong collision guarantees.
 - **BLAKE3 (`--hash blake3`)**: Under many circumstances this is significantly faster on modern CPUs. However, on macOS `SHA256` is fine tuned and out performs `BLAKE3` most of the time. Thus, we leave `SHA-256` as the default for now.
-
 
 ## Examples
 
@@ -182,7 +177,7 @@ dskDitto --json-out dupes.json ~/Projects
 
 - **Use BLAKE3**
 
-  >*NOTE:* On *macOS*, `Blake3` will actually perform **worse** than `SHA256` hence, we leave it as default for time being. `Blake3's` implementation may improve in the future, possibly out performing `SHA256`.
+  > _NOTE:_ On _macOS_, `Blake3` will actually perform **worse** than `SHA256` hence, we leave it as default for time being. `Blake3's` implementation may improve in the future, possibly out performing `SHA256`.
 
   ```bash
   dskDitto --hash blake3 --min-size 10MiB --text /mnt/big-disk
@@ -193,8 +188,6 @@ dskDitto --json-out dupes.json ~/Projects
   ```bash
   dskDitto --csv-out dupes.csv /data
   ```
-
-
 
 ## Result Display Menus
 
@@ -207,6 +200,8 @@ dskDitto --json-out dupes.json ~/Projects
 ![Screenshot: Raylib GUI duplicate review](./ss/ss-gui-modern.png)
 
 GUI built with [Raylib](https://github.com/raysan5/raylib)
+
+## Benchmarks
 
 ## Build From Source (Development)
 
@@ -236,7 +231,6 @@ sudo make install PREFIX=/usr/local/bin
 ```
 
 Override `PREFIX` (for example `make install PREFIX=$HOME/.local/bin`) if you prefer a user-local install and want to skip `sudo`.
-
 
 ```bash
 make debug         # Create development build

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
@@ -78,5 +79,32 @@ func TestHashWorkerCount(t *testing.T) {
 	}
 	if got := hashWorkerCount(1); got != 1 {
 		t.Fatalf("expected worker count to cap at total work, got %d", got)
+	}
+}
+
+func TestValidateRestoreModeAcceptsValidInvocation(t *testing.T) {
+	err := validateRestoreMode("restore.jsonl", "", nil, false, false, false, "", "", "", 0, false)
+	if err != nil {
+		t.Fatalf("expected valid restore invocation, got: %v", err)
+	}
+}
+
+func TestValidateRestoreModeRejectsPathArgs(t *testing.T) {
+	err := validateRestoreMode("restore.jsonl", "", []string{"."}, false, false, false, "", "", "", 0, false)
+	if err == nil {
+		t.Fatalf("expected error when path args are provided")
+	}
+	if !strings.Contains(err.Error(), "path arguments") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateRestoreModeRejectsScanFlags(t *testing.T) {
+	err := validateRestoreMode("restore.jsonl", "", nil, true, false, false, "", "", "", 0, false)
+	if err == nil {
+		t.Fatalf("expected error when scan flags are provided")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
