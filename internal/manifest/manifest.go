@@ -7,6 +7,7 @@
 package manifest
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,6 +52,60 @@ type group struct {
 	paths  []string
 }
 
+func NewEntry(groupID uint64, algo dfs.HashAlgorithm, hash, canonicalPath, restorePath string) (Entry, error) {
+	if hash == "" {
+		return Entry{}, errors.New("manifest hash is empty")
+	}
+	if canonicalPath == "" {
+		return Entry{}, errors.New("canonical path is empty")
+	}
+	if restorePath == "" {
+		return Entry{}, errors.New("restore path is empty")
+	}
+
+	canonicalAbs, err := filepath.Abs(filepath.Clean(canonicalPath))
+	if err != nil {
+		return Entry{}, fmt.Errorf("resolve canonical path %s: %w", canonicalPath, err)
+	}
+	restoreAbs, err := filepath.Abs(filepath.Clean(restorePath))
+	if err != nil {
+		return Entry{}, fmt.Errorf("resolve restore path %s: %w", restorePath, err)
+	}
+
+	canonicalInfo, err := os.Stat(canonicalAbs)
+	if err != nil {
+		return Entry{}, fmt.Errorf("stat canonical %s: %w", canonicalAbs, err)
+	}
+	if !canonicalInfo.Mode().IsRegular() {
+		return Entry{}, fmt.Errorf("canonical path is not a regular file: %s", canonicalAbs)
+	}
+
+	restoreInfo, err := os.Lstat(restoreAbs)
+	if err != nil {
+		return Entry{}, fmt.Errorf("stat restore path %s: %w", restoreAbs, err)
+	}
+	if !restoreInfo.Mode().IsRegular() && restoreInfo.Mode()&os.ModeSymlink == 0 {
+		return Entry{}, fmt.Errorf("restore path is not a file or symlink: %s", restoreAbs)
+	}
+
+	dev, ino := fileIdentity(restoreInfo)
+	mt := restoreInfo.ModTime()
+	return Entry{
+		Version:     ManifestVersion,
+		GroupID:     groupID,
+		HashAlgo:    string(algo),
+		Hash:        hash,
+		Size:        canonicalInfo.Size(),
+		Canonical:   canonicalAbs,
+		RestorePath: restoreAbs,
+		Mode:        uint32(restoreInfo.Mode().Perm()),
+		ModTimeUnix: mt.Unix(),
+		ModTimeNsec: int64(mt.Nanosecond()),
+		Dev:         dev,
+		Ino:         ino,
+	}, nil
+}
+
 func EntriesFromDmap(dm *dmap.Dmap, algo dfs.HashAlgorithm) ([]Entry, error) {
 	if dm == nil {
 		return nil, nil
@@ -88,33 +143,12 @@ func EntriesFromDmap(dm *dmap.Dmap, algo dfs.HashAlgorithm) ([]Entry, error) {
 	for i, g := range groups {
 		groupID := uint64(i + 1)
 		canonical := g.paths[0]
-		canonicalInfo, err := os.Stat(canonical)
-		if err != nil {
-			return nil, fmt.Errorf("stat canonical %s: %w", canonical, err)
-		}
-
 		for _, dupPath := range g.paths[1:] {
-			dupInfo, err := os.Stat(dupPath)
+			entry, err := NewEntry(groupID, algo, g.hash, canonical, dupPath)
 			if err != nil {
-				return nil, fmt.Errorf("stat duplicate %s: %w", dupPath, err)
+				return nil, err
 			}
-
-			dev, ino := fileIdentity(dupInfo)
-			mt := dupInfo.ModTime()
-			entries = append(entries, Entry{
-				Version:     ManifestVersion,
-				GroupID:     groupID,
-				HashAlgo:    string(algo),
-				Hash:        g.hash,
-				Size:        canonicalInfo.Size(),
-				Canonical:   canonical,
-				RestorePath: dupPath,
-				Mode:        uint32(dupInfo.Mode().Perm()),
-				ModTimeUnix: mt.Unix(),
-				ModTimeNsec: int64(mt.Nanosecond()),
-				Dev:         dev,
-				Ino:         ino,
-			})
+			entries = append(entries, entry)
 		}
 	}
 
@@ -133,6 +167,44 @@ func Write(path string, entries []Entry) error {
 		}
 	}
 	return writer.Close()
+}
+
+func AppendUnique(path string, entries []Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	existing, err := Read(path)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		existing = nil
+	}
+
+	return Write(path, MergeEntriesByRestorePath(existing, entries))
+}
+
+func MergeEntriesByRestorePath(existing, incoming []Entry) []Entry {
+	merged := make([]Entry, 0, len(existing)+len(incoming))
+	seen := make(map[string]struct{}, len(existing)+len(incoming))
+
+	appendUnique := func(entries []Entry) {
+		for _, entry := range entries {
+			if entry.RestorePath == "" {
+				continue
+			}
+			if _, ok := seen[entry.RestorePath]; ok {
+				continue
+			}
+			seen[entry.RestorePath] = struct{}{}
+			merged = append(merged, entry)
+		}
+	}
+
+	appendUnique(existing)
+	appendUnique(incoming)
+	return merged
 }
 
 func CanonicalizeDmapGroups(dm *dmap.Dmap) error {

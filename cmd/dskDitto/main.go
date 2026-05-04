@@ -19,6 +19,7 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/internal/dupview"
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
 	"github.com/jdefrancesco/dskDitto/internal/manifest"
 	"github.com/jdefrancesco/dskDitto/internal/rayui"
@@ -586,20 +587,14 @@ CollectLoop:
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
 	}
 
-	if *flBackupFile != "" {
-		if err := manifest.CanonicalizeDmapGroups(dMap); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to normalize duplicate groups for manifest: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
 	// Status bar update
 	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
 		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
 		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
 	pterm.Success.Println(finalInfo)
 
-	if *flBackupFile != "" {
+	interactiveMode := keepCount == 0 && !*flTimeOnly && !*flTextOutput && !*flShowBullets && *flCSVOut == "" && *flJSONOut == ""
+	if *flBackupFile != "" && !interactiveMode {
 		entries, manifestErr := manifest.EntriesFromDmap(dMap, hashAlgo)
 		if manifestErr != nil {
 			fmt.Fprintf(os.Stderr, "failed to build restore manifest: %v\n", manifestErr)
@@ -670,10 +665,14 @@ CollectLoop:
 	}
 
 	// Can now use a Raylib GUI or the sleeker TUI
+	applyOptions := dupview.ApplyOptions{
+		BackupPath:    *flBackupFile,
+		HashAlgorithm: hashAlgo,
+	}
 	if *flGui {
-		rayui.Launch(dMap)
+		rayui.Launch(dMap, applyOptions)
 	} else {
-		ui.LaunchTUI(dMap)
+		ui.LaunchTUI(dMap, applyOptions)
 	}
 }
 

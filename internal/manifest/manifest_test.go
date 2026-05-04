@@ -31,6 +31,13 @@ func mustWriteFile(t *testing.T, path string, content string, mode os.FileMode) 
 	}
 }
 
+func mustSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+}
+
 func fileHash(t *testing.T, path string, algo dfs.HashAlgorithm) string {
 	t.Helper()
 	info, err := os.Stat(path)
@@ -300,6 +307,154 @@ func TestRestoreWithOverwriteReplacesFile(t *testing.T) {
 	}
 	if string(data) != "canonical" {
 		t.Fatalf("overwrite did not replace content: %q", data)
+	}
+}
+
+func TestRestoreSymlinkEquivalentBytesBecomesRegularFile(t *testing.T) {
+	initTestLogger()
+
+	dir := t.TempDir()
+	canonical := filepath.Join(dir, "keep.bin")
+	restorePath := filepath.Join(dir, "dup.bin")
+	alternate := filepath.Join(dir, "alternate.bin")
+	mustWriteFile(t, canonical, "same-content", 0o644)
+	mustWriteFile(t, restorePath, "same-content", 0o640)
+	mustWriteFile(t, alternate, "same-content", 0o644)
+
+	entry, err := NewEntry(1, dfs.HashSHA256, fileHash(t, canonical, dfs.HashSHA256), canonical, restorePath)
+	if err != nil {
+		t.Fatalf("NewEntry: %v", err)
+	}
+
+	if err := os.Remove(restorePath); err != nil {
+		t.Fatalf("remove restore path before symlink: %v", err)
+	}
+	mustSymlink(t, alternate, restorePath)
+
+	manifestPath := filepath.Join(dir, "restore.jsonl")
+	if err := Write(manifestPath, []Entry{entry}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	if err := RestoreManifest(manifestPath, RestoreOptions{VerifyHash: true}); err != nil {
+		t.Fatalf("RestoreManifest: %v", err)
+	}
+
+	info, err := os.Lstat(restorePath)
+	if err != nil {
+		t.Fatalf("lstat restored path: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("restore path should be a regular file, still a symlink")
+	}
+	data, err := os.ReadFile(restorePath)
+	if err != nil {
+		t.Fatalf("read restore path: %v", err)
+	}
+	if string(data) != "same-content" {
+		t.Fatalf("unexpected restored content: %q", data)
+	}
+}
+
+func TestRestoreSymlinkEquivalentBytesWithOverwriteDisabled(t *testing.T) {
+	initTestLogger()
+
+	dir := t.TempDir()
+	canonical := filepath.Join(dir, "keep.bin")
+	restorePath := filepath.Join(dir, "dup.bin")
+	alternate := filepath.Join(dir, "alternate.bin")
+	mustWriteFile(t, canonical, "same-content", 0o644)
+	mustWriteFile(t, restorePath, "same-content", 0o600)
+	mustWriteFile(t, alternate, "same-content", 0o644)
+
+	entry, err := NewEntry(1, dfs.HashSHA256, fileHash(t, canonical, dfs.HashSHA256), canonical, restorePath)
+	if err != nil {
+		t.Fatalf("NewEntry: %v", err)
+	}
+
+	if err := os.Remove(restorePath); err != nil {
+		t.Fatalf("remove restore path before symlink: %v", err)
+	}
+	mustSymlink(t, alternate, restorePath)
+
+	manifestPath := filepath.Join(dir, "restore.jsonl")
+	if err := Write(manifestPath, []Entry{entry}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	if err := RestoreManifest(manifestPath, RestoreOptions{VerifyHash: true, Overwrite: false}); err != nil {
+		t.Fatalf("RestoreManifest: %v", err)
+	}
+
+	info, err := os.Lstat(restorePath)
+	if err != nil {
+		t.Fatalf("lstat restored path: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("restore path should be a regular file when overwrite is disabled")
+	}
+}
+
+func TestRestoreSymlinkDifferentBytesPreservesRecordedMetadata(t *testing.T) {
+	initTestLogger()
+
+	dir := t.TempDir()
+	canonical := filepath.Join(dir, "keep.bin")
+	restorePath := filepath.Join(dir, "dup.bin")
+	alternate := filepath.Join(dir, "alternate.bin")
+	mustWriteFile(t, canonical, "canonical-content", 0o644)
+	mustWriteFile(t, restorePath, "canonical-content", 0o640)
+	mustWriteFile(t, alternate, "different-content", 0o644)
+
+	wantTime := time.Unix(1_700_000_000, 123_456_789)
+	if err := os.Chtimes(restorePath, wantTime, wantTime); err != nil {
+		t.Fatalf("chtimes restore path: %v", err)
+	}
+
+	entry, err := NewEntry(1, dfs.HashSHA256, fileHash(t, canonical, dfs.HashSHA256), canonical, restorePath)
+	if err != nil {
+		t.Fatalf("NewEntry: %v", err)
+	}
+
+	if err := os.Remove(restorePath); err != nil {
+		t.Fatalf("remove restore path before symlink: %v", err)
+	}
+	mustSymlink(t, alternate, restorePath)
+
+	manifestPath := filepath.Join(dir, "restore.jsonl")
+	if err := Write(manifestPath, []Entry{entry}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	if err := RestoreManifest(manifestPath, RestoreOptions{
+		VerifyHash:   true,
+		Overwrite:    false,
+		RestoreMode:  true,
+		RestoreMTime: true,
+	}); err != nil {
+		t.Fatalf("RestoreManifest: %v", err)
+	}
+
+	info, err := os.Lstat(restorePath)
+	if err != nil {
+		t.Fatalf("lstat restored path: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("restore path should be a regular file")
+	}
+	if info.Mode().Perm() != 0o640 {
+		t.Fatalf("unexpected restored mode: got %o want %o", info.Mode().Perm(), 0o640)
+	}
+	if !info.ModTime().Equal(wantTime) {
+		t.Fatalf("unexpected restored mtime: got %s want %s", info.ModTime(), wantTime)
+	}
+
+	data, err := os.ReadFile(restorePath)
+	if err != nil {
+		t.Fatalf("read restored path: %v", err)
+	}
+	if string(data) != "canonical-content" {
+		t.Fatalf("unexpected restored content: %q", data)
 	}
 }
 

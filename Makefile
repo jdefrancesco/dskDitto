@@ -18,6 +18,9 @@ CPU_PROFILE ?= cpu.prof
 MEM_PROFILE ?= mem.prof
 PROFILE ?= $(CPU_PROFILE)
 PPROF_ADDR ?= localhost:6060
+DIR_SWEEP_VALUES ?= 16 24 32 48 64 96 128
+DIR_SWEEP_PATH ?= .
+NO_CACHE ?= 0
 
 PREFIX = /usr/local/bin
 
@@ -64,6 +67,24 @@ test:
 .PHONY: bench
 bench:
 	$(GOTEST) -bench=. -benchmem ./internal/bench/
+
+.PHONY: bench-dir-sweep-build
+bench-dir-sweep-build:
+	@mkdir -p ./bin
+	$(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o ./bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
+
+.PHONY: bench-dir-sweep
+bench-dir-sweep: bench-dir-sweep-build
+	@if [ ! -e "$(DIR_SWEEP_PATH)" ]; then \
+		echo "DIR_SWEEP_PATH '$(DIR_SWEEP_PATH)' does not exist."; \
+		exit 1; \
+	fi
+	@extra=""; \
+	if [ "$(NO_CACHE)" = "1" ]; then extra="--no-cache"; fi; \
+	for w in $(DIR_SWEEP_VALUES); do \
+		echo "== dir-concurrency=$$w $$extra =="; \
+		/usr/bin/time -p ./bin/$(BINARY_NAME) --no-banner --time-only $$extra --dir-concurrency "$$w" "$(DIR_SWEEP_PATH)"; \
+	done
 
 
 .PHONY: bench-build

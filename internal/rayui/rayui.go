@@ -118,9 +118,10 @@ type fontSet struct {
 }
 
 type app struct {
-	results *dupview.Model
-	visible []nodeRef
-	layout  layout
+	results      *dupview.Model
+	visible      []nodeRef
+	layout       layout
+	applyOptions dupview.ApplyOptions
 
 	cursor int
 	scroll int
@@ -142,7 +143,7 @@ type app struct {
 
 var activeFonts fontSet
 
-func Launch(dMap *dmap.Dmap) {
+func Launch(dMap *dmap.Dmap, applyOptions dupview.ApplyOptions) {
 	if dMap == nil {
 		if dsklog.Dlogger != nil {
 			dsklog.Dlogger.Warn("nil duplicate map supplied to Raylib UI")
@@ -164,7 +165,7 @@ func Launch(dMap *dmap.Dmap) {
 	activeFonts = loadFonts()
 	defer activeFonts.unload()
 
-	a := newApp(dupview.New(dMap))
+	a := newApp(dupview.New(dMap), applyOptions)
 	for !a.quit && !rl.WindowShouldClose() {
 		a.update()
 		rl.BeginDrawing()
@@ -173,9 +174,10 @@ func Launch(dMap *dmap.Dmap) {
 	}
 }
 
-func newApp(results *dupview.Model) *app {
+func newApp(results *dupview.Model, applyOptions dupview.ApplyOptions) *app {
 	a := &app{
 		results:      results,
+		applyOptions: applyOptions,
 		lastClickIdx: -1,
 		lastGroupIdx: -1,
 	}
@@ -313,11 +315,11 @@ func (a *app) updateConfirm() {
 			a.mode = modeTree
 			a.confirmError = ""
 			a.confirmInput = ""
-			switch a.action {
-			case dupview.ActionLink:
-				a.results.Result = dupview.LinkMarked(a.results.Groups)
-			default:
-				a.results.Result = dupview.DeleteMarked(a.results.Groups)
+			result, err := dupview.ApplyMarked(a.results.Groups, a.action, a.applyOptions)
+			if err != nil {
+				a.results.Result = err.Error()
+			} else {
+				a.results.Result = result
 			}
 		} else {
 			a.confirmError = "Incorrect code. Try again."

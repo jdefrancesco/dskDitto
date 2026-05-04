@@ -75,26 +75,34 @@ func restoreEntry(index int, entry Entry, opts RestoreOptions) error {
 		}
 	}
 
-	restoreInfo, restoreStatErr := os.Stat(restorePath)
+	restoreInfo, restoreStatErr := os.Lstat(restorePath)
 	if restoreStatErr == nil {
-		if !restoreInfo.Mode().IsRegular() {
+		if restoreInfo.Mode()&os.ModeSymlink != 0 {
+			if opts.DryRun {
+				return nil
+			}
+			if err := os.Remove(restorePath); err != nil {
+				return fmt.Errorf("entry %d remove existing restore symlink %s: %w", index+1, restorePath, err)
+			}
+		} else if !restoreInfo.Mode().IsRegular() {
 			return fmt.Errorf("entry %d restore path exists but is not a regular file: %s", index+1, restorePath)
-		}
-		verifyErr := VerifyFileHash(restorePath, entry.Hash, entry.Size, algo)
-		if verifyErr == nil {
-			return nil
-		}
-		if !errors.Is(verifyErr, ErrHashMismatch) && !errors.Is(verifyErr, ErrSizeMismatch) {
-			return fmt.Errorf("entry %d restore-path verify failed: %w", index+1, verifyErr)
-		}
-		if !opts.Overwrite {
-			return fmt.Errorf("entry %d restore path exists with different content and overwrite is disabled: %s", index+1, restorePath)
-		}
-		if opts.DryRun {
-			return nil
-		}
-		if err := os.Remove(restorePath); err != nil {
-			return fmt.Errorf("entry %d remove existing restore path %s: %w", index+1, restorePath, err)
+		} else {
+			verifyErr := VerifyFileHash(restorePath, entry.Hash, entry.Size, algo)
+			if verifyErr == nil {
+				return nil
+			}
+			if !errors.Is(verifyErr, ErrHashMismatch) && !errors.Is(verifyErr, ErrSizeMismatch) {
+				return fmt.Errorf("entry %d restore-path verify failed: %w", index+1, verifyErr)
+			}
+			if !opts.Overwrite {
+				return fmt.Errorf("entry %d restore path exists with different content and overwrite is disabled: %s", index+1, restorePath)
+			}
+			if opts.DryRun {
+				return nil
+			}
+			if err := os.Remove(restorePath); err != nil {
+				return fmt.Errorf("entry %d remove existing restore path %s: %w", index+1, restorePath, err)
+			}
 		}
 	} else if !errors.Is(restoreStatErr, os.ErrNotExist) {
 		return fmt.Errorf("entry %d restore path stat failed %s: %w", index+1, restorePath, restoreStatErr)

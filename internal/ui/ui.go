@@ -17,13 +17,13 @@ import (
 )
 
 // LaunchTUI builds and runs the Bubble Tea program that visualizes duplicate files.
-func LaunchTUI(dMap *dmap.Dmap) {
+func LaunchTUI(dMap *dmap.Dmap, applyOptions dupview.ApplyOptions) {
 	if dMap == nil {
 		dsklog.Dlogger.Warn("nil duplicate map supplied to LaunchTUI")
 		return
 	}
 
-	program := tea.NewProgram(newModel(dMap), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	program := tea.NewProgram(newModel(dMap, applyOptions), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	setCurrentProgram(program)
 	defer clearCurrentProgram(program)
 
@@ -228,6 +228,7 @@ type model struct {
 	confirmError string
 
 	deleteResult string
+	applyOptions dupview.ApplyOptions
 
 	width  int
 	height int
@@ -238,7 +239,7 @@ var _ tea.Model = (*model)(nil)
 // newModel constructs a model initialized with duplicate groups derived from the provided dmap,
 // filtering out groups below the minimum duplicate threshold, preparing file entries, and
 // rebuilding the visible UI nodes before returning the result.
-func newModel(dMap *dmap.Dmap) *model {
+func newModel(dMap *dmap.Dmap, applyOptions dupview.ApplyOptions) *model {
 	shared := dupview.New(dMap)
 	m := &model{
 		mode:          modeTree,
@@ -246,6 +247,7 @@ func newModel(dMap *dmap.Dmap) *model {
 		sortMode:      shared.SortMode,
 		minDuplicates: shared.MinDuplicates,
 		lastGroupIdx:  -1,
+		applyOptions:  applyOptions,
 	}
 
 	m.rebuildVisibleNodes()
@@ -690,14 +692,24 @@ func (m *model) processDeletion() {
 	m.mode = modeTree
 	m.confirmInput = ""
 	m.confirmError = ""
-	m.deleteResult = dupview.DeleteMarked(m.groups)
+	result, err := dupview.ApplyMarked(m.groups, dupview.ActionDelete, m.applyOptions)
+	if err != nil {
+		m.deleteResult = err.Error()
+		return
+	}
+	m.deleteResult = result
 }
 
 func (m *model) processLinking() {
 	m.mode = modeTree
 	m.confirmInput = ""
 	m.confirmError = ""
-	m.deleteResult = dupview.LinkMarked(m.groups)
+	result, err := dupview.ApplyMarked(m.groups, dupview.ActionLink, m.applyOptions)
+	if err != nil {
+		m.deleteResult = err.Error()
+		return
+	}
+	m.deleteResult = result
 }
 
 // markedEntries return a slice of files selected (marked) for removal.
