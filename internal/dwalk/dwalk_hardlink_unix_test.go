@@ -41,3 +41,28 @@ func TestHardlinkDeduplicationUnix(t *testing.T) {
 		t.Fatalf("expected hardlinked files to be treated as one; got %d paths: %v", len(paths), paths)
 	}
 }
+
+func TestExcludedHardlinkDoesNotClaimIdentityUnix(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	excluded := filepath.Join(root, "a-excluded.txt")
+	keep := filepath.Join(root, "z-keep.txt")
+
+	if err := os.WriteFile(excluded, []byte("hello"), 0o644); err != nil {
+		t.Fatalf("failed to create excluded file: %v", err)
+	}
+	if err := os.Link(excluded, keep); err != nil {
+		t.Skipf("hard links not supported: %v", err)
+	}
+
+	cfg := config.Config{
+		HashAlgorithm: dfs.HashSHA256,
+		SkipVirtualFS: true,
+		MaxDepth:      -1,
+		ExcludePaths:  []string{excluded},
+	}
+
+	paths := collectRelativePaths(t, root, cfg)
+	expectPathsEqual(t, paths, []string{"z-keep.txt"})
+}

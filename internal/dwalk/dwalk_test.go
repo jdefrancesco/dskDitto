@@ -238,6 +238,23 @@ func TestExcludePaths(t *testing.T) {
 	expectPathsEqual(t, paths, []string{"keep/keep.txt", "root.txt"})
 }
 
+func TestResolveDirConcurrency(t *testing.T) {
+	if got, configured := resolveDirConcurrency(32); got != 32 || !configured {
+		t.Fatalf("expected configured concurrency 32, got %d configured=%t", got, configured)
+	}
+
+	auto := getOptimalConcurrency()
+	for _, configuredValue := range []int{0, -8} {
+		got, configured := resolveDirConcurrency(configuredValue)
+		if configured {
+			t.Fatalf("expected auto concurrency for configured value %d", configuredValue)
+		}
+		if got != auto {
+			t.Fatalf("expected auto concurrency %d, got %d", auto, got)
+		}
+	}
+}
+
 func collectRelativePaths(t *testing.T, root string, cfg config.Config) []string {
 	t.Helper()
 

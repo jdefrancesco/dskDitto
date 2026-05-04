@@ -52,6 +52,8 @@ Common flags:
 | `--no-symlinks`      | Skip symbolic links                                                                                 |
 | `--empty`            | Include zero-byte files                                                                             |
 | `--include-vfs`      | Include virtual filesystem directories such as `/proc` or `/dev`                                    |
+| `--dir-concurrency <int>` | Limit concurrent directory reads; values `<= 0` use automatic tuning                          |
+| `--no-cache`         | On supported platforms, ask the OS not to populate the filesystem cache while hashing               |
 | `--current`          | Restrict the scan to only the specified paths (no recursion)                                        |
 | `--depth <levels>`   | Limit recursion to `<levels>` directories below the starting paths                                  |
 | `--dups <count>`     | Only show groups that contain at least `<count>` files                                              |
@@ -202,6 +204,17 @@ dskDitto --json-out dupes.json ~/Projects
 GUI built with [Raylib](https://github.com/raysan5/raylib)
 
 ## Benchmarks
+
+Benchmark directory traversal on your machine before choosing a fixed concurrency value. On fast APFS SSDs, the best range is usually workload-dependent:
+
+```bash
+go build -o dskDitto ./cmd/dskDitto
+for w in 16 24 32 48 64 96 128; do
+  /usr/bin/time -p ./dskDitto --time-only --dir-concurrency "$w" ~
+done
+```
+
+Use `/usr/bin/time -l ./dskDitto --time-only ~` for a more detailed macOS run. `--no-cache` is also benchmark-only by default; test it with the same workload before keeping it in your normal command.
 
 ## Build From Source (Development)
 

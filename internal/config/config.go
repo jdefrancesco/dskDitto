@@ -17,6 +17,10 @@ type Config struct {
 	ExcludePaths []string
 	// MaxDepth limits how deeply the walker will recurse into subdirectories. A value of -1 means unlimited.
 	MaxDepth int
+	// DirConcurrency limits concurrent directory reads. A value of 0 uses the walker default.
+	DirConcurrency int
+	// NoCache asks supported platforms not to populate the filesystem cache while hashing.
+	NoCache bool
 	// File size limits.
 	MinFileSize uint
 	MaxFileSize uint

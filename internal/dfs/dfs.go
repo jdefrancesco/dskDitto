@@ -48,9 +48,16 @@ type FileHashSample struct {
 	CoversWholeFile bool
 }
 
+type HashOptions struct {
+	NoCache bool
+}
+
 // New creates a new Dfile.
 func NewDfile(fName string, fSize int64, algo HashAlgorithm) (*Dfile, error) {
+	return NewDfileWithOptions(fName, fSize, algo, HashOptions{})
+}
 
+func NewDfileWithOptions(fName string, fSize int64, algo HashAlgorithm, options HashOptions) (*Dfile, error) {
 	if fName == "" {
 		fmt.Printf("File name must be specified\n")
 		return nil, errors.New("file name needs to be specified")
@@ -68,7 +75,7 @@ func NewDfile(fName string, fSize int64, algo HashAlgorithm) (*Dfile, error) {
 		algo:     algo,
 	}
 
-	if err = d.hashFile(); err != nil {
+	if err = d.hashFile(options); err != nil {
 		return d, errors.New("failed to hash file")
 	}
 
@@ -120,7 +127,7 @@ var sampleBufPool = sync.Pool{
 	},
 }
 
-func (d *Dfile) hashFile() error {
+func (d *Dfile) hashFile(options HashOptions) error {
 	sema <- struct{}{}
 	defer func() { <-sema }()
 
@@ -132,6 +139,11 @@ func (d *Dfile) hashFile() error {
 		return fmt.Errorf("failed to open file %s: %w", d.fileName, err)
 	}
 	defer f.Close()
+	if options.NoCache {
+		if err := setNoCacheFD(int(f.Fd())); err != nil {
+			dsklog.Dlogger.Debugf("Failed to enable no-cache for %s: %v", d.fileName, err)
+		}
+	}
 
 	h, err := newHash(d.algo)
 	if err != nil {
@@ -148,6 +160,10 @@ func (d *Dfile) hashFile() error {
 }
 
 func HashFileSample(path string, size int64, algo HashAlgorithm) (FileHashSample, error) {
+	return HashFileSampleWithOptions(path, size, algo, HashOptions{})
+}
+
+func HashFileSampleWithOptions(path string, size int64, algo HashAlgorithm, options HashOptions) (FileHashSample, error) {
 	var sample FileHashSample
 	if path == "" {
 		return sample, errors.New("file name needs to be specified")
@@ -161,6 +177,11 @@ func HashFileSample(path string, size int64, algo HashAlgorithm) (FileHashSample
 	defer func() {
 		_ = syscall.Close(fd)
 	}()
+	if options.NoCache {
+		if err := setNoCacheFD(fd); err != nil {
+			dsklog.Dlogger.Debugf("Failed to enable no-cache for %s: %v", path, err)
+		}
+	}
 
 	h, err := newHash(algo)
 	if err != nil {

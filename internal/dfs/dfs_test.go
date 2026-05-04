@@ -1,6 +1,8 @@
 package dfs
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -52,4 +54,36 @@ func TestNewDfile(t *testing.T) {
 		}
 	}
 
+}
+
+func TestNoCacheHashOptionsMatchDefaultHashing(t *testing.T) {
+	data := bytes.Repeat([]byte("dskditto"), sampleChunkSize)
+	path := filepath.Join(t.TempDir(), "data.bin")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	defaultDfile, err := NewDfile(path, int64(len(data)), HashSHA256)
+	if err != nil {
+		t.Fatalf("default NewDfile failed: %v", err)
+	}
+	noCacheDfile, err := NewDfileWithOptions(path, int64(len(data)), HashSHA256, HashOptions{NoCache: true})
+	if err != nil {
+		t.Fatalf("no-cache NewDfile failed: %v", err)
+	}
+	if defaultDfile.Hash() != noCacheDfile.Hash() {
+		t.Fatalf("no-cache full hash differs from default")
+	}
+
+	defaultSample, err := HashFileSample(path, int64(len(data)), HashSHA256)
+	if err != nil {
+		t.Fatalf("default sample failed: %v", err)
+	}
+	noCacheSample, err := HashFileSampleWithOptions(path, int64(len(data)), HashSHA256, HashOptions{NoCache: true})
+	if err != nil {
+		t.Fatalf("no-cache sample failed: %v", err)
+	}
+	if defaultSample != noCacheSample {
+		t.Fatalf("no-cache sample differs from default")
+	}
 }

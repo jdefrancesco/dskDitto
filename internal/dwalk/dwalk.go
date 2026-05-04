@@ -47,6 +47,7 @@ type DWalk struct {
 	minFileSize     uint
 	maxFileSize     uint
 	hashAlgo        dfs.HashAlgorithm
+	noCache         bool
 	skipDirPrefixes []string
 	excludePaths    []string
 	maxDepth        int
@@ -110,15 +111,21 @@ func newDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, candidates chan<- F
 		minFileSize:     cfg.MinFileSize,
 		maxFileSize:     maxSize,
 		hashAlgo:        hashAlgo,
+		noCache:         cfg.NoCache,
 		skipDirPrefixes: skipPrefixes,
 		excludePaths:    excludePaths,
 		maxDepth:        maxDepth,
 		seenFiles:       make(map[fileIdentity]struct{}),
 	}
 
-	// Set semaphore to optimal value based on system resources
-	optimalConcurrency := getOptimalConcurrency()
-	dsklog.Dlogger.Infof("Setting directory concurrency to %d (based on %d CPUs)", optimalConcurrency, runtime.NumCPU())
+	// Set semaphore to optimal value based on system resources unless the user
+	// wants to benchmark a specific directory-read concurrency.
+	optimalConcurrency, configuredConcurrency := resolveDirConcurrency(cfg.DirConcurrency)
+	if !configuredConcurrency {
+		dsklog.Dlogger.Infof("Setting directory concurrency to %d (based on %d CPUs)", optimalConcurrency, runtime.NumCPU())
+	} else {
+		dsklog.Dlogger.Infof("Setting directory concurrency to %d (configured; %d CPUs)", optimalConcurrency, runtime.NumCPU())
+	}
 	walker.sem = semaphore.NewWeighted(int64(optimalConcurrency))
 	return walker
 
@@ -227,19 +234,6 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 			continue
 		}
 
-		// Treat multiple hardlinks to the same underlying inode as a single file
-		// to avoid redundant hashing and duplicate entries.
-		if meta.hasIdentity {
-			d.seenMu.Lock()
-			if _, exists := d.seenFiles[meta.identity]; exists {
-				d.seenMu.Unlock()
-				dsklog.Dlogger.Debugf("Skipping hardlink duplicate: %s", filepath.Join(dir, name))
-				continue
-			}
-			d.seenFiles[meta.identity] = struct{}{}
-			d.seenMu.Unlock()
-		}
-
 		// Check file size properties the user set.
 		fileSize := uint(max(meta.size, 0)) // #nosec G115
 		if d.skipEmpty && fileSize == 0 {
@@ -259,6 +253,20 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 			dsklog.Dlogger.Debugf("Skipping excluded path: %s", absFileName)
 			continue
 		}
+
+		// Treat multiple hardlinks to the same underlying inode as a single file
+		// to avoid redundant hashing and duplicate entries.
+		if meta.hasIdentity {
+			d.seenMu.Lock()
+			if _, exists := d.seenFiles[meta.identity]; exists {
+				d.seenMu.Unlock()
+				dsklog.Dlogger.Debugf("Skipping hardlink duplicate: %s", filepath.Join(dir, name))
+				continue
+			}
+			d.seenFiles[meta.identity] = struct{}{}
+			d.seenMu.Unlock()
+		}
+
 		d.emitFile(ctx, absFileName, meta.size)
 	}
 }
@@ -276,7 +284,7 @@ func (d *DWalk) emitFile(ctx context.Context, path string, size int64) {
 		return
 	}
 
-	dFileEntry, err := dfs.NewDfile(path, size, d.hashAlgo)
+	dFileEntry, err := dfs.NewDfileWithOptions(path, size, d.hashAlgo, dfs.HashOptions{NoCache: d.noCache})
 	if err != nil {
 		return
 	}
@@ -320,6 +328,13 @@ func getOptimalConcurrency() int {
 
 	dsklog.Dlogger.Debugf("Directory walker concurrency: %d (procs=%d)", concurrency, procs)
 	return concurrency
+}
+
+func resolveDirConcurrency(configured int) (int, bool) {
+	if configured > 0 {
+		return configured, true
+	}
+	return getOptimalConcurrency(), false
 }
 
 // normalizeSkipPrefixes filters and deduplicates skip prefixes by cleaning their absolute paths,
