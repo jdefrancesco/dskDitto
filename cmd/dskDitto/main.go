@@ -8,8 +8,11 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -156,6 +159,8 @@ func main() {
 		flKeep           = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many `keep` files per group.")
 		flLinkMode       = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
 		flSingleFile     = flag.String("file", "", "Only search for duplicates of the specified `path` file.")
+		flNameOnly       = flag.Bool("name-only", false, "Only compare exact file names, ignoring content and size.")
+		flFileShallow    = flag.String("file-shallow", "", "Only search for files with the same exact name as the specified `path` file.")
 		flCSVOut         = flag.String("csv-out", "", "Write duplicate groups to the specified CSV `file`.")
 		flJSONOut        = flag.String("json-out", "", "Write duplicate groups to the specified JSON `file`.")
 		flDetectFS       = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
@@ -169,6 +174,13 @@ func main() {
 	// The exclude flag can take multiple path targets
 	flag.Var(&flExcludePaths, "exclude", "Exclude a `path` from scanning (repeatable).")
 	flag.Parse()
+
+	shallowMode := *flNameOnly || *flFileShallow != ""
+	shallowTargetName, shallowErr := validateShallowMode(*flNameOnly, *flFileShallow, *flSingleFile, *flBackupFile)
+	if shallowErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", shallowErr)
+		os.Exit(1)
+	}
 
 	// Turn off default color scheme. This flag can be used when users terminal color pallete isn't
 	// compatible with default TUI elements.
@@ -207,7 +219,7 @@ func main() {
 	}
 
 	if *flRestoreFile != "" {
-		if err := validateRestoreMode(*flRestoreFile, *flBackupFile, flag.Args(), *flGui, *flTextOutput, *flShowBullets, *flCSVOut, *flJSONOut, *flSingleFile, *flKeep, *flLinkMode); err != nil {
+		if err := validateRestoreMode(*flRestoreFile, *flBackupFile, flag.Args(), *flGui, *flTextOutput, *flShowBullets, *flCSVOut, *flJSONOut, *flSingleFile, *flFileShallow, *flNameOnly, *flKeep, *flLinkMode); err != nil {
 			fmt.Fprintf(os.Stderr, "invalid restore invocation: %v\n", err)
 			os.Exit(1)
 		}
@@ -304,7 +316,7 @@ func main() {
 	var targetFilePath string
 	var targetFileSize int64
 	var targetSampleDigest dmap.Digest
-	if *flSingleFile != "" {
+	if *flSingleFile != "" && !shallowMode {
 		info, statErr := os.Stat(*flSingleFile)
 		if statErr != nil {
 			dsklog.Dlogger.Debugf("Unable to stat --file path %s: %v\n", *flSingleFile, statErr)
@@ -332,6 +344,16 @@ func main() {
 
 		pterm.Info.Printf("Searching for duplicates of %s\n", targetFilePath)
 	}
+	if shallowMode {
+		if shallowTargetName != "" {
+			pterm.Info.Printf("Searching for shallow duplicates named %s\n", shallowTargetName)
+			if shallowTargetIsHidden(shallowTargetName) && !*flIncludeHidden {
+				pterm.Info.Println("Including hidden files and directories for hidden shallow target")
+			}
+		} else {
+			pterm.Info.Println("Searching for shallow duplicates by exact file name")
+		}
+	}
 
 	rootDirs := flag.Args()
 	if len(rootDirs) == 0 {
@@ -355,7 +377,7 @@ func main() {
 	appCfg := config.Config{
 		SkipEmpty:      !*flIncludeEmpty,
 		SkipSymLinks:   *flSkipSymLinks,
-		SkipHidden:     !*flIncludeHidden,
+		SkipHidden:     resolveSkipHidden(*flIncludeHidden, shallowTargetName),
 		SkipVirtualFS:  !*flIncludeVFS,
 		ExcludePaths:   []string(flExcludePaths),
 		MaxDepth:       maxDepth,
@@ -400,6 +422,7 @@ func main() {
 	walker.Run(ctx)
 
 	sizeGroups := make(map[int64][]dwalk.FileCandidate, 4096)
+	nameGroups := make(map[string][]dwalk.FileCandidate, 4096)
 	var scannedFiles uint
 
 CollectLoop:
@@ -415,6 +438,14 @@ CollectLoop:
 				break CollectLoop
 			}
 			scannedFiles++
+			if shallowMode {
+				name := filepath.Base(candidate.Path)
+				if shallowTargetName != "" && name != shallowTargetName {
+					continue
+				}
+				nameGroups[name] = append(nameGroups[name], candidate)
+				continue
+			}
 			if singleFileMode && candidate.Size != targetFileSize {
 				continue
 			}
@@ -426,147 +457,153 @@ CollectLoop:
 		}
 	}
 
-	sampleList, skippedBySize := eligibleHashCandidates(sizeGroups, minDups, singleFileMode)
-	sizeGroups = nil
-	dsklog.Dlogger.Debugf("Skipped %d files with unique sizes before sample hashing", skippedBySize)
-
-	sampleGroups := make(map[sampleKey][]sampledFile, 4096)
 	var sampledFiles uint
-
-	if len(sampleList) > 0 {
-		sampleJobs := make(chan dwalk.FileCandidate, min(len(sampleList), 4096))
-		sampledFileCh := make(chan sampledFile, min(len(sampleList), 4096))
-		workerCount := sampleWorkerCount(len(sampleList))
-
-		var sampleWG sync.WaitGroup
-		sampleWG.Add(workerCount)
-		for i := 0; i < workerCount; i++ {
-			go func() {
-				defer sampleWG.Done()
-				for candidate := range sampleJobs {
-					sample, sampleErr := dfs.HashFileSampleWithOptions(candidate.Path, candidate.Size, hashAlgo, hashOptions)
-					if sampleErr != nil {
-						dsklog.Dlogger.Debugf("Skipping file after sample failure %s: %v", candidate.Path, sampleErr)
-						continue
-					}
-					select {
-					case <-ctx.Done():
-						return
-					case sampledFileCh <- sampledFile{
-						candidate:       candidate,
-						digest:          dmap.Digest(sample.Digest),
-						coversWholeFile: sample.CoversWholeFile,
-					}:
-					}
-				}
-			}()
-		}
-
-		go func() {
-			defer close(sampleJobs)
-			for _, candidate := range sampleList {
-				select {
-				case <-ctx.Done():
-					return
-				case sampleJobs <- candidate:
-				}
-			}
-		}()
-
-		go func() {
-			sampleWG.Wait()
-			close(sampledFileCh)
-		}()
-
-	SampleLoop:
-		for {
-			select {
-			case sample, ok := <-sampledFileCh:
-				if !ok {
-					break SampleLoop
-				}
-				sampledFiles++
-				if singleFileMode && sample.digest != targetSampleDigest {
-					continue
-				}
-				key := sampleKey{size: sample.candidate.Size, digest: sample.digest}
-				sampleGroups[key] = append(sampleGroups[key], sample)
-
-			case <-tickC:
-				progressMsg := fmt.Sprintf("Sampled %d/%d candidate files...", sampledFiles, len(sampleList))
-				updateProgress(progressMsg)
-			}
-		}
-	}
-
-	directFiles, fullHashList, skippedBySample := eligibleSampleCandidates(sampleGroups, minDups, singleFileMode)
-	sampleGroups = nil
-	dsklog.Dlogger.Debugf("Skipped %d files with unique samples before full hashing", skippedBySample)
-
-	for _, file := range directFiles {
-		dMap.AddPath(file.digest, file.candidate.Path)
-	}
-
 	var fullHashedFiles uint
 
-	if len(fullHashList) > 0 {
-		hashJobs := make(chan dwalk.FileCandidate, min(len(fullHashList), 4096))
-		hashedFiles := make(chan *dfs.Dfile, min(len(fullHashList), 4096))
-		workerCount := hashWorkerCount(len(fullHashList))
+	if shallowMode {
+		addedGroups, skippedByName := addNameOnlyGroups(dMap, nameGroups, minDups)
+		nameGroups = nil
+		dsklog.Dlogger.Debugf("Added %d shallow filename groups; skipped %d files with unique names", addedGroups, skippedByName)
+	} else {
+		sampleList, skippedBySize := eligibleHashCandidates(sizeGroups, minDups, singleFileMode)
+		sizeGroups = nil
+		dsklog.Dlogger.Debugf("Skipped %d files with unique sizes before sample hashing", skippedBySize)
 
-		var hashWG sync.WaitGroup
-		hashWG.Add(workerCount)
-		for i := 0; i < workerCount; i++ {
-			go func() {
-				defer hashWG.Done()
-				for candidate := range hashJobs {
-					dFile, hashErr := dfs.NewDfileWithOptions(candidate.Path, candidate.Size, hashAlgo, hashOptions)
-					if hashErr != nil {
-						dsklog.Dlogger.Debugf("Skipping file after hash failure %s: %v", candidate.Path, hashErr)
-						continue
+		sampleGroups := make(map[sampleKey][]sampledFile, 4096)
+
+		if len(sampleList) > 0 {
+			sampleJobs := make(chan dwalk.FileCandidate, min(len(sampleList), 4096))
+			sampledFileCh := make(chan sampledFile, min(len(sampleList), 4096))
+			workerCount := sampleWorkerCount(len(sampleList))
+
+			var sampleWG sync.WaitGroup
+			sampleWG.Add(workerCount)
+			for i := 0; i < workerCount; i++ {
+				go func() {
+					defer sampleWG.Done()
+					for candidate := range sampleJobs {
+						sample, sampleErr := dfs.HashFileSampleWithOptions(candidate.Path, candidate.Size, hashAlgo, hashOptions)
+						if sampleErr != nil {
+							dsklog.Dlogger.Debugf("Skipping file after sample failure %s: %v", candidate.Path, sampleErr)
+							continue
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case sampledFileCh <- sampledFile{
+							candidate:       candidate,
+							digest:          dmap.Digest(sample.Digest),
+							coversWholeFile: sample.CoversWholeFile,
+						}:
+						}
 					}
+				}()
+			}
+
+			go func() {
+				defer close(sampleJobs)
+				for _, candidate := range sampleList {
 					select {
 					case <-ctx.Done():
 						return
-					case hashedFiles <- dFile:
+					case sampleJobs <- candidate:
 					}
 				}
 			}()
-		}
 
-		go func() {
-			defer close(hashJobs)
-			for _, candidate := range fullHashList {
+			go func() {
+				sampleWG.Wait()
+				close(sampledFileCh)
+			}()
+
+		SampleLoop:
+			for {
 				select {
-				case <-ctx.Done():
-					return
-				case hashJobs <- candidate:
+				case sample, ok := <-sampledFileCh:
+					if !ok {
+						break SampleLoop
+					}
+					sampledFiles++
+					if singleFileMode && sample.digest != targetSampleDigest {
+						continue
+					}
+					key := sampleKey{size: sample.candidate.Size, digest: sample.digest}
+					sampleGroups[key] = append(sampleGroups[key], sample)
+
+				case <-tickC:
+					progressMsg := fmt.Sprintf("Sampled %d/%d candidate files...", sampledFiles, len(sampleList))
+					updateProgress(progressMsg)
 				}
 			}
-		}()
+		}
 
-		go func() {
-			hashWG.Wait()
-			close(hashedFiles)
-		}()
+		directFiles, fullHashList, skippedBySample := eligibleSampleCandidates(sampleGroups, minDups, singleFileMode)
+		sampleGroups = nil
+		dsklog.Dlogger.Debugf("Skipped %d files with unique samples before full hashing", skippedBySample)
 
-	HashLoop:
-		for {
-			select {
-			case dFile, ok := <-hashedFiles:
-				if !ok {
-					break HashLoop
+		for _, file := range directFiles {
+			dMap.AddPath(file.digest, file.candidate.Path)
+		}
+
+		if len(fullHashList) > 0 {
+			hashJobs := make(chan dwalk.FileCandidate, min(len(fullHashList), 4096))
+			hashedFiles := make(chan *dfs.Dfile, min(len(fullHashList), 4096))
+			workerCount := hashWorkerCount(len(fullHashList))
+
+			var hashWG sync.WaitGroup
+			hashWG.Add(workerCount)
+			for i := 0; i < workerCount; i++ {
+				go func() {
+					defer hashWG.Done()
+					for candidate := range hashJobs {
+						dFile, hashErr := dfs.NewDfileWithOptions(candidate.Path, candidate.Size, hashAlgo, hashOptions)
+						if hashErr != nil {
+							dsklog.Dlogger.Debugf("Skipping file after hash failure %s: %v", candidate.Path, hashErr)
+							continue
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case hashedFiles <- dFile:
+						}
+					}
+				}()
+			}
+
+			go func() {
+				defer close(hashJobs)
+				for _, candidate := range fullHashList {
+					select {
+					case <-ctx.Done():
+						return
+					case hashJobs <- candidate:
+					}
 				}
-				if dFile == nil {
-					dsklog.Dlogger.Warn("Received nil dFile, skipping...")
-					continue
-				}
-				dMap.Add(dFile)
-				fullHashedFiles++
+			}()
 
-			case <-tickC:
-				progressMsg := fmt.Sprintf("Hashed %d/%d full candidate files...", fullHashedFiles, len(fullHashList))
-				updateProgress(progressMsg)
+			go func() {
+				hashWG.Wait()
+				close(hashedFiles)
+			}()
+
+		HashLoop:
+			for {
+				select {
+				case dFile, ok := <-hashedFiles:
+					if !ok {
+						break HashLoop
+					}
+					if dFile == nil {
+						dsklog.Dlogger.Warn("Received nil dFile, skipping...")
+						continue
+					}
+					dMap.Add(dFile)
+					fullHashedFiles++
+
+				case <-tickC:
+					progressMsg := fmt.Sprintf("Hashed %d/%d full candidate files...", fullHashedFiles, len(fullHashList))
+					updateProgress(progressMsg)
+				}
 			}
 		}
 	}
@@ -586,11 +623,22 @@ CollectLoop:
 		}
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
 	}
+	if shallowTargetName != "" {
+		files, _ := dMap.Get(dmap.NameDigest(shallowTargetName))
+		if len(files) == 0 {
+			pterm.Info.Printf("No shallow duplicates named %s found in the provided paths.\n", shallowTargetName)
+			os.Exit(0)
+		}
+		pterm.Info.Printf("Found %d file(s) named %s.\n", len(files), shallowTargetName)
+	}
 
 	// Status bar update
 	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
 		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
 		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
+	if shallowMode {
+		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files by name in " + pterm.LightWhite(duration)
+	}
 	pterm.Success.Println(finalInfo)
 
 	interactiveMode := keepCount == 0 && !*flTimeOnly && !*flTextOutput && !*flShowBullets && *flCSVOut == "" && *flJSONOut == ""
@@ -699,6 +747,50 @@ func eligibleHashCandidates(sizeGroups map[int64][]dwalk.FileCandidate, minDups 
 	}
 
 	return candidates, skipped
+}
+
+func addNameOnlyGroups(dMap *dmap.Dmap, nameGroups map[string][]dwalk.FileCandidate, minDups uint) (uint, uint) {
+	if dMap == nil {
+		return 0, 0
+	}
+	if minDups < 2 {
+		minDups = 2
+	}
+
+	names := make([]string, 0, len(nameGroups))
+	for name := range nameGroups {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var addedGroups uint
+	var skipped uint
+	for _, name := range names {
+		files := nameGroups[name]
+		if uint(len(files)) < minDups {
+			skipped += uint(len(files))
+			continue
+		}
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Path < files[j].Path
+		})
+		for _, file := range files {
+			dMap.AddNamePath(name, file.Path)
+		}
+		addedGroups++
+	}
+	return addedGroups, skipped
+}
+
+func resolveSkipHidden(includeHidden bool, shallowTargetName string) bool {
+	if includeHidden || shallowTargetIsHidden(shallowTargetName) {
+		return false
+	}
+	return true
+}
+
+func shallowTargetIsHidden(name string) bool {
+	return strings.HasPrefix(name, ".")
 }
 
 type sampleKey struct {
@@ -831,7 +923,35 @@ func ensurePathFirst(paths []string, target string) []string {
 	}
 }
 
-func validateRestoreMode(restoreManifest, backupFile string, args []string, gui, textOutput, bulletOutput bool, csvOut, jsonOut, singleFile string, keep uint, linkMode bool) error {
+func validateShallowMode(nameOnly bool, fileShallow, singleFile, backupFile string) (string, error) {
+	shallowMode := nameOnly || fileShallow != ""
+	if !shallowMode {
+		return "", nil
+	}
+	if singleFile != "" && fileShallow != "" {
+		return "", fmt.Errorf("--file cannot be combined with --file-shallow")
+	}
+	if backupFile != "" {
+		return "", fmt.Errorf("restore backups are not supported for shallow/name-only finds; rerun without --backup")
+	}
+	if singleFile != "" {
+		return shallowFileName(singleFile, "--file")
+	}
+	if fileShallow == "" {
+		return "", nil
+	}
+	return shallowFileName(fileShallow, "--file-shallow")
+}
+
+func shallowFileName(path, flagName string) (string, error) {
+	name := filepath.Base(filepath.Clean(path))
+	if name == "." || name == string(os.PathSeparator) {
+		return "", fmt.Errorf("%s must name a file path", flagName)
+	}
+	return name, nil
+}
+
+func validateRestoreMode(restoreManifest, backupFile string, args []string, gui, textOutput, bulletOutput bool, csvOut, jsonOut, singleFile, fileShallow string, nameOnly bool, keep uint, linkMode bool) error {
 	if restoreManifest == "" {
 		return fmt.Errorf("--restore path must not be empty")
 	}
@@ -841,7 +961,7 @@ func validateRestoreMode(restoreManifest, backupFile string, args []string, gui,
 	if len(args) > 0 {
 		return fmt.Errorf("path arguments are not allowed with --restore")
 	}
-	if gui || textOutput || bulletOutput || csvOut != "" || jsonOut != "" || keep > 0 || linkMode || singleFile != "" {
+	if gui || textOutput || bulletOutput || csvOut != "" || jsonOut != "" || keep > 0 || linkMode || singleFile != "" || fileShallow != "" || nameOnly {
 		return fmt.Errorf("--restore cannot be combined with scan/output/mutation flags")
 	}
 	return nil

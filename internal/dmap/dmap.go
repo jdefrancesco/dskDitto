@@ -8,6 +8,7 @@
 package dmap
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -21,6 +22,18 @@ import (
 )
 
 type Digest [32]byte
+
+type MatchType string
+
+const (
+	MatchContent MatchType = "content"
+	MatchName    MatchType = "name"
+)
+
+type MatchInfo struct {
+	Type MatchType
+	Key  string
+}
 
 // DigestFromHex converts a hex string to Digest
 func DigestFromHex(hexStr string) (Digest, error) {
@@ -45,6 +58,7 @@ const mapInitSize = 4096
 type Dmap struct {
 	// Primary map structure.
 	filesMap map[Digest][]string
+	matches  map[Digest]MatchInfo
 
 	// Files deffered for reasons such as size are stored here for later processing.
 	deferredFiles []string
@@ -67,6 +81,7 @@ func NewDmap(minDuplicates uint) (*Dmap, error) {
 	}
 	// Initialize our map.
 	dmap.filesMap = make(map[Digest][]string, mapInitSize)
+	dmap.matches = make(map[Digest]MatchInfo, mapInitSize)
 	dsklog.Dlogger.Debug("Dmap created with initial size: ", mapInitSize)
 
 	return dmap, nil
@@ -82,8 +97,28 @@ func (d *Dmap) AddPath(hash Digest, path string) {
 	if path == "" {
 		return
 	}
+	if _, exists := d.matches[hash]; !exists {
+		d.matches[hash] = MatchInfo{Type: MatchContent, Key: fmt.Sprintf("%x", hash)}
+	}
 	d.filesMap[hash] = append(d.filesMap[hash], path)
 	d.fileCount++
+}
+
+// AddNamePath records a path under a shallow filename match key.
+func (d *Dmap) AddNamePath(name, path string) {
+	if name == "" || path == "" {
+		return
+	}
+	hash := NameDigest(name)
+	d.matches[hash] = MatchInfo{Type: MatchName, Key: name}
+	d.filesMap[hash] = append(d.filesMap[hash], path)
+	d.fileCount++
+}
+
+// NameDigest returns a stable synthetic digest for a shallow filename group.
+func NameDigest(name string) Digest {
+	sum := sha256.Sum256([]byte("dskditto:name:" + name))
+	return Digest(sum)
 }
 
 // AddDeferredFile will add a file to the deferredFiles slice.
@@ -100,8 +135,7 @@ func (d *Dmap) PrintDmap() {
 		if uint(len(v)) < d.minDuplicates {
 			continue
 		}
-		hash := fmt.Sprintf("%x", k)
-		fmt.Printf("Hash: %s  \n", hash)
+		fmt.Printf("%s  \n", d.headerFor(k))
 		for i, f := range v {
 			fmt.Printf(" %d: %s \n", i+1, f)
 		}
@@ -119,8 +153,13 @@ func (d *Dmap) ShowResultsBullet() {
 		if uint(len(files)) < d.minDuplicates {
 			continue
 		}
-		h := fmt.Sprintf("%x", hash)
-		pterm.Println(pterm.Green("Hash: ") + pterm.Cyan(h))
+		info := d.MatchInfo(hash)
+		label := "Hash: "
+		value := info.Key
+		if info.Type == MatchName {
+			label = "Name: "
+		}
+		pterm.Println(pterm.Green(label) + pterm.Cyan(value))
 		for _, f := range files {
 			blContent := pterm.BulletListItem{Level: 0, Text: f}
 			bl = append(bl, blContent)
@@ -159,6 +198,27 @@ func (d *Dmap) Get(hash Digest) (files []string, err error) {
 // GetMap will return the map.
 func (d *Dmap) GetMap() map[Digest][]string {
 	return d.filesMap
+}
+
+func (d *Dmap) MatchInfo(hash Digest) MatchInfo {
+	if d == nil {
+		return MatchInfo{Type: MatchContent, Key: ""}
+	}
+	if info, ok := d.matches[hash]; ok {
+		if info.Type == "" {
+			info.Type = MatchContent
+		}
+		return info
+	}
+	return MatchInfo{Type: MatchContent, Key: fmt.Sprintf("%x", hash)}
+}
+
+func (d *Dmap) headerFor(hash Digest) string {
+	info := d.MatchInfo(hash)
+	if info.Type == MatchName {
+		return fmt.Sprintf("Name: %s", info.Key)
+	}
+	return fmt.Sprintf("Hash: %s", info.Key)
 }
 
 // MinDuplicates returns the current threshold for displaying duplicate groups.
@@ -209,6 +269,7 @@ func (d *Dmap) RemoveDuplicates(keep uint) ([]string, error) {
 
 		if len(survivors) == 0 {
 			delete(d.filesMap, hash)
+			delete(d.matches, hash)
 			continue
 		}
 
@@ -272,6 +333,7 @@ func (d *Dmap) LinkDuplicates(keep uint) ([]string, error) {
 
 		if len(survivors) == 0 {
 			delete(d.filesMap, hash)
+			delete(d.matches, hash)
 			continue
 		}
 

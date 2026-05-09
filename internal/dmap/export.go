@@ -19,6 +19,8 @@ type exportFile struct {
 }
 
 type exportGroup struct {
+	MatchType      string       `json:"match_type"`
+	MatchKey       string       `json:"match_key"`
 	Hash           string       `json:"hash"`
 	DuplicateCount int          `json:"duplicate_count"`
 	Files          []exportFile `json:"files"`
@@ -59,14 +61,14 @@ func (d *Dmap) WriteCSV(path string) error {
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
-	if err := writer.Write([]string{"hash", "duplicate_count", "path", "size_bytes"}); err != nil {
+	if err := writer.Write([]string{"match_type", "match_key", "hash", "duplicate_count", "path", "size_bytes"}); err != nil {
 		return fmt.Errorf("write CSV header: %w", err)
 	}
 
 	for _, group := range summary.Groups {
 		count := strconv.Itoa(group.DuplicateCount)
 		for _, f := range group.Files {
-			if err := writer.Write([]string{group.Hash, count, f.Path, strconv.FormatUint(f.Size, 10)}); err != nil {
+			if err := writer.Write([]string{group.MatchType, group.MatchKey, group.Hash, count, f.Path, strconv.FormatUint(f.Size, 10)}); err != nil {
 				return fmt.Errorf("write CSV row: %w", err)
 			}
 		}
@@ -88,6 +90,7 @@ func (d *Dmap) collectExportSummary() exportSummary {
 
 	type groupData struct {
 		hash  string
+		info  MatchInfo
 		files []string
 	}
 
@@ -98,17 +101,26 @@ func (d *Dmap) collectExportSummary() exportSummary {
 		}
 		groups = append(groups, groupData{
 			hash:  fmt.Sprintf("%x", digest),
+			info:  d.MatchInfo(digest),
 			files: append([]string(nil), files...),
 		})
 	}
 
 	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].info.Type != groups[j].info.Type {
+			return groups[i].info.Type < groups[j].info.Type
+		}
+		if groups[i].info.Key != groups[j].info.Key {
+			return groups[i].info.Key < groups[j].info.Key
+		}
 		return groups[i].hash < groups[j].hash
 	})
 
 	exportGroups := make([]exportGroup, 0, len(groups))
 	for _, g := range groups {
 		item := exportGroup{
+			MatchType:      string(g.info.Type),
+			MatchKey:       g.info.Key,
 			Hash:           g.hash,
 			DuplicateCount: len(g.files),
 			Files:          make([]exportFile, 0, len(g.files)),

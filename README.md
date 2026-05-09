@@ -60,7 +60,9 @@ Common flags:
 | `--text`, `--bullet`      | Render duplicates without launching the TUI                                                         |
 | `--remove <keep>`         | Operate on duplicates, keeping the first `<keep>` entries per group                                 |
 | `--link`                  | With `--remove`, convert extra duplicates to symlinks instead of deleting them                      |
-| `--file <path>`           | Only report duplicates of the given file                                                            |
+| `--file <path>`           | Only report duplicates of the given file; with `--name-only`, match by that file's exact name       |
+| `--name-only`             | Shallow mode: group files by exact file name, ignoring content and size                             |
+| `--file-shallow <path>`   | Shallow mode: only report files with the same exact name as `<path>`                                |
 | `--hash <algo>`           | Select hash algorithm: `sha256` (default) or `blake3`                                               |
 | `--csv-out <file>`        | Write duplicate groups to CSV                                                                       |
 | `--json-out <file>`       | Write duplicate groups to JSON                                                                      |
@@ -94,6 +96,12 @@ In the TUI, files that are symlinks are annotated with a `[symlink]` suffix so y
 ### Single-file duplicate search
 
 Use `--file /path/to/original.ext` to hash a specific file first, then scan the provided directories for other files with identical content. If no duplicates are found in those directories, `dskDitto` exits cleanly; otherwise, all reporting/removal/export modes are limited to that single duplicate group (with the original file listed first).
+
+### Shallow filename duplicate search
+
+Use `--name-only` to group files by exact final filename without hashing file contents. For example, `dir1/text1` and `dir2/text1` are considered duplicates even when their contents differ. Combine `--name-only --file /path/to/text1`, or use `--file-shallow /path/to/text1`, to limit shallow results to one exact filename. When the shallow target is a dotfile, dskDitto automatically includes hidden files and directories for that scan.
+
+Restore backups are not supported for shallow filename matches because same-name files may contain different data. If `--backup` is combined with `--name-only` or `--file-shallow`, `dskDitto` prints a warning and exits before scanning or changing files.
 
 ### Hash algorithms
 
@@ -136,6 +144,12 @@ List duplicates for scripting or grepping, without launching the TUI:
 
 ```bash
 dskDitto --text ~/Pictures ~/Movies | grep "\.jpg$"
+```
+
+Find files that share the same exact filename, ignoring contents:
+
+```bash
+dskDitto --name-only --text ~/Downloads ~/Documents
 ```
 
 Find and safely delete duplicates larger than 100 MiB, keeping one copy per group:

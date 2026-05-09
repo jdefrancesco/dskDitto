@@ -299,6 +299,12 @@ func TestExportJSONAndCSV(t *testing.T) {
 		t.Fatalf("expected 1 group entry, got %d", len(summary.Groups))
 	}
 	group := summary.Groups[0]
+	if group.MatchType != string(MatchContent) {
+		t.Fatalf("unexpected match type: %s", group.MatchType)
+	}
+	if group.MatchKey != fmt.Sprintf("%x", digest) {
+		t.Fatalf("unexpected match key: %s", group.MatchKey)
+	}
 	if group.Hash != fmt.Sprintf("%x", digest) {
 		t.Fatalf("unexpected hash: %s", group.Hash)
 	}
@@ -342,7 +348,7 @@ func TestExportJSONAndCSV(t *testing.T) {
 	}
 
 	header := rows[0]
-	expectedHeader := []string{"hash", "duplicate_count", "path", "size_bytes"}
+	expectedHeader := []string{"match_type", "match_key", "hash", "duplicate_count", "path", "size_bytes"}
 	for i, col := range expectedHeader {
 		if header[i] != col {
 			t.Fatalf("unexpected header column %d: %s", i, header[i])
@@ -351,19 +357,54 @@ func TestExportJSONAndCSV(t *testing.T) {
 
 	expectedHash := fmt.Sprintf("%x", digest)
 	for _, row := range rows[1:] {
-		if row[0] != expectedHash {
-			t.Fatalf("unexpected hash in CSV row: %s", row[0])
+		if row[0] != string(MatchContent) {
+			t.Fatalf("unexpected match type in CSV row: %s", row[0])
 		}
-		if row[1] != "2" {
-			t.Fatalf("unexpected duplicate count in CSV row: %s", row[1])
+		if row[1] != expectedHash {
+			t.Fatalf("unexpected match key in CSV row: %s", row[1])
 		}
-		path := row[2]
-		size, err := strconv.ParseUint(row[3], 10, 64)
+		if row[2] != expectedHash {
+			t.Fatalf("unexpected hash in CSV row: %s", row[2])
+		}
+		if row[3] != "2" {
+			t.Fatalf("unexpected duplicate count in CSV row: %s", row[3])
+		}
+		path := row[4]
+		size, err := strconv.ParseUint(row[5], 10, 64)
 		if err != nil {
 			t.Fatalf("parse size: %v", err)
 		}
 		if filesSeen[path] != size {
 			t.Fatalf("CSV size mismatch for %s: got %d want %d", path, size, filesSeen[path])
 		}
+	}
+}
+
+func TestAddNamePathRecordsNameMatch(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(2)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	dm.AddNamePath("same.txt", "/tmp/one/same.txt")
+	dm.AddNamePath("same.txt", "/tmp/two/same.txt")
+
+	digest := NameDigest("same.txt")
+	files, err := dm.Get(digest)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(files))
+	}
+
+	info := dm.MatchInfo(digest)
+	if info.Type != MatchName {
+		t.Fatalf("expected name match type, got %s", info.Type)
+	}
+	if info.Key != "same.txt" {
+		t.Fatalf("expected name match key, got %s", info.Key)
 	}
 }

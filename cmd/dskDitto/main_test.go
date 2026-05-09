@@ -1,10 +1,12 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
+	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
 )
 
@@ -83,14 +85,14 @@ func TestHashWorkerCount(t *testing.T) {
 }
 
 func TestValidateRestoreModeAcceptsValidInvocation(t *testing.T) {
-	err := validateRestoreMode("restore.jsonl", "", nil, false, false, false, "", "", "", 0, false)
+	err := validateRestoreMode("restore.jsonl", "", nil, false, false, false, "", "", "", "", false, 0, false)
 	if err != nil {
 		t.Fatalf("expected valid restore invocation, got: %v", err)
 	}
 }
 
 func TestValidateRestoreModeRejectsPathArgs(t *testing.T) {
-	err := validateRestoreMode("restore.jsonl", "", []string{"."}, false, false, false, "", "", "", 0, false)
+	err := validateRestoreMode("restore.jsonl", "", []string{"."}, false, false, false, "", "", "", "", false, 0, false)
 	if err == nil {
 		t.Fatalf("expected error when path args are provided")
 	}
@@ -100,11 +102,104 @@ func TestValidateRestoreModeRejectsPathArgs(t *testing.T) {
 }
 
 func TestValidateRestoreModeRejectsScanFlags(t *testing.T) {
-	err := validateRestoreMode("restore.jsonl", "", nil, true, false, false, "", "", "", 0, false)
+	err := validateRestoreMode("restore.jsonl", "", nil, true, false, false, "", "", "", "", false, 0, false)
 	if err == nil {
 		t.Fatalf("expected error when scan flags are provided")
 	}
 	if !strings.Contains(err.Error(), "cannot be combined") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAddNameOnlyGroups(t *testing.T) {
+	dsklog.InitializeDlogger(filepath.Join(t.TempDir(), "test.log"))
+
+	dm, err := dmap.NewDmap(2)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	groups := map[string][]dwalk.FileCandidate{
+		"same.txt": {
+			{Path: "/tmp/b/same.txt"},
+			{Path: "/tmp/a/same.txt"},
+		},
+		"unique.txt": {
+			{Path: "/tmp/a/unique.txt"},
+		},
+	}
+
+	added, skipped := addNameOnlyGroups(dm, groups, 2)
+	if added != 1 {
+		t.Fatalf("expected one added group, got %d", added)
+	}
+	if skipped != 1 {
+		t.Fatalf("expected one skipped file, got %d", skipped)
+	}
+
+	files, _ := dm.Get(dmap.NameDigest("same.txt"))
+	if len(files) != 2 {
+		t.Fatalf("expected two same-name files, got %d", len(files))
+	}
+	if files[0] != "/tmp/a/same.txt" {
+		t.Fatalf("expected stable path ordering, got %#v", files)
+	}
+	if _, ok := dm.GetMap()[dmap.NameDigest("unique.txt")]; ok {
+		t.Fatalf("did not expect unique filename group")
+	}
+}
+
+func TestValidateShallowModeRejectsBackup(t *testing.T) {
+	_, err := validateShallowMode(true, "", "", "restore.jsonl")
+	if err == nil {
+		t.Fatalf("expected backup rejection for shallow mode")
+	}
+	if !strings.Contains(err.Error(), "restore backups are not supported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateShallowModeUsesFileWithNameOnly(t *testing.T) {
+	name, err := validateShallowMode(true, "", "/tmp/dir/target.txt", "")
+	if err != nil {
+		t.Fatalf("validateShallowMode failed: %v", err)
+	}
+	if name != "target.txt" {
+		t.Fatalf("expected target basename, got %q", name)
+	}
+}
+
+func TestValidateShallowModeRejectsFileAndFileShallow(t *testing.T) {
+	_, err := validateShallowMode(true, "target.txt", "content-target.txt", "")
+	if err == nil {
+		t.Fatalf("expected --file and --file-shallow rejection")
+	}
+}
+
+func TestValidateShallowModeReturnsFileShallowBasename(t *testing.T) {
+	name, err := validateShallowMode(false, "/tmp/dir/text1", "", "")
+	if err != nil {
+		t.Fatalf("validateShallowMode failed: %v", err)
+	}
+	if name != "text1" {
+		t.Fatalf("expected basename text1, got %q", name)
+	}
+}
+
+func TestResolveSkipHiddenIncludesHiddenShallowTarget(t *testing.T) {
+	if resolveSkipHidden(false, ".dskditto.log") {
+		t.Fatalf("expected hidden shallow target to include hidden entries")
+	}
+}
+
+func TestResolveSkipHiddenKeepsDefaultForNonHiddenShallowTarget(t *testing.T) {
+	if !resolveSkipHidden(false, "dskditto.log") {
+		t.Fatalf("expected non-hidden shallow target to preserve hidden skipping")
+	}
+}
+
+func TestResolveSkipHiddenHonorsHiddenFlag(t *testing.T) {
+	if resolveSkipHidden(true, "") {
+		t.Fatalf("expected --hidden to include hidden entries")
 	}
 }

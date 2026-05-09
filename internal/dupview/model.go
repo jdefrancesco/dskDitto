@@ -48,11 +48,12 @@ type FileEntry struct {
 }
 
 type Group struct {
-	Hash     dmap.Digest
-	Title    string
-	Files    []*FileEntry
-	Expanded bool
-	TotalSz  uint64
+	Hash      dmap.Digest
+	MatchInfo dmap.MatchInfo
+	Title     string
+	Files     []*FileEntry
+	Expanded  bool
+	TotalSz   uint64
 }
 
 type Model struct {
@@ -79,11 +80,13 @@ func New(dMap *dmap.Dmap) *Model {
 		}
 
 		totalSize := EstimateGroupTotalSize(files)
+		matchInfo := dMap.MatchInfo(hash)
 		group := &Group{
-			Hash:     hash,
-			Title:    FormatGroupTitle(hash, len(files), totalSize),
-			Expanded: true,
-			TotalSz:  totalSize,
+			Hash:      hash,
+			MatchInfo: matchInfo,
+			Title:     FormatGroupTitle(hash, matchInfo, len(files), totalSize),
+			Expanded:  true,
+			TotalSz:   totalSize,
 		}
 
 		for _, file := range files {
@@ -319,16 +322,22 @@ func EstimateGroupTotalSize(files []string) uint64 {
 	if len(files) == 0 {
 		return 0
 	}
-	perFile := dfs.GetFileSize(files[0])
-	return perFile * uint64(len(files))
+	var total uint64
+	for _, file := range files {
+		total += dfs.GetFileSize(file)
+	}
+	return total
 }
 
-func FormatGroupTitle(hash dmap.Digest, count int, totalSize uint64) string {
+func FormatGroupTitle(hash dmap.Digest, info dmap.MatchInfo, count int, totalSize uint64) string {
 	if count == 0 {
 		return "Empty group"
 	}
 
 	const tmpl = "%s - %d files - (approx. size %s)"
+	if info.Type == dmap.MatchName {
+		return fmt.Sprintf(tmpl, "Name: "+info.Key, count, utils.DisplaySize(totalSize))
+	}
 	hashHex := fmt.Sprintf("%x", hash[:16])
 	return fmt.Sprintf(tmpl, hashHex, count, utils.DisplaySize(totalSize))
 }

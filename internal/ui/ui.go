@@ -1068,7 +1068,7 @@ func estimateGroupTotalSize(files []string) uint64 {
 
 // formatGroupTitle constructs a descriptive label for a digest-based group, summarizing its hash, file count, and approximate total size.
 func formatGroupTitle(hash dmap.Digest, count int, totalSize uint64) string {
-	return dupview.FormatGroupTitle(hash, count, totalSize)
+	return dupview.FormatGroupTitle(hash, dmap.MatchInfo{Type: dmap.MatchContent, Key: fmt.Sprintf("%x", hash)}, count, totalSize)
 }
 
 // autoMarkGroup marks all but one in the duplicate group. For UX, assumes users will want

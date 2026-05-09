@@ -456,7 +456,7 @@ func (a *app) drawGroupHeaderRow(group *dupview.Group, rect rl.Rectangle, select
 	rl.DrawRectangleRec(rl.NewRectangle(rect.X, rect.Y, 4, rect.Height), colorAccent)
 	drawChevron(rect.X+18, rect.Y+rect.Height/2, group.Expanded, colorAccent)
 
-	hash := strings.ToUpper(hashPrefix(group))
+	hash := strings.ToUpper(groupKeyText(group))
 	hashSize := a.layout.rowSize
 	badgeSize := a.layout.smallSize - 1
 	if badgeSize < 12 {
@@ -534,8 +534,8 @@ func (a *app) drawSidebarDetails(panel rl.Rectangle, group *dupview.Group) {
 	drawText(utils.DisplaySize(group.TotalSz), panel.X+18, y, 18, colorText)
 	y += 34
 
-	hash := hashPrefix(group)
-	drawText("Hash prefix", panel.X+18, y, a.layout.bodySize, colorMuted)
+	hash := groupKeyValue(group)
+	drawText(groupKeyLabel(group), panel.X+18, y, a.layout.bodySize, colorMuted)
 	y += 26
 	drawText(truncateText(hash, 16, panel.Width-36), panel.X+18, y, 16, colorText)
 }
@@ -548,11 +548,11 @@ func (a *app) drawBottomInspector(panel rl.Rectangle, group *dupview.Group) {
 	drawText(fmt.Sprintf("%d files", len(group.Files)), x, y+24, 17, colorText)
 	drawText(utils.DisplaySize(group.TotalSz), x+metricGap, y+24, 17, colorText)
 
-	hash := hashPrefix(group)
+	hash := groupKeyValue(group)
 	hashX := x + metricGap*2.25
 	available := panel.X + panel.Width - hashX - 18
 	if available > 80 {
-		drawText("Hash prefix", hashX, y, a.layout.bodySize, colorMuted)
+		drawText(groupKeyLabel(group), hashX, y, a.layout.bodySize, colorMuted)
 		drawText(truncateText(hash, 15, available), hashX, y+26, 15, colorText)
 	}
 }
@@ -1336,8 +1336,7 @@ func formatCompactGroupTitle(group *dupview.Group) string {
 	if group == nil {
 		return ""
 	}
-	hash := hashPrefix(group)
-	return fmt.Sprintf("%s - %d files - approx. %s", hash, len(group.Files), utils.DisplaySize(group.TotalSz))
+	return fmt.Sprintf("%s - %d files - approx. %s", groupKeyText(group), len(group.Files), utils.DisplaySize(group.TotalSz))
 }
 
 func hashPrefix(group *dupview.Group) string {
@@ -1349,6 +1348,33 @@ func hashPrefix(group *dupview.Group) string {
 		return hash[:16]
 	}
 	return hash
+}
+
+func groupKeyLabel(group *dupview.Group) string {
+	if group != nil && group.MatchInfo.Type == dmap.MatchName {
+		return "Name"
+	}
+	return "Hash prefix"
+}
+
+func groupKeyValue(group *dupview.Group) string {
+	if group == nil {
+		return ""
+	}
+	if group.MatchInfo.Type == dmap.MatchName {
+		return group.MatchInfo.Key
+	}
+	return hashPrefix(group)
+}
+
+func groupKeyText(group *dupview.Group) string {
+	if group == nil {
+		return ""
+	}
+	if group.MatchInfo.Type == dmap.MatchName {
+		return "Name: " + group.MatchInfo.Key
+	}
+	return hashPrefix(group)
 }
 
 // footerHelp attempts to adapt to the window size.
