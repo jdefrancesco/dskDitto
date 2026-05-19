@@ -440,12 +440,7 @@ func (m *model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyEnter:
 		if m.confirmInput == m.confirmCode {
-			switch m.action {
-			case confirmLink:
-				m.processLinking()
-			default:
-				m.processDeletion()
-			}
+			m.processConfirmedAction()
 		} else {
 			m.confirmError = "Incorrect code. Try again."
 			m.confirmInput = ""
@@ -679,11 +674,24 @@ func (m *model) startConfirmationPrompt(action confirmAction) {
 		return
 	}
 	m.action = action
+	if m.applyOptions.SkipConfirm {
+		m.processConfirmedAction()
+		return
+	}
 	m.confirmCode = GenConfirmationCode()
 	m.confirmInput = ""
 	m.confirmError = ""
 	m.deleteResult = ""
 	m.mode = modeConfirm
+}
+
+func (m *model) processConfirmedAction() {
+	switch m.action {
+	case confirmLink:
+		m.processLinking()
+	default:
+		m.processDeletion()
+	}
 }
 
 // processDeletion actually removes the duplicate files.

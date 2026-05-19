@@ -13,6 +13,7 @@ import (
 type ApplyOptions struct {
 	BackupPath    string
 	HashAlgorithm dfs.HashAlgorithm
+	SkipConfirm   bool
 }
 
 type plannedMutation struct {

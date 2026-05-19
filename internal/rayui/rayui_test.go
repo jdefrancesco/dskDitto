@@ -1,6 +1,8 @@
 package rayui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -177,6 +179,57 @@ func TestHandleButtonExpandsAndCollapsesAllGroups(t *testing.T) {
 	}
 	if got, want := len(a.visible), 5; got != want {
 		t.Fatalf("expected group and file rows after expand, got %d want %d", got, want)
+	}
+}
+
+func TestStartConfirmationUsesSafePromptByDefault(t *testing.T) {
+	a := &app{
+		results: &dupview.Model{
+			Groups: []*dupview.Group{
+				{Files: []*dupview.FileEntry{{Path: "/tmp/marked", Marked: true}}},
+			},
+		},
+	}
+
+	a.startConfirmation(dupview.ActionDelete)
+
+	if a.mode != modeConfirm {
+		t.Fatalf("expected confirmation mode")
+	}
+	if a.confirmCode == "" {
+		t.Fatalf("expected confirmation code")
+	}
+}
+
+func TestStartConfirmationSkipsPromptWhenConfigured(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "marked.txt")
+	if err := os.WriteFile(path, []byte("delete me"), 0o644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+
+	a := &app{
+		results: &dupview.Model{
+			Groups: []*dupview.Group{
+				{Files: []*dupview.FileEntry{{Path: path, Marked: true}}},
+			},
+		},
+		applyOptions: dupview.ApplyOptions{SkipConfirm: true},
+	}
+
+	a.startConfirmation(dupview.ActionDelete)
+
+	if a.mode != modeTree {
+		t.Fatalf("expected tree mode after direct delete")
+	}
+	if a.confirmCode != "" {
+		t.Fatalf("did not expect confirmation code")
+	}
+	if !strings.Contains(a.results.Result, "Deleted 1 file") {
+		t.Fatalf("expected delete result, got %q", a.results.Result)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected marked file to be deleted, stat err: %v", err)
 	}
 }
 

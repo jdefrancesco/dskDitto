@@ -68,8 +68,9 @@ Common flags:
 | `--json-out <file>`       | Write duplicate groups to JSON                                                                      |
 | `--fs-detect <path>`      | Print the filesystem type that contains `<path>`                                                    |
 | `--color-safe`            | Use a high-compatibility TUI theme that avoids custom colors (best for problematic terminal themes) |
+| `--no-confirm`            | Skip interactive confirmation codes for TUI/GUI delete and link actions                             |
 
-Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted, a confirmation dialog prevents accidental mass changes.
+Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted through the TUI or GUI, a confirmation dialog prevents accidental mass changes unless `--no-confirm` is set.
 
 ### Duplicate removal and symlink conversion
 
@@ -79,7 +80,7 @@ Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or conve
 - **Delete extras:** use `--remove <keep>` to delete all but `<keep>` files in each duplicate group.
 - **Convert extras to symlinks:** combine `--remove <keep> --link` to replace extra duplicates with symlinks pointing at one kept file per group.
 
-In the TUI you can also convert the currently marked files into symlinks: mark the duplicates you want to replace, then press `L` and enter the confirmation code. Each group’s symlinks will point at one unmarked file in that group.
+In the TUI you can also convert the currently marked files into symlinks: mark the duplicates you want to replace, then press `L` and enter the confirmation code. Each group’s symlinks will point at one unmarked file in that group. Power users can pass `--no-confirm` to skip the confirmation code in the TUI and GUI.
 
 On Unix-like systems, multiple hard links to the same underlying file are treated as a single entry during scanning: `dskDitto` hashes the content once and does not report those hard-link paths as separate space-wasting duplicates.
 

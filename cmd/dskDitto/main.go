@@ -166,6 +166,7 @@ func main() {
 		flDetectFS       = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
 		flColorSafe      = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
 		flGui            = flag.Bool("gui", false, "Show results in an interactive raylib GUI")
+		flNoConfirm      = flag.Bool("no-confirm", false, "Do not ask for confirmation codes before interactive delete/link actions.")
 		flBackupFile     = flag.String("backup", "", "Write duplicate restore backup JSONL to the specified `file`.")
 		flRestoreFile    = flag.String("restore", "", "Restore duplicate files from the specified JSONL `file`.")
 		flDryRun         = flag.Bool("dry-run", false, "With --restore, print actions without writing files.")
@@ -716,6 +717,7 @@ CollectLoop:
 	applyOptions := dupview.ApplyOptions{
 		BackupPath:    *flBackupFile,
 		HashAlgorithm: hashAlgo,
+		SkipConfirm:   *flNoConfirm,
 	}
 	if *flGui {
 		rayui.Launch(dMap, applyOptions)

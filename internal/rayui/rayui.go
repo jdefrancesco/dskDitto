@@ -312,15 +312,7 @@ func (a *app) updateConfirm() {
 	}
 	if rl.IsKeyPressed(rl.KeyEnter) {
 		if a.confirmInput == a.confirmCode {
-			a.mode = modeTree
-			a.confirmError = ""
-			a.confirmInput = ""
-			result, err := dupview.ApplyMarked(a.results.Groups, a.action, a.applyOptions)
-			if err != nil {
-				a.results.Result = err.Error()
-			} else {
-				a.results.Result = result
-			}
+			a.applyConfirmedAction()
 		} else {
 			a.confirmError = "Incorrect code. Try again."
 			a.confirmInput = ""
@@ -909,11 +901,27 @@ func (a *app) startConfirmation(action dupview.Action) {
 		return
 	}
 	a.action = action
+	if a.applyOptions.SkipConfirm {
+		a.applyConfirmedAction()
+		return
+	}
 	a.confirmCode = dupview.GenConfirmationCode()
 	a.confirmInput = ""
 	a.confirmError = ""
 	a.results.Result = ""
 	a.mode = modeConfirm
+}
+
+func (a *app) applyConfirmedAction() {
+	a.mode = modeTree
+	a.confirmError = ""
+	a.confirmInput = ""
+	result, err := dupview.ApplyMarked(a.results.Groups, a.action, a.applyOptions)
+	if err != nil {
+		a.results.Result = err.Error()
+		return
+	}
+	a.results.Result = result
 }
 
 func (a *app) cancelConfirmation() {
