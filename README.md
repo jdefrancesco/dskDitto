@@ -63,6 +63,9 @@ Common flags:
 | `--file <path>`           | Only report duplicates of the given file; with `--name-only`, match by that file's exact name       |
 | `--name-only`             | Shallow mode: group files by exact file name, ignoring content and size                             |
 | `--file-shallow <path>`   | Shallow mode: only report files with the same exact name as `<path>`                                |
+| `--fuzzy`                 | Content-based near-duplicate mode (file similarity, not filename similarity)                         |
+| `--fuzzy-threshold <pct>` | Minimum similarity percentage in fuzzy mode (default `75`)                                          |
+| `--fuzzy-same-ext`        | In fuzzy mode, only compare files that share the same extension                                      |
 | `--hash <algo>`           | Select hash algorithm: `sha256` (default) or `blake3`                                               |
 | `--csv-out <file>`        | Write duplicate groups to CSV                                                                       |
 | `--json-out <file>`       | Write duplicate groups to JSON                                                                      |
@@ -103,6 +106,30 @@ Use `--file /path/to/original.ext` to hash a specific file first, then scan the 
 Use `--name-only` to group files by exact final filename without hashing file contents. For example, `dir1/text1` and `dir2/text1` are considered duplicates even when their contents differ. Combine `--name-only --file /path/to/text1`, or use `--file-shallow /path/to/text1`, to limit shallow results to one exact filename. When the shallow target is a dotfile, dskDitto automatically includes hidden files and directories for that scan.
 
 Restore backups are not supported for shallow filename matches because same-name files may contain different data. If `--backup` is combined with `--name-only` or `--file-shallow`, `dskDitto` prints a warning and exits before scanning or changing files.
+
+### Fuzzy content matching (near duplicates)
+
+Use `--fuzzy` to find files with similar content even when they are not byte-for-byte identical. This mode compares file content signatures only; it does not use filename similarity.
+
+By default, fuzzy mode returns groups at `>=85%` similarity:
+
+```bash
+dskDitto --fuzzy ~/Downloads
+```
+
+Tune the similarity cutoff when needed:
+
+```bash
+dskDitto --fuzzy --fuzzy-threshold 90 ~/Downloads
+```
+
+Restrict fuzzy comparisons to matching extensions:
+
+```bash
+dskDitto --fuzzy --fuzzy-same-ext ~/Downloads
+```
+
+`--fuzzy` results are review-only near matches. Automatic mutation flows (`--remove` / `--link`) are disabled in fuzzy mode.
 
 ### Hash algorithms
 

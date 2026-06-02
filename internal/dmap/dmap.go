@@ -28,6 +28,7 @@ type MatchType string
 const (
 	MatchContent MatchType = "content"
 	MatchName    MatchType = "name"
+	MatchFuzzy   MatchType = "fuzzy"
 )
 
 type MatchInfo struct {
@@ -115,9 +116,26 @@ func (d *Dmap) AddNamePath(name, path string) {
 	d.fileCount++
 }
 
+// AddFuzzyPath records a path under a fuzzy content-match key.
+func (d *Dmap) AddFuzzyPath(key, path string) {
+	if key == "" || path == "" {
+		return
+	}
+	hash := FuzzyDigest(key)
+	d.matches[hash] = MatchInfo{Type: MatchFuzzy, Key: key}
+	d.filesMap[hash] = append(d.filesMap[hash], path)
+	d.fileCount++
+}
+
 // NameDigest returns a stable synthetic digest for a shallow filename group.
 func NameDigest(name string) Digest {
 	sum := sha256.Sum256([]byte("dskditto:name:" + name))
+	return Digest(sum)
+}
+
+// FuzzyDigest returns a stable synthetic digest for a fuzzy content group.
+func FuzzyDigest(key string) Digest {
+	sum := sha256.Sum256([]byte("dskditto:fuzzy:" + key))
 	return Digest(sum)
 }
 
@@ -158,6 +176,8 @@ func (d *Dmap) ShowResultsBullet() {
 		value := info.Key
 		if info.Type == MatchName {
 			label = "Name: "
+		} else if info.Type == MatchFuzzy {
+			label = "Similar: "
 		}
 		pterm.Println(pterm.Green(label) + pterm.Cyan(value))
 		for _, f := range files {
@@ -217,6 +237,9 @@ func (d *Dmap) headerFor(hash Digest) string {
 	info := d.MatchInfo(hash)
 	if info.Type == MatchName {
 		return fmt.Sprintf("Name: %s", info.Key)
+	}
+	if info.Type == MatchFuzzy {
+		return fmt.Sprintf("Similar: %s", info.Key)
 	}
 	return fmt.Sprintf("Hash: %s", info.Key)
 }

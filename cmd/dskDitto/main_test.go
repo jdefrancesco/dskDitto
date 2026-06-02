@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -201,5 +202,88 @@ func TestResolveSkipHiddenKeepsDefaultForNonHiddenShallowTarget(t *testing.T) {
 func TestResolveSkipHiddenHonorsHiddenFlag(t *testing.T) {
 	if resolveSkipHidden(true, "") {
 		t.Fatalf("expected --hidden to include hidden entries")
+	}
+}
+
+func TestValidateFuzzyModeRejectsShallowModes(t *testing.T) {
+	err := validateFuzzyMode(true, true, "", "", "", 0, false, 85)
+	if err == nil {
+		t.Fatalf("expected shallow/fuzzy incompatibility")
+	}
+}
+
+func TestValidateFuzzyModeRejectsMutations(t *testing.T) {
+	err := validateFuzzyMode(true, false, "", "", "", 1, false, 85)
+	if err == nil {
+		t.Fatalf("expected remove/fuzzy incompatibility")
+	}
+
+	err = validateFuzzyMode(true, false, "", "", "", 0, true, 85)
+	if err == nil {
+		t.Fatalf("expected link/fuzzy incompatibility")
+	}
+}
+
+func TestValidateFuzzyModeRejectsInvalidThreshold(t *testing.T) {
+	err := validateFuzzyMode(true, false, "", "", "", 0, false, 120)
+	if err == nil {
+		t.Fatalf("expected invalid threshold rejection")
+	}
+}
+
+func TestAddFuzzyContentGroups(t *testing.T) {
+	dsklog.InitializeDlogger(filepath.Join(t.TempDir(), "test.log"))
+
+	dm, err := dmap.NewDmap(2)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	tmp := t.TempDir()
+	a := filepath.Join(tmp, "a.bin")
+	b := filepath.Join(tmp, "b.bin")
+	c := filepath.Join(tmp, "c.bin")
+
+	aData := []byte("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda")
+	bData := []byte("alpha beta gamma delta epsilon zeta eta theta iota kappa lambdA")
+	cData := []byte("totally different content payload that should not cluster")
+
+	if err := os.WriteFile(a, aData, 0o644); err != nil {
+		t.Fatalf("write a: %v", err)
+	}
+	if err := os.WriteFile(b, bData, 0o644); err != nil {
+		t.Fatalf("write b: %v", err)
+	}
+	if err := os.WriteFile(c, cData, 0o644); err != nil {
+		t.Fatalf("write c: %v", err)
+	}
+
+	added, processed, skipped, err := addFuzzyContentGroups(dm, []dwalk.FileCandidate{
+		{Path: a, Size: int64(len(aData))},
+		{Path: b, Size: int64(len(bData))},
+		{Path: c, Size: int64(len(cData))},
+	}, 2, 70, false)
+	if err != nil {
+		t.Fatalf("addFuzzyContentGroups failed: %v", err)
+	}
+	if processed == 0 {
+		t.Fatalf("expected processed files > 0")
+	}
+	if skipped > 0 {
+		t.Fatalf("expected no skipped files, got %d", skipped)
+	}
+	if added == 0 {
+		t.Fatalf("expected at least one fuzzy group")
+	}
+
+	foundFuzzy := false
+	for hash := range dm.GetMap() {
+		if dm.MatchInfo(hash).Type == dmap.MatchFuzzy {
+			foundFuzzy = true
+			break
+		}
+	}
+	if !foundFuzzy {
+		t.Fatalf("expected fuzzy match type in dmap")
 	}
 }

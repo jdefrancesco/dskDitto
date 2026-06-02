@@ -888,6 +888,9 @@ func (a *app) toggleCurrentFileMark() {
 	if node == nil || node.typ != nodeFile {
 		return
 	}
+	if a.results.Groups[node.group].MatchInfo.Type == dmap.MatchFuzzy {
+		return
+	}
 	entry := a.results.Groups[node.group].Files[node.file]
 	if entry.Status == dupview.FileStatusDeleted {
 		return
@@ -1362,6 +1365,9 @@ func groupKeyLabel(group *dupview.Group) string {
 	if group != nil && group.MatchInfo.Type == dmap.MatchName {
 		return "Name"
 	}
+	if group != nil && group.MatchInfo.Type == dmap.MatchFuzzy {
+		return "Similarity"
+	}
 	return "Hash prefix"
 }
 
@@ -1370,6 +1376,9 @@ func groupKeyValue(group *dupview.Group) string {
 		return ""
 	}
 	if group.MatchInfo.Type == dmap.MatchName {
+		return group.MatchInfo.Key
+	}
+	if group.MatchInfo.Type == dmap.MatchFuzzy {
 		return group.MatchInfo.Key
 	}
 	return hashPrefix(group)
@@ -1381,6 +1390,9 @@ func groupKeyText(group *dupview.Group) string {
 	}
 	if group.MatchInfo.Type == dmap.MatchName {
 		return "Name: " + group.MatchInfo.Key
+	}
+	if group.MatchInfo.Type == dmap.MatchFuzzy {
+		return "Similar: " + group.MatchInfo.Key
 	}
 	return hashPrefix(group)
 }

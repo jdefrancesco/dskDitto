@@ -408,3 +408,33 @@ func TestAddNamePathRecordsNameMatch(t *testing.T) {
 		t.Fatalf("expected name match key, got %s", info.Key)
 	}
 }
+
+func TestAddFuzzyPathRecordsFuzzyMatch(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(2)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	key := "near-content >=85% (sig deadbeef)"
+	dm.AddFuzzyPath(key, "/tmp/one/file.bin")
+	dm.AddFuzzyPath(key, "/tmp/two/file.bin")
+
+	digest := FuzzyDigest(key)
+	files, err := dm.Get(digest)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(files))
+	}
+
+	info := dm.MatchInfo(digest)
+	if info.Type != MatchFuzzy {
+		t.Fatalf("expected fuzzy match type, got %s", info.Type)
+	}
+	if info.Key != key {
+		t.Fatalf("expected fuzzy match key, got %s", info.Key)
+	}
+}

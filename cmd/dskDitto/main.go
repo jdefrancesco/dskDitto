@@ -24,6 +24,7 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 	"github.com/jdefrancesco/dskDitto/internal/dupview"
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
+	"github.com/jdefrancesco/dskDitto/internal/fuzzy"
 	"github.com/jdefrancesco/dskDitto/internal/manifest"
 	"github.com/jdefrancesco/dskDitto/internal/rayui"
 	"github.com/jdefrancesco/dskDitto/internal/ui"
@@ -161,6 +162,9 @@ func main() {
 		flSingleFile     = flag.String("file", "", "Only search for duplicates of the specified `path` file.")
 		flNameOnly       = flag.Bool("name-only", false, "Only compare exact file names, ignoring content and size.")
 		flFileShallow    = flag.String("file-shallow", "", "Only search for files with the same exact name as the specified `path` file.")
+		flFuzzy          = flag.Bool("fuzzy", false, "Enable fuzzy content matching to find near-duplicate files.")
+		flFuzzyThreshold = flag.Int("fuzzy-threshold", fuzzy.DefaultMinSimilarity, "Minimum fuzzy similarity `percent` (0-100).")
+		flFuzzySameExt   = flag.Bool("fuzzy-same-ext", false, "In fuzzy mode, only compare files with the same extension.")
 		flCSVOut         = flag.String("csv-out", "", "Write duplicate groups to the specified CSV `file`.")
 		flJSONOut        = flag.String("json-out", "", "Write duplicate groups to the specified JSON `file`.")
 		flDetectFS       = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
@@ -180,6 +184,12 @@ func main() {
 	shallowTargetName, shallowErr := validateShallowMode(*flNameOnly, *flFileShallow, *flSingleFile, *flBackupFile)
 	if shallowErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", shallowErr)
+		os.Exit(1)
+	}
+
+	fuzzyMode := *flFuzzy
+	if fuzzyErr := validateFuzzyMode(fuzzyMode, shallowMode, *flSingleFile, *flBackupFile, *flRestoreFile, *flKeep, *flLinkMode, *flFuzzyThreshold); fuzzyErr != nil {
+		fmt.Fprintf(os.Stderr, "invalid fuzzy invocation: %v\n", fuzzyErr)
 		os.Exit(1)
 	}
 
@@ -345,7 +355,13 @@ func main() {
 
 		pterm.Info.Printf("Searching for duplicates of %s\n", targetFilePath)
 	}
-	if shallowMode {
+	if fuzzyMode {
+		pterm.Info.Printf("Searching for near-duplicate file content (threshold >= %d%%)\n", *flFuzzyThreshold)
+		if *flFuzzySameExt {
+			pterm.Info.Println("Fuzzy mode extension filter enabled")
+		}
+	}
+	if shallowMode && !fuzzyMode {
 		if shallowTargetName != "" {
 			pterm.Info.Printf("Searching for shallow duplicates named %s\n", shallowTargetName)
 			if shallowTargetIsHidden(shallowTargetName) && !*flIncludeHidden {
@@ -424,6 +440,7 @@ func main() {
 
 	sizeGroups := make(map[int64][]dwalk.FileCandidate, 4096)
 	nameGroups := make(map[string][]dwalk.FileCandidate, 4096)
+	fuzzyCandidates := make([]dwalk.FileCandidate, 0, 4096)
 	var scannedFiles uint
 
 CollectLoop:
@@ -439,6 +456,10 @@ CollectLoop:
 				break CollectLoop
 			}
 			scannedFiles++
+			if fuzzyMode {
+				fuzzyCandidates = append(fuzzyCandidates, candidate)
+				continue
+			}
 			if shallowMode {
 				name := filepath.Base(candidate.Path)
 				if shallowTargetName != "" && name != shallowTargetName {
@@ -460,8 +481,17 @@ CollectLoop:
 
 	var sampledFiles uint
 	var fullHashedFiles uint
+	var fuzzyProcessed uint
 
-	if shallowMode {
+	if fuzzyMode {
+		addedGroups, processed, skippedBySignature, fuzzyErr := addFuzzyContentGroups(dMap, fuzzyCandidates, minDups, *flFuzzyThreshold, *flFuzzySameExt)
+		if fuzzyErr != nil {
+			fmt.Fprintf(os.Stderr, "fuzzy scan failed: %v\n", fuzzyErr)
+			os.Exit(1)
+		}
+		fuzzyProcessed = processed
+		dsklog.Dlogger.Debugf("Added %d fuzzy content groups; skipped %d files during signature stage", addedGroups, skippedBySignature)
+	} else if shallowMode {
 		addedGroups, skippedByName := addNameOnlyGroups(dMap, nameGroups, minDups)
 		nameGroups = nil
 		dsklog.Dlogger.Debugf("Added %d shallow filename groups; skipped %d files with unique names", addedGroups, skippedByName)
@@ -616,7 +646,12 @@ CollectLoop:
 	// written to disk.
 	pprof.StopCPUProfile()
 
-	if singleFileMode {
+	if fuzzyMode {
+		if dMap.IsEmpty() {
+			pterm.Info.Println("No near-duplicate file-content matches found in the provided paths.")
+			os.Exit(0)
+		}
+	} else if singleFileMode {
 		dupCount := applySingleFileFilter(dMap, targetDigest, targetFilePath)
 		if dupCount == 0 {
 			pterm.Info.Printf("No duplicates of %s found in the provided paths.\n", targetFilePath)
@@ -624,7 +659,7 @@ CollectLoop:
 		}
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, targetFilePath)
 	}
-	if shallowTargetName != "" {
+	if !fuzzyMode && shallowTargetName != "" {
 		files, _ := dMap.Get(dmap.NameDigest(shallowTargetName))
 		if len(files) == 0 {
 			pterm.Info.Printf("No shallow duplicates named %s found in the provided paths.\n", shallowTargetName)
@@ -637,7 +672,9 @@ CollectLoop:
 	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
 		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
 		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
-	if shallowMode {
+	if fuzzyMode {
+		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files, fuzzy-signatured " + pterm.LightWhite(fuzzyProcessed) + " in " + pterm.LightWhite(duration)
+	} else if shallowMode {
 		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files by name in " + pterm.LightWhite(duration)
 	}
 	pterm.Success.Println(finalInfo)
@@ -782,6 +819,50 @@ func addNameOnlyGroups(dMap *dmap.Dmap, nameGroups map[string][]dwalk.FileCandid
 		addedGroups++
 	}
 	return addedGroups, skipped
+}
+
+func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, minDups uint, threshold int, sameExt bool) (uint, uint, uint, error) {
+	if dMap == nil {
+		return 0, 0, 0, nil
+	}
+	if minDups < 2 {
+		minDups = 2
+	}
+
+	fuzzyCandidates := make([]fuzzy.Candidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		fuzzyCandidates = append(fuzzyCandidates, fuzzy.Candidate{
+			Path: candidate.Path,
+			Size: candidate.Size,
+		})
+	}
+
+	res, err := fuzzy.FindSimilarGroups(fuzzyCandidates, fuzzy.Options{
+		MinSimilarity: threshold,
+		MinGroupSize:  int(minDups),
+		SameExt:       sameExt,
+		MaxReadBytes:  fuzzy.DefaultMaxReadBytes,
+		MaxSizeRatio:  fuzzy.DefaultMaxSizeRatio,
+	})
+	if err != nil {
+		return 0, res.Processed, res.Skipped, err
+	}
+
+	var addedGroups uint
+	for _, group := range res.Groups {
+		if len(group.Matches) < int(minDups) {
+			continue
+		}
+		sort.Slice(group.Matches, func(i, j int) bool {
+			return group.Matches[i].Path < group.Matches[j].Path
+		})
+		for _, match := range group.Matches {
+			dMap.AddFuzzyPath(group.Key, match.Path)
+		}
+		addedGroups++
+	}
+
+	return addedGroups, res.Processed, res.Skipped, nil
 }
 
 func resolveSkipHidden(includeHidden bool, shallowTargetName string) bool {
@@ -943,6 +1024,31 @@ func validateShallowMode(nameOnly bool, fileShallow, singleFile, backupFile stri
 		return "", nil
 	}
 	return shallowFileName(fileShallow, "--file-shallow")
+}
+
+func validateFuzzyMode(fuzzyMode, shallowMode bool, singleFile, backupFile, restoreFile string, keep uint, linkMode bool, threshold int) error {
+	if !fuzzyMode {
+		return nil
+	}
+	if shallowMode {
+		return fmt.Errorf("--fuzzy cannot be combined with --name-only or --file-shallow")
+	}
+	if singleFile != "" {
+		return fmt.Errorf("--fuzzy cannot be combined with --file")
+	}
+	if backupFile != "" {
+		return fmt.Errorf("restore backups are not supported for fuzzy matches; rerun without --backup")
+	}
+	if restoreFile != "" {
+		return fmt.Errorf("--fuzzy cannot be combined with --restore")
+	}
+	if keep > 0 || linkMode {
+		return fmt.Errorf("--remove/--link are disabled in --fuzzy mode; near matches are review-only")
+	}
+	if threshold < 0 || threshold > 100 {
+		return fmt.Errorf("--fuzzy-threshold must be between 0 and 100")
+	}
+	return nil
 }
 
 func shallowFileName(path, flagName string) (string, error) {

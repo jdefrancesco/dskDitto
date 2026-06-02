@@ -338,12 +338,18 @@ func FormatGroupTitle(hash dmap.Digest, info dmap.MatchInfo, count int, totalSiz
 	if info.Type == dmap.MatchName {
 		return fmt.Sprintf(tmpl, "Name: "+info.Key, count, utils.DisplaySize(totalSize))
 	}
+	if info.Type == dmap.MatchFuzzy {
+		return fmt.Sprintf(tmpl, "Similar: "+info.Key, count, utils.DisplaySize(totalSize))
+	}
 	hashHex := fmt.Sprintf("%x", hash[:16])
 	return fmt.Sprintf(tmpl, hashHex, count, utils.DisplaySize(totalSize))
 }
 
 func AutoMarkGroup(group *Group) {
 	if group == nil {
+		return
+	}
+	if group.MatchInfo.Type == dmap.MatchFuzzy {
 		return
 	}
 	for i, entry := range group.Files {

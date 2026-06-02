@@ -80,6 +80,21 @@ func TestFormatCompactGroupTitleAndHashPrefix(t *testing.T) {
 	}
 }
 
+func TestGroupKeyTextFuzzy(t *testing.T) {
+	group := &dupview.Group{
+		MatchInfo: dmap.MatchInfo{Type: dmap.MatchFuzzy, Key: "near-content >=85% (sig abcdef0123456789)"},
+	}
+	if got := groupKeyLabel(group); got != "Similarity" {
+		t.Fatalf("expected Similarity label, got %q", got)
+	}
+	if got := groupKeyValue(group); got != group.MatchInfo.Key {
+		t.Fatalf("expected fuzzy key value, got %q", got)
+	}
+	if got := groupKeyText(group); !strings.HasPrefix(got, "Similar: ") {
+		t.Fatalf("expected fuzzy key prefix, got %q", got)
+	}
+}
+
 func TestRebuildVisibleNodesAndToggleMark(t *testing.T) {
 	groups := []*dupview.Group{
 		{
@@ -127,6 +142,29 @@ func TestRebuildVisibleNodesAndToggleMark(t *testing.T) {
 	a.toggleCurrentFileMark()
 	if groups[0].Files[1].Marked {
 		t.Fatalf("expected deleted file to remain unmarked")
+	}
+}
+
+func TestToggleCurrentFileMarkSkipsFuzzyGroup(t *testing.T) {
+	groups := []*dupview.Group{
+		{
+			MatchInfo: dmap.MatchInfo{Type: dmap.MatchFuzzy, Key: "near-content"},
+			Expanded:  true,
+			Files:     []*dupview.FileEntry{{Path: "/tmp/fuzzy.bin"}},
+		},
+	}
+
+	a := &app{
+		results:      &dupview.Model{Groups: groups},
+		visible:      []nodeRef{{typ: nodeGroup, group: 0}, {typ: nodeFile, group: 0, file: 0}},
+		cursor:       1,
+		lastClickIdx: -1,
+		lastGroupIdx: -1,
+	}
+
+	a.toggleCurrentFileMark()
+	if groups[0].Files[0].Marked {
+		t.Fatalf("expected fuzzy file to remain unmarked")
 	}
 }
 

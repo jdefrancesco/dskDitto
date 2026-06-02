@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dupview"
 )
 
@@ -76,5 +77,24 @@ func TestStartConfirmationPromptSkipsPromptWhenConfigured(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("expected marked file to be deleted, stat err: %v", err)
+	}
+}
+
+func TestToggleCurrentFileMarkAllowsFuzzyGroup(t *testing.T) {
+	m := &model{
+		groups: []*dupview.Group{
+			{
+				MatchInfo: dmap.MatchInfo{Type: dmap.MatchFuzzy, Key: "near-content"},
+				Expanded:  true,
+				Files:     []*dupview.FileEntry{{Path: "/tmp/fuzzy.bin"}},
+			},
+		},
+		visible: []nodeRef{{typ: nodeGroup, group: 0}, {typ: nodeFile, group: 0, file: 0}},
+		cursor:  1,
+	}
+
+	m.toggleCurrentFileMark()
+	if !m.groups[0].Files[0].Marked {
+		t.Fatalf("expected fuzzy file to become marked")
 	}
 }
