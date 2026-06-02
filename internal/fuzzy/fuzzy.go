@@ -46,6 +46,7 @@ type Options struct {
 	SameExt       bool
 	MaxReadBytes  int64
 	MaxSizeRatio  float64
+	OnProgress    func(done uint, processed uint, skipped uint, total uint)
 }
 
 func normalizeOptions(opts Options) Options {
@@ -87,19 +88,38 @@ func FindSimilarGroups(candidates []Candidate, opts Options) (Result, error) {
 
 	opts = normalizeOptions(opts)
 	maxDistance := MaxDistanceForSimilarity(opts.MinSimilarity)
+	total := uint(len(candidates))
 
 	sigs := make([]fileSig, 0, len(candidates))
-	for _, c := range candidates {
+	for i, c := range candidates {
 		if c.Path == "" || c.Size < 0 {
 			result.Skipped++
+			if opts.OnProgress != nil {
+				done := uint(i + 1)
+				if done == total || done%128 == 0 {
+					opts.OnProgress(done, uint(len(sigs)), result.Skipped, total)
+				}
+			}
 			continue
 		}
 		hash, err := SignatureFromFile(c.Path, opts.MaxReadBytes)
 		if err != nil {
 			result.Skipped++
+			if opts.OnProgress != nil {
+				done := uint(i + 1)
+				if done == total || done%128 == 0 {
+					opts.OnProgress(done, uint(len(sigs)), result.Skipped, total)
+				}
+			}
 			continue
 		}
 		sigs = append(sigs, fileSig{Path: c.Path, Size: c.Size, Hash: hash})
+		if opts.OnProgress != nil {
+			done := uint(i + 1)
+			if done == total || done%128 == 0 {
+				opts.OnProgress(done, uint(len(sigs)), result.Skipped, total)
+			}
+		}
 	}
 
 	result.Processed = uint(len(sigs))

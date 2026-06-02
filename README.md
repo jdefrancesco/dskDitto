@@ -111,7 +111,7 @@ Restore backups are not supported for shallow filename matches because same-name
 
 Use `--fuzzy` to find files with similar content even when they are not byte-for-byte identical. This mode compares file content signatures only; it does not use filename similarity.
 
-By default, fuzzy mode returns groups at `>=85%` similarity:
+By default, fuzzy mode returns groups at `>=75%` similarity:
 
 ```bash
 dskDitto --fuzzy ~/Downloads

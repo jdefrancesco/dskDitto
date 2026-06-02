@@ -262,7 +262,7 @@ func TestAddFuzzyContentGroups(t *testing.T) {
 		{Path: a, Size: int64(len(aData))},
 		{Path: b, Size: int64(len(bData))},
 		{Path: c, Size: int64(len(cData))},
-	}, 2, 70, false)
+	}, 2, 70, false, nil)
 	if err != nil {
 		t.Fatalf("addFuzzyContentGroups failed: %v", err)
 	}

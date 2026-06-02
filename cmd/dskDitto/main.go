@@ -482,14 +482,21 @@ CollectLoop:
 	var sampledFiles uint
 	var fullHashedFiles uint
 	var fuzzyProcessed uint
+	var fuzzySkipped uint
 
 	if fuzzyMode {
-		addedGroups, processed, skippedBySignature, fuzzyErr := addFuzzyContentGroups(dMap, fuzzyCandidates, minDups, *flFuzzyThreshold, *flFuzzySameExt)
+		addedGroups, processed, skippedBySignature, fuzzyErr := addFuzzyContentGroups(dMap, fuzzyCandidates, minDups, *flFuzzyThreshold, *flFuzzySameExt,
+			func(done uint, processed uint, skipped uint, total uint) {
+				progressMsg := fmt.Sprintf("Scanned %d files, fuzzy-processed %d/%d (kept %d, skipped %d)...", scannedFiles, done, total, processed, skipped)
+				updateProgress(progressMsg)
+			},
+		)
 		if fuzzyErr != nil {
 			fmt.Fprintf(os.Stderr, "fuzzy scan failed: %v\n", fuzzyErr)
 			os.Exit(1)
 		}
 		fuzzyProcessed = processed
+		fuzzySkipped = skippedBySignature
 		dsklog.Dlogger.Debugf("Added %d fuzzy content groups; skipped %d files during signature stage", addedGroups, skippedBySignature)
 	} else if shallowMode {
 		addedGroups, skippedByName := addNameOnlyGroups(dMap, nameGroups, minDups)
@@ -646,6 +653,18 @@ CollectLoop:
 	// written to disk.
 	pprof.StopCPUProfile()
 
+	// Status bar update
+	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
+		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
+		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
+	if fuzzyMode {
+		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files, fuzzy-signatured " + pterm.LightWhite(fuzzyProcessed) +
+			" (skipped " + pterm.LightWhite(fuzzySkipped) + ") in " + pterm.LightWhite(duration)
+	} else if shallowMode {
+		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files by name in " + pterm.LightWhite(duration)
+	}
+	pterm.Success.Println(finalInfo)
+
 	if fuzzyMode {
 		if dMap.IsEmpty() {
 			pterm.Info.Println("No near-duplicate file-content matches found in the provided paths.")
@@ -667,17 +686,6 @@ CollectLoop:
 		}
 		pterm.Info.Printf("Found %d file(s) named %s.\n", len(files), shallowTargetName)
 	}
-
-	// Status bar update
-	finalInfo := "Scanned " + pterm.LightWhite(scannedFiles) + " files, sampled " +
-		pterm.LightWhite(sampledFiles) + " candidates, fully hashed " +
-		pterm.LightWhite(fullHashedFiles) + " in " + pterm.LightWhite(duration)
-	if fuzzyMode {
-		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files, fuzzy-signatured " + pterm.LightWhite(fuzzyProcessed) + " in " + pterm.LightWhite(duration)
-	} else if shallowMode {
-		finalInfo = "Scanned " + pterm.LightWhite(scannedFiles) + " files by name in " + pterm.LightWhite(duration)
-	}
-	pterm.Success.Println(finalInfo)
 
 	interactiveMode := keepCount == 0 && !*flTimeOnly && !*flTextOutput && !*flShowBullets && *flCSVOut == "" && *flJSONOut == ""
 	if *flBackupFile != "" && !interactiveMode {
@@ -821,7 +829,7 @@ func addNameOnlyGroups(dMap *dmap.Dmap, nameGroups map[string][]dwalk.FileCandid
 	return addedGroups, skipped
 }
 
-func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, minDups uint, threshold int, sameExt bool) (uint, uint, uint, error) {
+func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, minDups uint, threshold int, sameExt bool, onProgress func(done uint, processed uint, skipped uint, total uint)) (uint, uint, uint, error) {
 	if dMap == nil {
 		return 0, 0, 0, nil
 	}
@@ -843,6 +851,7 @@ func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, mi
 		SameExt:       sameExt,
 		MaxReadBytes:  fuzzy.DefaultMaxReadBytes,
 		MaxSizeRatio:  fuzzy.DefaultMaxSizeRatio,
+		OnProgress:    onProgress,
 	})
 	if err != nil {
 		return 0, res.Processed, res.Skipped, err
