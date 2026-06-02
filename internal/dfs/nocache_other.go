@@ -2,6 +2,6 @@
 
 package dfs
 
-func setNoCacheFD(_ int) error {
+func setNoCacheFD(_ uintptr) error {
 	return nil
 }

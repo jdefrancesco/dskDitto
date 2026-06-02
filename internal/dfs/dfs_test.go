@@ -2,6 +2,7 @@ package dfs
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,5 +86,46 @@ func TestNoCacheHashOptionsMatchDefaultHashing(t *testing.T) {
 	}
 	if defaultSample != noCacheSample {
 		t.Fatalf("no-cache sample differs from default")
+	}
+}
+
+func TestScopedHashOpenRejectsEscapingSymlink(t *testing.T) {
+	outsideDir := t.TempDir()
+	outsidePath := filepath.Join(outsideDir, "outside.bin")
+	if err := os.WriteFile(outsidePath, []byte("outside"), 0o644); err != nil {
+		t.Fatalf("failed to write outside file: %v", err)
+	}
+
+	scopedDir := t.TempDir()
+	linkPath := filepath.Join(scopedDir, "link.bin")
+	if err := os.Symlink(outsidePath, linkPath); err != nil {
+		t.Skipf("symlink creation unsupported: %v", err)
+	}
+
+	if _, err := HashFileSample(linkPath, int64(len("outside")), HashSHA256); err == nil {
+		t.Fatalf("HashFileSample followed symlink outside scoped parent")
+	}
+
+	if _, err := NewDfile(linkPath, int64(len("outside")), HashSHA256); err == nil {
+		t.Fatalf("NewDfile followed symlink outside scoped parent")
+	}
+}
+
+func TestHashFileSampleEmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.bin")
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatalf("failed to write empty file: %v", err)
+	}
+
+	sample, err := HashFileSample(path, 0, HashSHA256)
+	if err != nil {
+		t.Fatalf("HashFileSample failed: %v", err)
+	}
+	if !sample.CoversWholeFile {
+		t.Fatalf("empty-file sample should cover the whole file")
+	}
+
+	if want := sha256.Sum256(nil); sample.Digest != want {
+		t.Fatalf("empty-file sample digest mismatch")
 	}
 }

@@ -134,13 +134,13 @@ func (d *Dfile) hashFile(options HashOptions) error {
 	bufPtr := bufPool.Get().(*[1 << 20]byte)
 	defer bufPool.Put(bufPtr)
 
-	f, err := os.Open(d.fileName)
+	f, err := openScopedReadFile(d.fileName)
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", d.fileName, err)
 	}
 	defer f.Close()
 	if options.NoCache {
-		if err := setNoCacheFD(int(f.Fd())); err != nil {
+		if err := setNoCacheFD(f.Fd()); err != nil {
 			dsklog.Dlogger.Debugf("Failed to enable no-cache for %s: %v", d.fileName, err)
 		}
 	}
@@ -169,16 +169,13 @@ func HashFileSampleWithOptions(path string, size int64, algo HashAlgorithm, opti
 		return sample, errors.New("file name needs to be specified")
 	}
 
-	// #nosec G304
-	fd, err := syscall.Open(path, syscall.O_RDONLY, 0)
+	f, err := openScopedReadFile(path)
 	if err != nil {
 		return sample, fmt.Errorf("failed to open file %s: %w", path, err)
 	}
-	defer func() {
-		_ = syscall.Close(fd)
-	}()
+	defer func() { _ = f.Close() }()
 	if options.NoCache {
-		if err := setNoCacheFD(fd); err != nil {
+		if err := setNoCacheFD(f.Fd()); err != nil {
 			dsklog.Dlogger.Debugf("Failed to enable no-cache for %s: %v", path, err)
 		}
 	}
@@ -192,18 +189,31 @@ func HashFileSampleWithOptions(path string, size int64, algo HashAlgorithm, opti
 	defer sampleBufPool.Put(bufPtr)
 	buf := bufPtr[:]
 
-	if size <= int64(len(buf)) {
-		if err := hashFD(h, fd, buf, size); err != nil {
-			return sample, fmt.Errorf("failed to sample file %s: %w", path, err)
-		}
+	if size == 0 {
 		sum := h.Sum(nil)
 		copy(sample.Digest[:], sum)
 		sample.CoversWholeFile = true
 		return sample, nil
 	}
 
-	n, err := readFD(fd, buf)
-	if err != nil {
+	if size <= int64(len(buf)) {
+		want := int(size)
+		n, err := io.ReadFull(f, buf[:want])
+		if err != nil && err != io.ErrUnexpectedEOF {
+			return sample, fmt.Errorf("failed to sample file %s: %w", path, err)
+		}
+		if n == 0 {
+			return sample, fmt.Errorf("failed to sample file %s: %w", path, io.ErrUnexpectedEOF)
+		}
+		_, _ = h.Write(buf[:n])
+		sum := h.Sum(nil)
+		copy(sample.Digest[:], sum)
+		sample.CoversWholeFile = n == want
+		return sample, nil
+	}
+
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
 		return sample, fmt.Errorf("failed to sample start of file %s: %w", path, err)
 	}
 	if n == 0 {
@@ -247,6 +257,24 @@ func readFD(fd int, buf []byte) (int, error) {
 		}
 		return n, nil
 	}
+}
+
+func openScopedReadFile(path string) (*os.File, error) {
+	cleanPath := filepath.Clean(path)
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return nil, err
+	}
+
+	dir := filepath.Dir(absPath)
+	name := filepath.Base(absPath)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+
+	return root.Open(name)
 }
 
 func newHash(algo HashAlgorithm) (hash.Hash, error) {
