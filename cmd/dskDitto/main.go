@@ -230,7 +230,8 @@ func main() {
 	}
 
 	if *flRestoreFile != "" {
-		if err := validateRestoreMode(*flRestoreFile, *flBackupFile, flag.Args(), *flGui, *flTextOutput, *flShowBullets, *flCSVOut, *flJSONOut, *flSingleFile, *flFileShallow, *flNameOnly, *flKeep, *flLinkMode); err != nil {
+		if err := validateRestoreMode(*flRestoreFile, *flBackupFile, flag.Args(), *flGui, *flTextOutput, *flShowBullets, *flCSVOut,
+			*flJSONOut, *flSingleFile, *flFileShallow, *flNameOnly, *flKeep, *flLinkMode); err != nil {
 			fmt.Fprintf(os.Stderr, "invalid restore invocation: %v\n", err)
 			os.Exit(1)
 		}
