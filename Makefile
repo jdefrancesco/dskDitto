@@ -131,4 +131,4 @@ release-install-check:
 
 clean:
 	$(GOCLEAN)
-	@rm -f $(BIN_PATH) $(BENCH_BIN) *.log *.prof
+	@rm -f $(BIN_PATH) $(BENCH_BIN) *.log *.prof *.out 

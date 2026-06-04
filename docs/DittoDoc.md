@@ -108,8 +108,6 @@ The walker skips a candidate if any of the following applies:
 - The path matches a prefix supplied via `--exclude`.
 - Recursion depth exceeds `--depth`.
 
----
-
 ## Phase 2 — Size Grouping & Candidate Filtering
 
 After the walk, all `FileCandidate` values are accumulated and grouped by exact
@@ -124,7 +122,6 @@ byte is read from disk for hashing.
 The size groups are held in `map[int64][]FileCandidate`. Entries in single-file
 buckets are counted as "skipped by unique size" in debug logs.
 
----
 
 ## Phase 3 — Sample Hashing
 
@@ -136,7 +133,7 @@ second read.
 
 Candidates are processed by a worker pool:
 
-```
+```text
 sampleJobs  chan FileCandidate  →  [workers]  →  sampledFileCh  chan sampledFile
 ```
 
@@ -151,7 +148,6 @@ suffices on most block sizes, making the operation extremely cheap. Empirically,
 the vast majority of near-collisions (same size, different content) are
 distinguishable from the first block alone.
 
----
 
 ## Phase 4 — Full Content Hashing (dfs)
 
@@ -217,7 +213,6 @@ After scanning, `dmap` is converted to `dupview.Model` — a read-only,
 UI-friendly list of groups sorted by group size descending — and handed to
 whichever output mode was selected.
 
----
 
 ## Scan Modes
 
@@ -352,7 +347,6 @@ The GUI is an experimental [Raylib](https://github.com/raysan5/raylib) window
 renderer. It is opt-in because it requires CGo and the raylib system libraries at
 build time.
 
----
 
 ## Hash Algorithm Choice
 
@@ -373,7 +367,6 @@ what any practical duplicate-file workload could encounter. Using the raw digest
 as a map key (rather than a truncated version) preserves that guarantee at zero
 extra cost.
 
----
 
 ## Platform-Specific Code
 
@@ -388,7 +381,6 @@ extra cost.
 | `manifest/io_unix.go` | Unix | Preserve `mtime` and `mode` during restore |
 | `manifest/metadata_unix.go` | Unix | Populate `dev`/`ino` in manifest entries |
 
----
 
 ## Key Dependencies
 
@@ -405,7 +397,6 @@ extra cost.
 | `golang.org/x/sys` | Low-level Unix syscall wrappers (`fcntl`, `statfs`, etc.) |
 
 ---
-
 ## Tunable Constants Reference
 
 | Constant | Package | Value | Flag override | Notes |

@@ -249,6 +249,71 @@ func (d *Dmap) MinDuplicates() uint {
 	return d.minDuplicates
 }
 
+// FilterToDigest narrows the map to a single-file-mode result. It removes every
+// group except the one matching digest, promotes targetPath to the first position
+// within that group, and returns the number of duplicate paths found (i.e. entries
+// other than targetPath). Returns 0 when the digest is absent or has no duplicates.
+func (d *Dmap) FilterToDigest(digest Digest, targetPath string) int {
+	if d == nil {
+		return 0
+	}
+	paths := append([]string(nil), d.filesMap[digest]...)
+	dups := countDuplicateEntries(paths, targetPath)
+	if dups == 0 {
+		return 0
+	}
+	d.filesMap[digest] = promotePathFirst(paths, targetPath)
+	for hash := range d.filesMap {
+		if hash != digest {
+			delete(d.filesMap, hash)
+			delete(d.matches, hash)
+		}
+	}
+	return dups
+}
+
+// countDuplicateEntries returns how many entries in paths differ from target.
+func countDuplicateEntries(paths []string, target string) int {
+	count := 0
+	for _, p := range paths {
+		if p != target {
+			count++
+		}
+	}
+	return count
+}
+
+// promotePathFirst returns a copy of paths with target moved to index 0.
+// If target is absent it is prepended. If target is already first the
+// original slice is returned unchanged.
+func promotePathFirst(paths []string, target string) []string {
+	if target == "" {
+		return paths
+	}
+	idx := -1
+	for i, p := range paths {
+		if p == target {
+			idx = i
+			break
+		}
+	}
+	switch {
+	case idx == 0:
+		return paths
+	case idx > 0:
+		result := make([]string, 0, len(paths))
+		result = append(result, target)
+		result = append(result, paths[:idx]...)
+		result = append(result, paths[idx+1:]...)
+		return result
+	default:
+		result := make([]string, 0, len(paths)+1)
+		result = append(result, target)
+		result = append(result, paths...)
+		return result
+	}
+}
+
 // RemoveDuplicates removes duplicates, leaving at most "keep" files per group. Returns removed file paths.
 func (d *Dmap) RemoveDuplicates(keep uint) ([]string, error) {
 	if keep == 0 {
