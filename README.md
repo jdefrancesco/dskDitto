@@ -301,7 +301,7 @@ make pprof-web     # launch go tool pprof with HTTP UI for the latest profile
 
 ## Architecture
 
-Coming soon.
+See [`DittoDoc`](DittoDoc.md)
 
 ## Configuration
 
