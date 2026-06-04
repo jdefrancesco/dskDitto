@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 	"unicode"
@@ -211,4 +212,20 @@ func DisplaySize(bytes uint64) string {
 // IsAlphanumeric checks if a rune is alphanumeric (letter or digit)
 func IsAlphanumeric(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// MaxWorkerCount is the hard ceiling on goroutine-based worker pools.
+// Spawning more than this many workers yields diminishing returns and
+// risks excessive goroutine overhead and I/O contention on typical hardware.
+const MaxWorkerCount = 128
+
+// BoundedWorkerCount returns a worker count scaled by procMultiplier relative
+// to GOMAXPROCS, capped at MaxWorkerCount and never exceeding total work items.
+func BoundedWorkerCount(total int, procMultiplier int) int {
+	if total <= 0 {
+		return 0
+	}
+	workers := max(runtime.GOMAXPROCS(0)*procMultiplier, 1)
+	workers = min(workers, MaxWorkerCount)
+	return min(workers, total)
 }

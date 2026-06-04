@@ -1,6 +1,9 @@
 package fuzzy
 
 import (
+	"bytes"
+	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"testing"
@@ -118,5 +121,97 @@ func TestFindSimilarGroupsSkipsMissingFiles(t *testing.T) {
 	}
 	if res.Skipped != 1 {
 		t.Fatalf("expected skipped=1, got %d", res.Skipped)
+	}
+}
+
+func TestHashTokenMatchesFNV64a(t *testing.T) {
+	tokens := [][]byte{
+		[]byte("abcd"),
+		[]byte("wxyz"),
+		[]byte{0x00, 0xff, 0x12, 0x34},
+		[]byte("a"),
+	}
+	for _, token := range tokens {
+		got := hashToken(token)
+		want := fnv64a(token)
+		if got != want {
+			t.Fatalf("hash mismatch for %q: got %d want %d", token, got, want)
+		}
+	}
+}
+
+func fnv64a(token []byte) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write(token)
+	return h.Sum64()
+}
+
+func BenchmarkSignatureFromFile(b *testing.B) {
+	dir := b.TempDir()
+	path := filepath.Join(dir, "blob.bin")
+	payload := bytes.Repeat([]byte("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda\n"), 4096)
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		b.Fatalf("write payload: %v", err)
+	}
+
+	b.ResetTimer()
+	for b.Loop() {
+		if _, err := SignatureFromFile(path, DefaultMaxReadBytes); err != nil {
+			b.Fatalf("SignatureFromFile: %v", err)
+		}
+	}
+}
+
+func BenchmarkFindSimilarGroups(b *testing.B) {
+	dir := b.TempDir()
+	candidates := make([]Candidate, 0, 512)
+	for i := 0; i < 512; i++ {
+		path := filepath.Join(dir, fmt.Sprintf("file-%03d.bin", i))
+		payload := bytes.Repeat([]byte(fmt.Sprintf("group-%d near duplicate content block\n", i%16)), 1536)
+		if err := os.WriteFile(path, payload, 0o644); err != nil {
+			b.Fatalf("write file %d: %v", i, err)
+		}
+		candidates = append(candidates, Candidate{Path: path, Size: int64(len(payload))})
+	}
+
+	opts := Options{
+		MinSimilarity: 75,
+		MinGroupSize:  2,
+		MaxReadBytes:  DefaultMaxReadBytes,
+		MaxCandidates: -1, // no cap in benchmark
+	}
+	b.ResetTimer()
+	for b.Loop() {
+		res, err := FindSimilarGroups(candidates, opts)
+		if err != nil {
+			b.Fatalf("FindSimilarGroups: %v", err)
+		}
+		if len(res.Groups) == 0 {
+			b.Fatalf("expected at least one fuzzy group")
+		}
+	}
+}
+
+func TestFindSimilarGroupsMaxCandidatesTruncation(t *testing.T) {
+	tmp := t.TempDir()
+	candidates := make([]Candidate, 5)
+	for i := range candidates {
+		path := filepath.Join(tmp, fmt.Sprintf("file%d.bin", i))
+		if err := os.WriteFile(path, []byte(fmt.Sprintf("content %d", i)), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		candidates[i] = Candidate{Path: path, Size: 10}
+	}
+
+	res, err := FindSimilarGroups(candidates, Options{
+		MinSimilarity: 75,
+		MinGroupSize:  2,
+		MaxCandidates: 3,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.CandidatesTruncated != 2 {
+		t.Fatalf("expected CandidatesTruncated=2, got %d", res.CandidatesTruncated)
 	}
 }

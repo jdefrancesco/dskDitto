@@ -2,14 +2,17 @@ package fuzzy
 
 import (
 	"fmt"
-	"hash/fnv"
 	"io"
 	"math/bits"
 	"os"
 	"path/filepath"
 )
 
-const shingleSize = 4
+const (
+	shingleSize = 4
+	fnv64Offset = uint64(14695981039346656037)
+	fnv64Prime  = uint64(1099511628211)
+)
 
 // SignatureFromFile computes a 64-bit simhash signature from file content.
 // At most maxReadBytes are sampled from the file prefix.
@@ -56,7 +59,7 @@ func signatureFromBytes(data []byte) uint64 {
 
 	if len(data) < shingleSize {
 		for _, b := range data {
-			hv := hashToken([]byte{b})
+			hv := hashSingleByte(b)
 			accumulateWeights(&weights, hv)
 		}
 		return flattenWeights(&weights)
@@ -71,19 +74,24 @@ func signatureFromBytes(data []byte) uint64 {
 }
 
 func hashToken(token []byte) uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write(token)
-	return h.Sum64()
+	h := fnv64Offset
+	for _, b := range token {
+		h ^= uint64(b)
+		h *= fnv64Prime
+	}
+	return h
+}
+
+func hashSingleByte(b byte) uint64 {
+	h := fnv64Offset
+	h ^= uint64(b)
+	h *= fnv64Prime
+	return h
 }
 
 func accumulateWeights(weights *[64]int, hv uint64) {
 	for bit := 0; bit < 64; bit++ {
-		mask := uint64(1) << bit
-		if hv&mask != 0 {
-			weights[bit]++
-			continue
-		}
-		weights[bit]--
+		weights[bit] += int((hv>>bit)&1)*2 - 1
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
+	"github.com/jdefrancesco/dskDitto/internal/fuzzy"
 )
 
 func TestNewDupView(t *testing.T) {
@@ -77,7 +78,6 @@ func TestEligibleSampleCandidatesSplitsFullSamplesAndLargeFiles(t *testing.T) {
 }
 
 func TestHashWorkerCount(t *testing.T) {
-	if got := hashWorkerCount(0); got != 0 {
 		t.Fatalf("expected no workers for no work, got %d", got)
 	}
 	if got := hashWorkerCount(1); got != 1 {
@@ -262,7 +262,7 @@ func TestAddFuzzyContentGroups(t *testing.T) {
 		{Path: a, Size: int64(len(aData))},
 		{Path: b, Size: int64(len(bData))},
 		{Path: c, Size: int64(len(cData))},
-	}, 2, 70, false, nil)
+	}, 2, 70, false, fuzzy.DefaultMaxFuzzyCandidates, nil, nil)
 	if err != nil {
 		t.Fatalf("addFuzzyContentGroups failed: %v", err)
 	}

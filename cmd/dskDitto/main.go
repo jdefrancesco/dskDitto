@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
+
 	"runtime/pprof"
 	"sort"
 	"strings"
@@ -44,6 +44,30 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Notes:\n")
 		fmt.Fprintf(os.Stderr, "  Display-oriented options like --bullet only render results; no files are removed.\n")
 	}
+}
+
+// Worker-pool tuning constants.
+// These multipliers scale against GOMAXPROCS; the resulting count is always
+// capped by utils.MaxWorkerCount (128) to prevent excessive goroutines and
+// I/O contention on high-core or spinning-disk systems.
+const (
+	// hashWorkerMultiplier controls full-content hashing workers.
+	// I/O-bound work benefits from more parallelism than pure CPU work.
+	hashWorkerMultiplier = 4
+	// sampleWorkerMultiplier controls sample/partial hashing workers.
+	// Sample reads are smaller and faster, so the same multiplier as full
+	// hashing provides adequate throughput without over-committing I/O.
+	sampleWorkerMultiplier = 4
+)
+
+// hashWorkerCount returns the number of goroutines to use for full-file hashing.
+func hashWorkerCount(total int) int {
+	return utils.BoundedWorkerCount(total, hashWorkerMultiplier)
+}
+
+// sampleWorkerCount returns the number of goroutines to use for sample hashing.
+func sampleWorkerCount(total int) int {
+	return utils.BoundedWorkerCount(total, sampleWorkerMultiplier)
 }
 
 type stringListFlag []string
@@ -138,43 +162,45 @@ func main() {
 	// Parse command flags.
 	// Note these messages aren't what user sees any longer. See flUsage for that.
 	var (
-		flNoBanner       = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
-		flShowVersion    = flag.Bool("version", false, "Display version")
-		flCpuProfile     = flag.String("profile", "", "Write CPU profile to `file` for analysis.")
-		flTimeOnly       = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
-		flMinFileSize    = flag.String("min-size", "", "Skip files smaller than this `size` (supports suffixes like 512K, 5MiB).")
-		flMaxFileSize    = flag.String("max-size", "", "Skip files larger than this `size` (default 4GiB).")
-		flTextOutput     = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
-		flShowBullets    = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
-		flIncludeEmpty   = flag.Bool("empty", false, "Include empty files (0 bytes).")
-		flSkipSymLinks   = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
-		flIncludeHidden  = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
-		flExcludePaths   stringListFlag
-		flNoRecurse      = flag.Bool("current", false, "Only scan the provided directories without descending into subdirectories.")
-		flDepth          = flag.Int("depth", -1, "Maximum recursion `levels`; 0 inspects only the provided paths, -1 means unlimited.")
-		flIncludeVFS     = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
-		flDirConcurrency = flag.Int("dir-concurrency", 0, "Limit concurrent directory reads; <= 0 uses automatic tuning.")
-		flNoCache        = flag.Bool("no-cache", false, "Ask supported platforms not to populate filesystem cache while hashing.")
-		flMinDups        = flag.Uint("dups", 2, "Minimum duplicate file `count` required to display a group.")
-		flHashAlgo       = flag.String("hash", "sha256", "Hash algorithm `algo`: sha256 (default) or blake3.")
-		flKeep           = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many `keep` files per group.")
-		flLinkMode       = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
-		flSingleFile     = flag.String("file", "", "Only search for duplicates of the specified `path` file.")
-		flNameOnly       = flag.Bool("name-only", false, "Only compare exact file names, ignoring content and size.")
-		flFileShallow    = flag.String("file-shallow", "", "Only search for files with the same exact name as the specified `path` file.")
-		flFuzzy          = flag.Bool("fuzzy", false, "Enable fuzzy content matching to find near-duplicate files.")
-		flFuzzyThreshold = flag.Int("fuzzy-threshold", fuzzy.DefaultMinSimilarity, "Minimum fuzzy similarity `percent` (0-100).")
-		flFuzzySameExt   = flag.Bool("fuzzy-same-ext", false, "In fuzzy mode, only compare files with the same extension.")
-		flCSVOut         = flag.String("csv-out", "", "Write duplicate groups to the specified CSV `file`.")
-		flJSONOut        = flag.String("json-out", "", "Write duplicate groups to the specified JSON `file`.")
-		flDetectFS       = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
-		flColorSafe      = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
-		flGui            = flag.Bool("gui", false, "Show results in an interactive raylib GUI")
-		flNoConfirm      = flag.Bool("no-confirm", false, "Do not ask for confirmation codes before interactive delete/link actions.")
-		flBackupFile     = flag.String("backup", "", "Write duplicate restore backup JSONL to the specified `file`.")
-		flRestoreFile    = flag.String("restore", "", "Restore duplicate files from the specified JSONL `file`.")
-		flDryRun         = flag.Bool("dry-run", false, "With --restore, print actions without writing files.")
-		flVerifyHash     = flag.Bool("verify-hash", true, "With --restore, verify canonical file hashes before replay.")
+		flNoBanner           = flag.Bool("no-banner", false, "Do not show the dskDitto banner.")
+		flShowVersion        = flag.Bool("version", false, "Display version")
+		flCpuProfile         = flag.String("profile", "", "Write CPU profile to `file` for analysis.")
+		flTimeOnly           = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
+		flMinFileSize        = flag.String("min-size", "", "Skip files smaller than this `size` (supports suffixes like 512K, 5MiB).")
+		flMaxFileSize        = flag.String("max-size", "", "Skip files larger than this `size` (default 4GiB).")
+		flTextOutput         = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
+		flShowBullets        = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
+		flIncludeEmpty       = flag.Bool("empty", false, "Include empty files (0 bytes).")
+		flSkipSymLinks       = flag.Bool("no-symlinks", true, "Skip symbolic links. This is on by default.")
+		flIncludeHidden      = flag.Bool("hidden", false, "Include hidden files and directories (dotfiles).")
+		flExcludePaths       stringListFlag
+		flNoRecurse          = flag.Bool("current", false, "Only scan the provided directories without descending into subdirectories.")
+		flDepth              = flag.Int("depth", -1, "Maximum recursion `levels`; 0 inspects only the provided paths, -1 means unlimited.")
+		flIncludeVFS         = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
+		flDirConcurrency     = flag.Int("dir-concurrency", 0, "Limit concurrent directory reads; <= 0 uses automatic tuning.")
+		flNoCache            = flag.Bool("no-cache", false, "Ask supported platforms not to populate filesystem cache while hashing.")
+		flMinDups            = flag.Uint("dups", 2, "Minimum duplicate file `count` required to display a group.")
+		flHashAlgo           = flag.String("hash", "sha256", "Hash algorithm `algo`: sha256 (default) or blake3.")
+		flKeep               = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many `keep` files per group.")
+		flLinkMode           = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
+		flSingleFile         = flag.String("file", "", "Only search for duplicates of the specified `path` file.")
+		flNameOnly           = flag.Bool("name-only", false, "Only compare exact file names, ignoring content and size.")
+		flFileShallow        = flag.String("file-shallow", "", "Only search for files with the same exact name as the specified `path` file.")
+		flFuzzy              = flag.Bool("fuzzy", false, "Enable fuzzy content matching to find near-duplicate files.")
+		flFuzzyThreshold     = flag.Int("fuzzy-threshold", fuzzy.DefaultMinSimilarity, "Minimum fuzzy similarity `percent` (0-100).")
+		flFuzzySameExt       = flag.Bool("fuzzy-same-ext", false, "In fuzzy mode, only compare files with the same extension.")
+		flFuzzyMaxCandidates = flag.Int("fuzzy-max-candidates", fuzzy.DefaultMaxFuzzyCandidates, "Max files to group in fuzzy mode (0=default, -1=unlimited).")
+		flFuzzyMinSize       = flag.String("fuzzy-min-size", fuzzy.DefaultFuzzyMinSizeStr, "Skip files smaller than this `size` in fuzzy mode (e.g. 4K, 1MiB).")
+		flCSVOut             = flag.String("csv-out", "", "Write duplicate groups to the specified CSV `file`.")
+		flJSONOut            = flag.String("json-out", "", "Write duplicate groups to the specified JSON `file`.")
+		flDetectFS           = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
+		flColorSafe          = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
+		flGui                = flag.Bool("gui", false, "Show results in an interactive raylib GUI")
+		flNoConfirm          = flag.Bool("no-confirm", false, "Do not ask for confirmation codes before interactive delete/link actions.")
+		flBackupFile         = flag.String("backup", "", "Write duplicate restore backup JSONL to the specified `file`.")
+		flRestoreFile        = flag.String("restore", "", "Restore duplicate files from the specified JSONL `file`.")
+		flDryRun             = flag.Bool("dry-run", false, "With --restore, print actions without writing files.")
+		flVerifyHash         = flag.Bool("verify-hash", true, "With --restore, verify canonical file hashes before replay.")
 	)
 	// The exclude flag can take multiple path targets
 	flag.Var(&flExcludePaths, "exclude", "Exclude a `path` from scanning (repeatable).")
@@ -191,6 +217,18 @@ func main() {
 	if fuzzyErr := validateFuzzyMode(fuzzyMode, shallowMode, *flSingleFile, *flBackupFile, *flRestoreFile, *flKeep, *flLinkMode, *flFuzzyThreshold); fuzzyErr != nil {
 		fmt.Fprintf(os.Stderr, "invalid fuzzy invocation: %v\n", fuzzyErr)
 		os.Exit(1)
+	}
+
+	var fuzzyMinFileSize int64
+	if fuzzyMode {
+		if *flFuzzyMinSize != "" && *flFuzzyMinSize != "0" {
+			parsed, err := utils.ParseSize(*flFuzzyMinSize)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "invalid --fuzzy-min-size value %q: %v\n", *flFuzzyMinSize, err)
+				os.Exit(1)
+			}
+			fuzzyMinFileSize = int64(parsed) // #nosec G115 -- file sizes are bounded by int64 on all supported platforms
+		}
 	}
 
 	// Turn off default color scheme. This flag can be used when users terminal color pallete isn't
@@ -361,6 +399,9 @@ func main() {
 		if *flFuzzySameExt {
 			pterm.Info.Println("Fuzzy mode extension filter enabled")
 		}
+		if fuzzyMinFileSize > 0 {
+			pterm.Info.Printf("Fuzzy mode skipping files smaller than %s (use --fuzzy-min-size 0 to disable)\n", utils.DisplaySize(uint64(fuzzyMinFileSize)))
+		}
 	}
 	if shallowMode && !fuzzyMode {
 		if shallowTargetName != "" {
@@ -458,6 +499,9 @@ CollectLoop:
 			}
 			scannedFiles++
 			if fuzzyMode {
+				if fuzzyMinFileSize > 0 && candidate.Size < fuzzyMinFileSize {
+					continue
+				}
 				fuzzyCandidates = append(fuzzyCandidates, candidate)
 				continue
 			}
@@ -486,9 +530,13 @@ CollectLoop:
 	var fuzzySkipped uint
 
 	if fuzzyMode {
-		addedGroups, processed, skippedBySignature, fuzzyErr := addFuzzyContentGroups(dMap, fuzzyCandidates, minDups, *flFuzzyThreshold, *flFuzzySameExt,
+		addedGroups, processed, skippedBySignature, fuzzyErr := addFuzzyContentGroups(dMap, fuzzyCandidates, minDups, *flFuzzyThreshold, *flFuzzySameExt, *flFuzzyMaxCandidates,
 			func(done uint, processed uint, skipped uint, total uint) {
 				progressMsg := fmt.Sprintf("Scanned %d files, fuzzy-processed %d/%d (kept %d, skipped %d)...", scannedFiles, done, total, processed, skipped)
+				updateProgress(progressMsg)
+			},
+			func(done, total int) {
+				progressMsg := fmt.Sprintf("Scanned %d files, fuzzy-grouping %d/%d...", scannedFiles, done, total)
 				updateProgress(progressMsg)
 			},
 		)
@@ -830,7 +878,7 @@ func addNameOnlyGroups(dMap *dmap.Dmap, nameGroups map[string][]dwalk.FileCandid
 	return addedGroups, skipped
 }
 
-func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, minDups uint, threshold int, sameExt bool, onProgress func(done uint, processed uint, skipped uint, total uint)) (uint, uint, uint, error) {
+func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, minDups uint, threshold int, sameExt bool, maxCandidates int, onProgress func(done uint, processed uint, skipped uint, total uint), onGroupProgress func(done, total int)) (uint, uint, uint, error) {
 	if dMap == nil {
 		return 0, 0, 0, nil
 	}
@@ -847,15 +895,21 @@ func addFuzzyContentGroups(dMap *dmap.Dmap, candidates []dwalk.FileCandidate, mi
 	}
 
 	res, err := fuzzy.FindSimilarGroups(fuzzyCandidates, fuzzy.Options{
-		MinSimilarity: threshold,
-		MinGroupSize:  int(minDups),
-		SameExt:       sameExt,
-		MaxReadBytes:  fuzzy.DefaultMaxReadBytes,
-		MaxSizeRatio:  fuzzy.DefaultMaxSizeRatio,
-		OnProgress:    onProgress,
+		MinSimilarity:   threshold,
+		MinGroupSize:    int(minDups),
+		SameExt:         sameExt,
+		MaxReadBytes:    fuzzy.DefaultMaxReadBytes,
+		MaxSizeRatio:    fuzzy.DefaultMaxSizeRatio,
+		MaxCandidates:   maxCandidates,
+		OnProgress:      onProgress,
+		OnGroupProgress: onGroupProgress,
 	})
 	if err != nil {
 		return 0, res.Processed, res.Skipped, err
+	}
+	if res.CandidatesTruncated > 0 {
+		pterm.Warning.Printf("Fuzzy grouping limited to %d files (%d dropped). Use --fuzzy-max-candidates to adjust or add filters (--min-size, --fuzzy-same-ext) to reduce the candidate set.\n",
+			maxCandidates, res.CandidatesTruncated)
 	}
 
 	var addedGroups uint
@@ -924,26 +978,6 @@ func eligibleSampleCandidates(sampleGroups map[sampleKey][]sampledFile, minDups 
 	}
 
 	return directFiles, fullHashList, skipped
-}
-
-func sampleWorkerCount(total int) int {
-	return boundedWorkerCount(total, 8)
-}
-
-func hashWorkerCount(total int) int {
-	return boundedWorkerCount(total, 8)
-}
-
-func boundedWorkerCount(total int, procMultiplier int) int {
-	if total <= 0 {
-		return 0
-	}
-	workers := runtime.GOMAXPROCS(0) * procMultiplier
-	if workers < 1 {
-		workers = 1
-	}
-	workers = min(workers, 128)
-	return min(workers, total)
 }
 
 // applySingleFileFilter filters the provided Dmap to retain only the entries matching

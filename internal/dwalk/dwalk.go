@@ -12,6 +12,7 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/config"
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
 	"github.com/jdefrancesco/dskDitto/internal/dsklog"
+	"github.com/jdefrancesco/dskDitto/pkg/utils"
 
 	"golang.org/x/sync/semaphore"
 )
@@ -19,6 +20,12 @@ import (
 const (
 	MAX_FILE_SIZE           uint = 1024 * 1024 * 1024 * 4 // 4GB
 	DEFAULT_DIR_CONCURRENCY      = 50                     // Optimal balance for directory reading
+
+	// dirWalkProcMultiplier scales the directory-walker goroutine count relative
+	// to GOMAXPROCS. A value of 4 keeps enough parallelism to hide per-directory
+	// syscall latency without spawning so many goroutines that scheduling overhead
+	// or I/O contention becomes the bottleneck.
+	dirWalkProcMultiplier = 4
 )
 
 // These are generally special VFS directories a user normally wouldn't want to recurse into nor touch.
@@ -324,7 +331,7 @@ func getOptimalConcurrency() int {
 	if procs < 1 {
 		procs = runtime.NumCPU()
 	}
-	concurrency := min(procs*4, 128)
+	concurrency := min(procs*dirWalkProcMultiplier, utils.MaxWorkerCount)
 
 	dsklog.Dlogger.Debugf("Directory walker concurrency: %d (procs=%d)", concurrency, procs)
 	return concurrency
