@@ -76,10 +76,11 @@ func TestEligibleSampleCandidatesSplitsFullSamplesAndLargeFiles(t *testing.T) {
 		t.Fatalf("expected two full hash candidates, got %d", len(full))
 	}
 }
-
 func TestHashWorkerCount(t *testing.T) {
+	if got := hashWorkerCount(0); got != 0 {
 		t.Fatalf("expected no workers for no work, got %d", got)
 	}
+
 	if got := hashWorkerCount(1); got != 1 {
 		t.Fatalf("expected worker count to cap at total work, got %d", got)
 	}
