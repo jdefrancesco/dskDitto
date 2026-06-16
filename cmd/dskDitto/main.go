@@ -413,7 +413,7 @@ func main() {
 	appCfg := config.Config{
 		SkipEmpty:      !*flIncludeEmpty,
 		SkipSymLinks:   *flSkipSymLinks,
-		SkipHidden:     resolveSkipHidden(*flIncludeHidden, shallowTargetName),
+		SkipHidden:     resolveSkipHidden(*flIncludeHidden, shallowTargetName, *flSingleFile),
 		SkipVirtualFS:  !*flIncludeVFS,
 		ExcludePaths:   []string(flExcludePaths),
 		MaxDepth:       maxDepth,
@@ -562,7 +562,11 @@ CollectLoop:
 	} else if singleFileMode {
 		dupCount := dMap.FilterToDigest(singleTarget.digest, singleTarget.filePath)
 		if dupCount == 0 {
-			pterm.Info.Printf("No duplicates of %s found in the provided paths.\n", singleTarget.filePath)
+			if singleFileTargetIsHidden(singleTarget.filePath) {
+				pterm.Info.Printf("No exact duplicates of %s found in the provided paths. Hidden file targets are matched by content; use --name-only or --file-shallow if you want same-name matching.\n", singleTarget.filePath)
+			} else {
+				pterm.Info.Printf("No duplicates of %s found in the provided paths.\n", singleTarget.filePath)
+			}
 			os.Exit(0)
 		}
 		pterm.Info.Printf("Found %d duplicate(s) of %s.\n", dupCount, singleTarget.filePath)
@@ -688,8 +692,8 @@ func addNameOnlyGroups(dMap *dmap.Dmap, nameGroups map[string][]dwalk.FileCandid
 	return addedGroups, skipped
 }
 
-func resolveSkipHidden(includeHidden bool, shallowTargetName string) bool {
-	if includeHidden || shallowTargetIsHidden(shallowTargetName) {
+func resolveSkipHidden(includeHidden bool, shallowTargetName string, singleFilePath string) bool {
+	if includeHidden || shallowTargetIsHidden(shallowTargetName) || singleFileTargetIsHidden(singleFilePath) {
 		return false
 	}
 	return true
@@ -730,6 +734,13 @@ func prepareSingleFileTarget(path string, hashAlgo dfs.HashAlgorithm, opts dfs.H
 
 func shallowTargetIsHidden(name string) bool {
 	return strings.HasPrefix(name, ".")
+}
+
+func singleFileTargetIsHidden(path string) bool {
+	if path == "" {
+		return false
+	}
+	return strings.HasPrefix(filepath.Base(path), ".")
 }
 
 type sampleKey struct {

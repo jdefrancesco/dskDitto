@@ -189,20 +189,26 @@ func TestValidateShallowModeReturnsFileShallowBasename(t *testing.T) {
 }
 
 func TestResolveSkipHiddenIncludesHiddenShallowTarget(t *testing.T) {
-	if resolveSkipHidden(false, ".dskditto.log") {
+	if resolveSkipHidden(false, ".dskditto.log", "") {
 		t.Fatalf("expected hidden shallow target to include hidden entries")
 	}
 }
 
 func TestResolveSkipHiddenKeepsDefaultForNonHiddenShallowTarget(t *testing.T) {
-	if !resolveSkipHidden(false, "dskditto.log") {
+	if !resolveSkipHidden(false, "dskditto.log", "") {
 		t.Fatalf("expected non-hidden shallow target to preserve hidden skipping")
 	}
 }
 
 func TestResolveSkipHiddenHonorsHiddenFlag(t *testing.T) {
-	if resolveSkipHidden(true, "") {
+	if resolveSkipHidden(true, "", "") {
 		t.Fatalf("expected --hidden to include hidden entries")
+	}
+}
+
+func TestResolveSkipHiddenIncludesHiddenSingleFileTarget(t *testing.T) {
+	if resolveSkipHidden(false, "", "/tmp/.DS_Store") {
+		t.Fatalf("expected hidden single-file target to include hidden entries")
 	}
 }
 
