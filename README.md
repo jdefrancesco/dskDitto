@@ -46,7 +46,8 @@ Common flags:
 | `--profile <file>`        | Write a CPU profile to the given file                                                               |
 | `--time-only`             | Exit immediately after the scan, printing only the elapsed time                                     |
 | `--min-size <bytes>`      | Ignore files smaller than the provided size                                                         |
-| `--max-size <bytes>`      | Skip files larger than the provided size (default 4 GiB)                                            |
+| `--max-size <bytes>`      | Skip files larger than the provided size (default 4 GiB; use `0` for no limit)                      |
+| `--all-sizes`             | Scan files of any size; clearer equivalent to `--max-size 0`                                        |
 | `--hidden`                | Include dot files and dot-directories                                                               |
 | `--exclude <path>`        | Exclude a path from scanning (repeatable; excludes descendants)                                     |
 | `--no-symlinks`           | Skip symbolic links                                                                                 |

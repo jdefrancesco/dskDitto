@@ -22,8 +22,8 @@ type Config struct {
 	// NoCache asks supported platforms not to populate the filesystem cache while hashing.
 	NoCache bool
 	// File size limits.
-	MinFileSize uint
-	MaxFileSize uint
+	MinFileSize int64
+	MaxFileSize int64
 	// MinDuplicates controls the minimum number of files required for a duplicate group to be surfaced.
 	MinDuplicates uint
 	// HashAlgorithm selects which digest is used when hashing file contents.

@@ -86,6 +86,43 @@ func TestHashWorkerCount(t *testing.T) {
 	}
 }
 
+func TestResolveMaxFileSizeDefault(t *testing.T) {
+	got, err := resolveMaxFileSize(false, "")
+	if err != nil {
+		t.Fatalf("resolveMaxFileSize failed: %v", err)
+	}
+	if got != dwalk.MAX_FILE_SIZE {
+		t.Fatalf("expected default max file size %d, got %d", dwalk.MAX_FILE_SIZE, got)
+	}
+}
+
+func TestResolveMaxFileSizeAllSizes(t *testing.T) {
+	got, err := resolveMaxFileSize(true, "")
+	if err != nil {
+		t.Fatalf("resolveMaxFileSize failed: %v", err)
+	}
+	if got != 0 {
+		t.Fatalf("expected all-sizes to disable max file size, got %d", got)
+	}
+}
+
+func TestResolveMaxFileSizeZeroFlag(t *testing.T) {
+	got, err := resolveMaxFileSize(false, "0")
+	if err != nil {
+		t.Fatalf("resolveMaxFileSize failed: %v", err)
+	}
+	if got != 0 {
+		t.Fatalf("expected max-size 0 to disable max file size, got %d", got)
+	}
+}
+
+func TestResolveMaxFileSizeRejectsAllSizesWithMaxSize(t *testing.T) {
+	_, err := resolveMaxFileSize(true, "4GiB")
+	if err == nil {
+		t.Fatalf("expected conflict between --all-sizes and --max-size")
+	}
+}
+
 func TestValidateRestoreModeAcceptsValidInvocation(t *testing.T) {
 	err := validateRestoreMode("restore.jsonl", "", nil, false, false, false, "", "", "", "", false, 0, false)
 	if err != nil {

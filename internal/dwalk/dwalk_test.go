@@ -203,6 +203,44 @@ func TestMaxFileSizeLimit(t *testing.T) {
 	expectPathsEqual(t, paths, []string{"small.dat"})
 }
 
+func TestMaxFileSizeLimitIncludesBoundary(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	atMax := filepath.Join(root, "at-max.dat")
+	overMax := filepath.Join(root, "over-max.dat")
+
+	truncateFile(t, atMax, MAX_FILE_SIZE)
+	truncateFile(t, overMax, MAX_FILE_SIZE+1)
+
+	cfg := config.Config{
+		HashAlgorithm: dfs.HashSHA256,
+		SkipVirtualFS: true,
+		MaxFileSize:   MAX_FILE_SIZE,
+	}
+
+	paths := collectCandidateRelativePaths(t, root, cfg)
+	expectPathsEqual(t, paths, []string{"at-max.dat"})
+}
+
+func TestZeroMaxFileSizeMeansUnlimited(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	large := filepath.Join(root, "large.dat")
+
+	truncateFile(t, large, MAX_FILE_SIZE+1)
+
+	cfg := config.Config{
+		HashAlgorithm: dfs.HashSHA256,
+		SkipVirtualFS: true,
+		MaxFileSize:   0,
+	}
+
+	paths := collectCandidateRelativePaths(t, root, cfg)
+	expectPathsEqual(t, paths, []string{"large.dat"})
+}
+
 func TestExcludePaths(t *testing.T) {
 	dsklog.InitializeDlogger("/dev/null")
 
@@ -276,6 +314,43 @@ func collectRelativePaths(t *testing.T, root string, cfg config.Config) []string
 
 	sort.Strings(names)
 	return names
+}
+
+func collectCandidateRelativePaths(t *testing.T, root string, cfg config.Config) []string {
+	t.Helper()
+
+	candidates := make(chan FileCandidate, 16)
+	walker := NewCandidateWalker([]string{root}, candidates, cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	walker.Run(ctx)
+
+	var names []string
+	for candidate := range candidates {
+		rel, err := filepath.Rel(root, candidate.Path)
+		if err != nil {
+			t.Fatalf("failed to compute relative path: %v", err)
+		}
+		names = append(names, filepath.ToSlash(rel))
+	}
+
+	sort.Strings(names)
+	return names
+}
+
+func truncateFile(t *testing.T, path string, size int64) {
+	t.Helper()
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create sparse file: %v", err)
+	}
+	defer f.Close()
+
+	if err := f.Truncate(size); err != nil {
+		t.Fatalf("failed to truncate sparse file: %v", err)
+	}
 }
 
 func expectPathsEqual(t *testing.T, got []string, want []string) {

@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	MAX_FILE_SIZE           uint = 1024 * 1024 * 1024 * 4 // 4GB
-	DEFAULT_DIR_CONCURRENCY      = 50                     // Optimal balance for directory reading
+	MAX_FILE_SIZE           int64 = 4 * 1024 * 1024 * 1024 // 4 GiB
+	DEFAULT_DIR_CONCURRENCY       = 50                     // Optimal balance for directory reading
 
 	// dirWalkProcMultiplier scales the directory-walker goroutine count relative
 	// to GOMAXPROCS. A value of 4 keeps enough parallelism to hide per-directory
@@ -51,8 +51,8 @@ type DWalk struct {
 	skipHidden      bool
 	skipEmpty       bool
 	skipSymLinks    bool
-	minFileSize     uint
-	maxFileSize     uint
+	minFileSize     int64
+	maxFileSize     int64
 	hashAlgo        dfs.HashAlgorithm
 	noCache         bool
 	skipDirPrefixes []string
@@ -91,11 +91,6 @@ func newDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, candidates chan<- F
 		hashAlgo = dfs.HashSHA256
 	}
 
-	maxSize := cfg.MaxFileSize
-	if maxSize == 0 {
-		maxSize = MAX_FILE_SIZE
-	}
-
 	maxDepth := cfg.MaxDepth
 	if maxDepth < 0 {
 		maxDepth = -1
@@ -116,7 +111,7 @@ func newDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, candidates chan<- F
 		skipEmpty:       cfg.SkipEmpty,
 		skipSymLinks:    cfg.SkipSymLinks,
 		minFileSize:     cfg.MinFileSize,
-		maxFileSize:     maxSize,
+		maxFileSize:     cfg.MaxFileSize,
 		hashAlgo:        hashAlgo,
 		noCache:         cfg.NoCache,
 		skipDirPrefixes: skipPrefixes,
@@ -242,7 +237,7 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 		}
 
 		// Check file size properties the user set.
-		fileSize := uint(max(meta.size, 0)) // #nosec G115
+		fileSize := max(meta.size, 0)
 		if d.skipEmpty && fileSize == 0 {
 			dsklog.Dlogger.Debugf("Skipping empty file: %s", name)
 			continue
@@ -251,7 +246,7 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 			dsklog.Dlogger.Debugf("File %s smaller than minimum. Skipping", name)
 			continue
 		}
-		if d.maxFileSize > 0 && fileSize >= d.maxFileSize {
+		if d.maxFileSize > 0 && fileSize > d.maxFileSize {
 			dsklog.Dlogger.Infof("File %s larger than maximum. Skipping", name)
 			continue
 		}

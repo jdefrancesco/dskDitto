@@ -167,7 +167,8 @@ func main() {
 		flCpuProfile         = flag.String("profile", "", "Write CPU profile to `file` for analysis.")
 		flTimeOnly           = flag.Bool("time-only", false, "Use to show only the time taken to scan directory for duplicates.")
 		flMinFileSize        = flag.String("min-size", "", "Skip files smaller than this `size` (supports suffixes like 512K, 5MiB).")
-		flMaxFileSize        = flag.String("max-size", "", "Skip files larger than this `size` (default 4GiB).")
+		flMaxFileSize        = flag.String("max-size", "", "Skip files larger than this `size` (default 4GiB, 0 disables).")
+		flAllSizes           = flag.Bool("all-sizes", false, "Scan files of any size; disables the default 4GiB maximum.")
 		flTextOutput         = flag.Bool("text", false, "Dump results in grep/text friendly format. Useful for scripting.")
 		flShowBullets        = flag.Bool("bullet", false, "Show duplicates as formatted bullet list.")
 		flIncludeEmpty       = flag.Bool("empty", false, "Include empty files (0 bytes).")
@@ -227,7 +228,11 @@ func main() {
 				fmt.Fprintf(os.Stderr, "invalid --fuzzy-min-size value %q: %v\n", *flFuzzyMinSize, err)
 				os.Exit(1)
 			}
-			fuzzyMinFileSize = int64(parsed) // #nosec G115 -- file sizes are bounded by int64 on all supported platforms
+			if parsed > uint64(math.MaxInt64) {
+				fmt.Fprintf(os.Stderr, "--fuzzy-min-size %s exceeds supported file size limit (%d bytes)\n", *flFuzzyMinSize, int64(math.MaxInt64))
+				os.Exit(1)
+			}
+			fuzzyMinFileSize = int64(parsed) // #nosec G115 -- bounds checked above
 		}
 	}
 
@@ -288,9 +293,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Maximum uint size.
-	maxUint := ^uint(0)
-	MinFileSize := uint(0)
+	MinFileSize := int64(0)
 
 	// XXX: NOTE: This logic started to get a little messy. I need to refactor several blocks. If anyone cares to refactor
 	//            things please do!
@@ -300,35 +303,31 @@ func main() {
 			fmt.Fprintf(os.Stderr, "invalid value for --min-size: %v\n", err)
 			os.Exit(1)
 		}
-		if value > uint64(math.MaxUint) {
-			fmt.Fprintf(os.Stderr, "--min-size %s exceeds platform limit (%d bytes)\n", *flMinFileSize, maxUint)
+		if value > uint64(math.MaxInt64) {
+			fmt.Fprintf(os.Stderr, "--min-size %s exceeds supported file size limit (%d bytes)\n", *flMinFileSize, int64(math.MaxInt64))
 			os.Exit(1)
 		}
 
-		MinFileSize = uint(value)
+		MinFileSize = int64(value) // #nosec G115 -- bounds checked above
 		if MinFileSize > 0 {
 			fmt.Printf("Skipping files smaller than: ~ %s.\n", utils.DisplaySize(uint64(MinFileSize)))
 		}
 		dsklog.Dlogger.Debugf("Min file size set to %d bytes.\n", MinFileSize)
 	}
 
-	MaxFileSize := dwalk.MAX_FILE_SIZE // Default is 4 GiB.
-	if *flMaxFileSize != "" {
-		value, err := utils.ParseSize(*flMaxFileSize)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "invalid value for --max-size: %v\n", err)
-			os.Exit(1)
-		}
-		if value > uint64(math.MaxUint) {
-			fmt.Fprintf(os.Stderr, "--max-size %s exceeds platform limit (%d bytes)\n", *flMaxFileSize, maxUint)
-			os.Exit(1)
-		}
-		if value > 0 {
-			MaxFileSize = uint(value)
-			fmt.Printf("Skipping files larger than: %s (%d bytes).\n", utils.DisplaySize(uint64(MaxFileSize)), MaxFileSize)
-		}
-		dsklog.Dlogger.Debugf("Max file size set to %d bytes.\n", MaxFileSize)
+	MaxFileSize, err := resolveMaxFileSize(*flAllSizes, *flMaxFileSize)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
+	if *flAllSizes || *flMaxFileSize != "" {
+		if MaxFileSize > 0 {
+			fmt.Printf("Skipping files larger than: %s (%d bytes).\n", utils.DisplaySize(uint64(MaxFileSize)), MaxFileSize)
+		} else {
+			fmt.Printf("No maximum file size limit configured.\n")
+		}
+	}
+	dsklog.Dlogger.Debugf("Max file size set to %d bytes.\n", MaxFileSize)
 
 	if *flDepth < -1 {
 		fmt.Fprintf(os.Stderr, "invalid depth %d; must be -1 or greater\n", *flDepth)
@@ -985,6 +984,27 @@ func validateRestoreMode(restoreManifest, backupFile string, args []string, gui,
 		return fmt.Errorf("--restore cannot be combined with scan/output/mutation flags")
 	}
 	return nil
+}
+
+func resolveMaxFileSize(allSizes bool, maxSizeValue string) (int64, error) {
+	if allSizes && maxSizeValue != "" {
+		return 0, fmt.Errorf("--all-sizes cannot be combined with --max-size")
+	}
+	if allSizes {
+		return 0, nil
+	}
+	if maxSizeValue == "" {
+		return dwalk.MAX_FILE_SIZE, nil
+	}
+
+	value, err := utils.ParseSize(maxSizeValue)
+	if err != nil {
+		return 0, fmt.Errorf("invalid value for --max-size: %v", err)
+	}
+	if value > uint64(math.MaxInt64) {
+		return 0, fmt.Errorf("--max-size %s exceeds supported file size limit (%d bytes)", maxSizeValue, int64(math.MaxInt64))
+	}
+	return int64(value), nil // #nosec G115 -- bounds checked above
 }
 
 // showHeader prints dskDitto banner.

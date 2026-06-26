@@ -100,7 +100,7 @@ dropped.
 
 The walker skips a candidate if any of the following applies:
 
-- File size is below `--min-size` or above `--max-size` (default 4 GiB).
+- File size is below `--min-size` or above `--max-size` (default 4 GiB; use `--all-sizes` or `--max-size 0` for no limit).
 - The entry is a symlink and `--no-symlinks` is set.
 - The file is a zero-byte file and `--empty` is not set.
 - The path starts with a VFS prefix (`/proc`, `/sys`, `/dev`, …) and
@@ -401,7 +401,7 @@ extra cost.
 
 | Constant | Package | Value | Flag override | Notes |
 |---|---|---|---|---|
-| `MAX_FILE_SIZE` | `dwalk` | 4 GiB | `--max-size` | Files larger than this are skipped by the walker |
+| `MAX_FILE_SIZE` | `dwalk` | 4 GiB | `--max-size`, `--all-sizes` | Files larger than this are skipped by the walker; `--all-sizes` or `--max-size 0` disables the cap |
 | `DEFAULT_DIR_CONCURRENCY` | `dwalk` | 50 | `--dir-concurrency` | Fallback when automatic tuning is not used |
 | `dirWalkProcMultiplier` | `dwalk` | 4 | — | `ReadDir` goroutines = `4 × GOMAXPROCS` |
 | `MaxWorkerCount` | `pkg/utils` | 128 | — | Hard ceiling for all goroutine pools |
