@@ -12,7 +12,7 @@
 
 - **Blazingly fast duplicate scanning** — Parallel processing finds duplicates across large disks instantly.
 - **Interactive TUI by default** — Browse, compare, and manage duplicates with an intuitive terminal interface powered by Bubble Tea.
-- **Optional GUI** — Use the experimental Raylib GUI for a graphical alternative to the TUI.
+- **Optional GUI** — Use the experimental Raylib GUI for a graphical alternative to the TUI. Off by default so the default build has no cgo/GLFW/Wayland dependency; opt in with `-tags gui`.
 - **Safe deletion & symlink conversion** — Remove duplicates or replace them with symlinks, with confirmation dialogs to prevent accidents.
 - **Smart single-file search** — Hash a specific file and instantly find all its duplicates across your filesystem.
 - **Flexible hashing** — Choose between SHA-256 (default) or BLAKE3 for content verification.
@@ -29,6 +29,12 @@ go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 ```
 
 This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default).
+
+The default build has no GUI and needs no native GUI packages (no Wayland/X11/OpenGL headers), so it installs cleanly on headless servers. To also build the optional Raylib GUI (`--gui`), install with the `gui` build tag instead — this requires cgo and platform GUI development headers (e.g. on Debian/Ubuntu: `libgl1-mesa-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev`; on Fedora: `mesa-libGL-devel libXi-devel libXcursor-devel libXrandr-devel libXinerama-devel`; add `wayland-devel libxkbcommon-devel` if building under Wayland):
+
+```bash
+go install -tags gui github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
+```
 
 ## Usage
 
@@ -147,7 +153,7 @@ Scan your home directory and interactively review duplicates:
 dskDitto $HOME
 ```
 
-Use the experimental Raylib windowed UI:
+Use the experimental Raylib windowed UI (requires a binary built with `-tags gui`, see [Install](#install)):
 
 ```bash
 dskDitto --gui $HOME

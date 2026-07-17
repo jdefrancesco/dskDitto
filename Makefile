@@ -33,7 +33,7 @@ GOSEC_STRICT_EXCLUDES ?= G104
 .DEFAULT_GOAL := all
 
 .PHONY: all security-scan check-gosec debug build build-gui run-gui build-darwin-arm64 \
-	test bench bench-dir-sweep-build bench-dir-sweep bench-build bench-profile \
+	test test-gui bench bench-dir-sweep-build bench-dir-sweep bench-build bench-profile \
 	pprof-web gosec install release-check release-install-check clean
 
 all: test build
@@ -61,7 +61,7 @@ build: security-scan | $(BIN_DIR)
 	$(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
 
 build-gui: security-scan | $(BIN_DIR)
-	CGO_ENABLED=1 $(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
+	CGO_ENABLED=1 $(GOBUILD) -tags gui -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
 	@echo "GUI-capable binary built at $(BIN_PATH)"
 	@echo "Run it with: $(BIN_PATH) --gui <path>"
 
@@ -73,6 +73,9 @@ build-darwin-arm64: | $(BIN_DIR)
 
 test:
 	$(GOTEST) -v ./...
+
+test-gui:
+	$(GOTEST) -tags gui -v ./internal/rayui/...
 
 bench:
 	$(GOTEST) -bench=. -benchmem ./internal/bench/
