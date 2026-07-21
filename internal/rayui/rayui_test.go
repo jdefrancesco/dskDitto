@@ -1,3 +1,5 @@
+//go:build !nogui
+
 package rayui
 
 import (
