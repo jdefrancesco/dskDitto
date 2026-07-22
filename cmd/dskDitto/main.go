@@ -26,7 +26,6 @@ import (
 	"github.com/jdefrancesco/dskDitto/internal/dwalk"
 	"github.com/jdefrancesco/dskDitto/internal/fuzzy"
 	"github.com/jdefrancesco/dskDitto/internal/manifest"
-	"github.com/jdefrancesco/dskDitto/internal/rayui"
 	"github.com/jdefrancesco/dskDitto/internal/ui"
 	"github.com/jdefrancesco/dskDitto/pkg/utils"
 
@@ -196,7 +195,7 @@ func main() {
 		flJSONOut            = flag.String("json-out", "", "Write duplicate groups to the specified JSON `file`.")
 		flDetectFS           = flag.String("fs-detect", "", "Detect filesystem in use by specified `path`.")
 		flColorSafe          = flag.Bool("color-safe", false, "Use a conservative ANSI-safe color palette for the TUI (for terminals with problematic color rendering).")
-		flGui                = flag.Bool("gui", false, "Show results in an interactive raylib GUI")
+		flGui                = flag.Bool("gui", false, "Show results in an interactive raylib GUI (requires a GUI build).")
 		flNoConfirm          = flag.Bool("no-confirm", false, "Do not ask for confirmation codes before interactive delete/link actions.")
 		flBackupFile         = flag.String("backup", "", "Write duplicate restore backup JSONL to the specified `file`.")
 		flRestoreFile        = flag.String("restore", "", "Restore duplicate files from the specified JSONL `file`.")
@@ -206,6 +205,13 @@ func main() {
 	// The exclude flag can take multiple path targets
 	flag.Var(&flExcludePaths, "exclude", "Exclude a `path` from scanning (repeatable).")
 	flag.Parse()
+
+	if *flGui {
+		if err := validateGUIBuild(); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	shallowMode := *flNameOnly || *flFileShallow != ""
 	shallowTargetName, shallowErr := validateShallowMode(*flNameOnly, *flFileShallow, *flSingleFile, *flBackupFile)
@@ -627,7 +633,10 @@ CollectLoop:
 	case *flShowBullets:
 		dMap.ShowResultsBullet()
 	case *flGui:
-		rayui.Launch(dMap, applyOptions)
+		if err := launchGUI(dMap, applyOptions); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
 	default:
 		ui.LaunchTUI(dMap, applyOptions)
 	}

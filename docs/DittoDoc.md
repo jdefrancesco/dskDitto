@@ -330,7 +330,7 @@ the shared read-only view consumed by all output modes.
 | Mode | Package | Trigger |
 |---|---|---|
 | Interactive TUI | `internal/ui` (Bubble Tea) | default |
-| Experimental GUI | `internal/rayui` (Raylib) | `--gui` |
+| Experimental GUI | `internal/rayui` (Raylib) | `--gui` with a `-tags gui` build |
 | Plain text list | `cmd/dskDitto/main.go` | `--text` / `--bullet` |
 | CSV export | `internal/dmap/export.go` | `--csv-out` |
 | JSON export | `internal/dmap/export.go` | `--json-out` |
@@ -346,6 +346,10 @@ The GUI is an experimental [Raylib](https://github.com/raysan5/raylib) window
 (`--gui`) that presents the same data as the TUI but in a native windowed
 renderer. It is opt-in because it requires CGo and the raylib system libraries at
 build time.
+
+The default install path builds CLI/TUI support only. The Raylib package is
+behind the `gui` build tag so users can install the normal binary without GUI
+dependencies, then opt in with `go install -tags gui ...` or `make build-gui`.
 
 
 ## Hash Algorithm Choice
@@ -390,7 +394,7 @@ extra cost.
 | `lukechampine.com/blake3` | Pure-Go BLAKE3 implementation |
 | `github.com/charmbracelet/bubbletea` | Elm-style TUI framework |
 | `github.com/charmbracelet/lipgloss` | Declarative terminal styling |
-| `github.com/gen2brain/raylib-go/raylib` | CGo bindings for Raylib (GUI mode) |
+| `github.com/gen2brain/raylib-go/raylib` | CGo bindings for Raylib (`gui` build tag only) |
 | `github.com/pterm/pterm` | Progress spinners and formatted terminal output |
 | `github.com/sirupsen/logrus` | Structured levelled logging (`DSKDITTO_LOG_LEVEL`) |
 | `github.com/cloudfoundry/gosigar` | Cross-platform system/memory info |

@@ -29,6 +29,7 @@ NO_CACHE ?= 0
 
 GOSEC_SCAN_EXCLUDES ?= G104,G108
 GOSEC_STRICT_EXCLUDES ?= G104
+GOSEC_TAGS ?=
 
 .DEFAULT_GOAL := all
 
@@ -43,7 +44,7 @@ $(BIN_DIR):
 
 security-scan:
 	@if command -v gosec >/dev/null 2>&1; then \
-		gosec -exclude=$(GOSEC_SCAN_EXCLUDES) ./...; \
+		gosec $(if $(GOSEC_TAGS),-tags=$(GOSEC_TAGS),) -exclude=$(GOSEC_SCAN_EXCLUDES) ./...; \
 	else \
 		echo "Skipping gosec scan: gosec not installed"; \
 	fi
