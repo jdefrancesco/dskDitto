@@ -28,7 +28,13 @@ Install straight from source using Go 1.22+:
 go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 ```
 
-This drops the binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default).
+This drops the CLI/TUI binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default). The default install does not build the optional Raylib GUI.
+
+To install a GUI-capable binary, make sure Raylib and CGo are available, then build with the `gui` tag:
+
+```bash
+go install -tags gui github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
+```
 
 ## Usage
 
@@ -42,7 +48,7 @@ Common flags:
 | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | `--version`               | Print the current version and exit                                                                  |
 | `--no-banner`             | Skip the startup banner                                                                             |
-| `--gui`                   | Review results in the experimental Raylib GUI instead of the default TUI                            |
+| `--gui`                   | Review results in the experimental Raylib GUI instead of the default TUI; requires a GUI build      |
 | `--profile <file>`        | Write a CPU profile to the given file                                                               |
 | `--time-only`             | Exit immediately after the scan, printing only the elapsed time                                     |
 | `--min-size <bytes>`      | Ignore files smaller than the provided size                                                         |
@@ -152,6 +158,8 @@ Use the experimental Raylib windowed UI:
 ```bash
 dskDitto --gui $HOME
 ```
+
+The default install is CLI/TUI-only. If `--gui` reports that GUI support was not built in, reinstall with `go install -tags gui github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest`.
 
 Exclude a directory (or file) from scanning:
 
@@ -273,7 +281,7 @@ make
 ```
 
 The resulting binary lives in `bin/dskDitto`. Add it to your `$PATH` or run it from the repo root.
-To explicitly build and smoke-run the `Raylib` GUI path:
+The default `make` path builds the CLI/TUI binary. To explicitly build and smoke-run the `Raylib` GUI path, make sure Raylib and CGo are available, then run:
 
 ```bash
 make build-gui
@@ -290,7 +298,7 @@ Override `PREFIX` (for example `make install PREFIX=$HOME/.local/bin`) if you pr
 
 ```bash
 make debug         # Create development build
-make build-gui     # Build a GUI-capable binary
+make build-gui     # Build a GUI-capable binary with -tags gui
 make run-gui       # Build and launch the Raylib GUI against GUI_PATH (default ".")
 make release-check # Print the tag/push/public-install release checklist
 make release-install-check # Verify what go install ...@latest currently installs
