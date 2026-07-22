@@ -29,6 +29,7 @@ NO_CACHE ?= 0
 
 GOSEC_SCAN_EXCLUDES ?= G104,G108
 GOSEC_STRICT_EXCLUDES ?= G104
+GOSEC_TAGS ?=
 
 .DEFAULT_GOAL := all
 
@@ -43,7 +44,7 @@ $(BIN_DIR):
 
 security-scan:
 	@if command -v gosec >/dev/null 2>&1; then \
-		gosec -exclude=$(GOSEC_SCAN_EXCLUDES) ./...; \
+		gosec $(if $(GOSEC_TAGS),-tags=$(GOSEC_TAGS),) -exclude=$(GOSEC_SCAN_EXCLUDES) ./...; \
 	else \
 		echo "Skipping gosec scan: gosec not installed"; \
 	fi
@@ -61,7 +62,7 @@ build: security-scan | $(BIN_DIR)
 	$(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
 
 build-gui: security-scan | $(BIN_DIR)
-	CGO_ENABLED=1 $(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
+	CGO_ENABLED=1 $(GOBUILD) -tags gui -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
 	@echo "GUI-capable binary built at $(BIN_PATH)"
 	@echo "Run it with: $(BIN_PATH) --gui <path>"
 
