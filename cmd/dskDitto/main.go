@@ -177,6 +177,8 @@ func main() {
 		flNoRecurse          = flag.Bool("current", false, "Only scan the provided directories without descending into subdirectories.")
 		flDepth              = flag.Int("depth", -1, "Maximum recursion `levels`; 0 inspects only the provided paths, -1 means unlimited.")
 		flIncludeVFS         = flag.Bool("include-vfs", false, "Include virtual filesystem mount points such as /proc and /dev.")
+		flOneFileSystem      = flag.Bool("one-file-system", false, "Do not descend into directories on a different filesystem device.")
+		flXdev               = flag.Bool("xdev", false, "Alias for --one-file-system.")
 		flDirConcurrency     = flag.Int("dir-concurrency", 0, "Limit concurrent directory reads; <= 0 uses automatic tuning.")
 		flNoCache            = flag.Bool("no-cache", false, "Ask supported platforms not to populate filesystem cache while hashing.")
 		flMinDups            = flag.Uint("dups", 2, "Minimum duplicate file `count` required to display a group.")
@@ -420,6 +422,7 @@ func main() {
 		SkipSymLinks:   *flSkipSymLinks,
 		SkipHidden:     resolveSkipHidden(*flIncludeHidden, shallowTargetName, *flSingleFile),
 		SkipVirtualFS:  !*flIncludeVFS,
+		OneFileSystem:  *flOneFileSystem || *flXdev,
 		ExcludePaths:   []string(flExcludePaths),
 		MaxDepth:       maxDepth,
 		DirConcurrency: *flDirConcurrency,

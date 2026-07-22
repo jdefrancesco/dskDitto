@@ -55,6 +55,7 @@ type DWalk struct {
 	maxFileSize     int64
 	hashAlgo        dfs.HashAlgorithm
 	noCache         bool
+	oneFileSystem   bool
 	skipDirPrefixes []string
 	excludePaths    []string
 	maxDepth        int
@@ -71,6 +72,11 @@ type DWalk struct {
 type FileCandidate struct {
 	Path string
 	Size int64
+}
+
+type filesystemRoot struct {
+	device uint64
+	known  bool
 }
 
 // NewDWalker returns a new DWalk instance that accepts traversal options.
@@ -114,6 +120,7 @@ func newDWalker(rootDirs []string, dFiles chan<- *dfs.Dfile, candidates chan<- F
 		maxFileSize:     cfg.MaxFileSize,
 		hashAlgo:        hashAlgo,
 		noCache:         cfg.NoCache,
+		oneFileSystem:   cfg.OneFileSystem,
 		skipDirPrefixes: skipPrefixes,
 		excludePaths:    excludePaths,
 		maxDepth:        maxDepth,
@@ -141,8 +148,9 @@ func (d *DWalk) Run(ctx context.Context) {
 			dsklog.Dlogger.Infof("Skipping directory %s due to restricted filesystem", root)
 			continue
 		}
+		rootFS := d.rootFilesystem(root)
 		d.wg.Add(1)
-		go walkDir(ctx, root, 0, d)
+		go walkDir(ctx, root, 0, d, rootFS)
 	}
 
 	// Wait for all goroutines to finish.
@@ -156,6 +164,32 @@ func (d *DWalk) Run(ctx context.Context) {
 		}
 	}()
 
+}
+
+func (d *DWalk) rootFilesystem(root string) filesystemRoot {
+	if !d.oneFileSystem {
+		return filesystemRoot{}
+	}
+	meta, err := statFile(root)
+	if err != nil {
+		dsklog.Dlogger.Debugf("Error getting root filesystem info for %s: %v", root, err)
+		return filesystemRoot{}
+	}
+	if !meta.hasDevice {
+		dsklog.Dlogger.Debugf("Unable to identify root filesystem for %s", root)
+		return filesystemRoot{}
+	}
+	return filesystemRoot{
+		device: meta.device,
+		known:  true,
+	}
+}
+
+func (d *DWalk) isDifferentFilesystem(rootFS filesystemRoot, meta fileMeta) bool {
+	if !d.oneFileSystem || !rootFS.known || !meta.hasDevice {
+		return false
+	}
+	return meta.device != rootFS.device
 }
 
 // cancelled polls, checking for cancellation.
@@ -172,7 +206,7 @@ func cancelled(ctx context.Context) bool {
 
 // walkDir recursively walk directories and send files to our monitor go routine
 // (in main.go) to be added to the duplication map.
-func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
+func walkDir(ctx context.Context, dir string, depth int, d *DWalk, rootFS filesystemRoot) {
 	defer func() {
 		if r := recover(); r != nil {
 			dsklog.Dlogger.Errorf("Recovered panic while walking directory %s: %v", dir, r)
@@ -209,12 +243,21 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 				dsklog.Dlogger.Debugf("Skipping directory %s due to restricted filesystem", subDir)
 				continue
 			}
+			subMeta, err := statFile(subDir)
+			if err != nil {
+				dsklog.Dlogger.Debugf("Error getting directory info for %s: %v", subDir, err)
+				continue
+			}
+			if d.isDifferentFilesystem(rootFS, subMeta) {
+				dsklog.Dlogger.Debugf("Skipping directory %s on different filesystem", subDir)
+				continue
+			}
 			if d.maxDepth >= 0 && depth >= d.maxDepth {
 				dsklog.Dlogger.Debugf("Skipping directory %s due to max depth %d", subDir, d.maxDepth)
 				continue
 			}
 			d.wg.Add(1)
-			go walkDir(ctx, subDir, depth+1, d)
+			go walkDir(ctx, subDir, depth+1, d, rootFS)
 			continue
 		}
 
@@ -227,6 +270,10 @@ func walkDir(ctx context.Context, dir string, depth int, d *DWalk) {
 
 		if d.skipSymLinks && meta.mode&os.ModeSymlink != 0 {
 			dsklog.Dlogger.Debugf("Skipping symlink (resolved): %s", absFileName)
+			continue
+		}
+		if d.isDifferentFilesystem(rootFS, meta) {
+			dsklog.Dlogger.Debugf("Skipping file %s on different filesystem", absFileName)
 			continue
 		}
 

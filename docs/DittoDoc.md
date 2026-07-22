@@ -105,6 +105,8 @@ The walker skips a candidate if any of the following applies:
 - The file is a zero-byte file and `--empty` is not set.
 - The path starts with a VFS prefix (`/proc`, `/sys`, `/dev`, …) and
   `--include-vfs` is not set.
+- The directory is on a different filesystem device than the scan root and
+  `--one-file-system` or `--xdev` is set.
 - The path matches a prefix supplied via `--exclude`.
 - Recursion depth exceeds `--depth`.
 

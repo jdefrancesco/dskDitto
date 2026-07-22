@@ -16,7 +16,7 @@
 - **Safe deletion & symlink conversion** — Remove duplicates or replace them with symlinks, with confirmation dialogs to prevent accidents.
 - **Smart single-file search** — Hash a specific file and instantly find all its duplicates across your filesystem.
 - **Flexible hashing** — Choose between SHA-256 (default) or BLAKE3 for content verification.
-- **Fine-grained filtering** — Skip files by size, depth, hidden files, symlinks, and virtual filesystems.
+- **Fine-grained filtering** — Skip files by size, depth, hidden files, symlinks, virtual filesystems, and filesystem boundaries.
 - **Export results** — Save findings to CSV, JSON, or plain text for reporting or automation.
 - **Unix hard-link aware** — Treats hard-linked files intelligently to avoid false duplicates.
 
@@ -59,6 +59,7 @@ Common flags:
 | `--no-symlinks`           | Skip symbolic links                                                                                 |
 | `--empty`                 | Include zero-byte files                                                                             |
 | `--include-vfs`           | Include virtual filesystem directories such as `/proc` or `/dev`                                    |
+| `--one-file-system`       | Do not descend into directories on a different filesystem device; `--xdev` is a short alias         |
 | `--dir-concurrency <int>` | Limit concurrent directory reads; values `<= 0` use automatic tuning                                |
 | `--no-cache`              | On supported platforms, ask the OS not to populate the filesystem cache while hashing               |
 | `--current`               | Restrict the scan to only the specified paths (no recursion)                                        |
@@ -175,6 +176,13 @@ dskDitto \
   --exclude $HOME/.cache \
   --exclude $HOME/Downloads \
   $HOME
+```
+
+Stay on the starting filesystem, like `find -xdev` or `ncdu -x`:
+
+```bash
+dskDitto --one-file-system /
+dskDitto --xdev $HOME
 ```
 
 List duplicates for scripting or grepping, without launching the TUI:

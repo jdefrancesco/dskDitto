@@ -11,6 +11,8 @@ type fileIdentity struct{}
 type fileMeta struct {
 	size        int64
 	mode        os.FileMode
+	device      uint64
+	hasDevice   bool
 	identity    fileIdentity
 	hasIdentity bool
 }

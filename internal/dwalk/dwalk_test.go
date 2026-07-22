@@ -179,6 +179,55 @@ func TestMaxDepthLimit(t *testing.T) {
 	expectPathsEqual(t, depth1, []string{"level1/one.txt", "root.txt"})
 }
 
+func TestOneFileSystemDeviceFilter(t *testing.T) {
+	walker := &DWalk{oneFileSystem: true}
+	rootFS := filesystemRoot{device: 42, known: true}
+
+	if walker.isDifferentFilesystem(rootFS, fileMeta{device: 42, hasDevice: true}) {
+		t.Fatalf("expected same device to stay in scope")
+	}
+	if !walker.isDifferentFilesystem(rootFS, fileMeta{device: 43, hasDevice: true}) {
+		t.Fatalf("expected different device to be out of scope")
+	}
+	if walker.isDifferentFilesystem(filesystemRoot{}, fileMeta{device: 43, hasDevice: true}) {
+		t.Fatalf("expected unknown root device to stay in scope")
+	}
+	if walker.isDifferentFilesystem(rootFS, fileMeta{}) {
+		t.Fatalf("expected unknown child device to stay in scope")
+	}
+
+	walker.oneFileSystem = false
+	if walker.isDifferentFilesystem(rootFS, fileMeta{device: 43, hasDevice: true}) {
+		t.Fatalf("expected disabled one-file-system filter to stay in scope")
+	}
+}
+
+func TestOneFileSystemAllowsSameDeviceWalk(t *testing.T) {
+	dsklog.InitializeDlogger("/dev/null")
+
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "root.txt"), []byte("root"), 0o644); err != nil {
+		t.Fatalf("failed to write root file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "sub.txt"), []byte("sub"), 0o644); err != nil {
+		t.Fatalf("failed to write sub file: %v", err)
+	}
+
+	cfg := config.Config{
+		HashAlgorithm: dfs.HashSHA256,
+		SkipVirtualFS: true,
+		OneFileSystem: true,
+		MaxDepth:      -1,
+	}
+
+	paths := collectRelativePaths(t, root, cfg)
+	expectPathsEqual(t, paths, []string{"root.txt", "sub/sub.txt"})
+}
+
 func TestMaxFileSizeLimit(t *testing.T) {
 	dsklog.InitializeDlogger("/dev/null")
 

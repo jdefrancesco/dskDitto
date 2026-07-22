@@ -16,6 +16,8 @@ type fileIdentity struct {
 type fileMeta struct {
 	size        int64
 	mode        os.FileMode
+	device      uint64
+	hasDevice   bool
 	identity    fileIdentity
 	hasIdentity bool
 }
@@ -26,8 +28,10 @@ func statFile(path string) (fileMeta, error) {
 		return fileMeta{}, err
 	}
 	return fileMeta{
-		size: stat.Size,
-		mode: modeFromStat(uint32(stat.Mode)),
+		size:      stat.Size,
+		mode:      modeFromStat(uint32(stat.Mode)),
+		device:    uint64(stat.Dev), // #nosec G115 -- platform-defined but safely representable in uint64
+		hasDevice: true,
 		identity: fileIdentity{
 			dev: uint64(stat.Dev), // #nosec G115 -- platform-defined but safely representable in uint64
 			ino: uint64(stat.Ino), // #nosec G115 -- platform-defined but safely representable in uint64
