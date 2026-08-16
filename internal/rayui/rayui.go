@@ -220,11 +220,9 @@ func (a *app) updateKeyboard() {
 	case keyPressed(rl.KeyPageDown):
 		a.pageMove(1)
 	case rl.IsKeyPressed(rl.KeyHome):
-		a.cursor = 0
-		a.adjustScroll()
+		a.goToStart()
 	case rl.IsKeyPressed(rl.KeyEnd):
-		a.cursor = max(len(a.visible)-1, 0)
-		a.adjustScroll()
+		a.goToEnd()
 	case rl.IsKeyPressed(rl.KeyLeft) || rl.IsKeyPressed(rl.KeyH):
 		a.collapseCurrentGroup()
 	case rl.IsKeyPressed(rl.KeyRight):
@@ -687,11 +685,14 @@ func (a *app) buildToolbarButtons(width, margin, gap float32) ([]button, float32
 		sortLabel = "Sort: count"
 	}
 
+	hasRows := len(a.visible) > 0
 	viewSpecs := []button{
 		{id: "mark", label: "Mark all", enabled: len(a.results.Groups) > 0},
 		{id: "clear", label: "Clear", enabled: marked > 0},
 		{id: "collapse-all", label: "Collapse all", enabled: a.hasExpandedGroups()},
 		{id: "expand-all", label: "Expand all", enabled: a.hasCollapsedGroups()},
+		{id: "goto-start", label: "Go to Start", enabled: hasRows && a.cursor > 0},
+		{id: "goto-end", label: "Go to End", enabled: hasRows && a.cursor < len(a.visible)-1},
 		{id: "sort", label: sortLabel, enabled: len(a.results.Groups) > 0},
 	}
 	actionSpecs := []button{
@@ -780,6 +781,10 @@ func (a *app) handleButton(id string) {
 		a.setAllGroupsExpanded(false)
 	case "expand-all":
 		a.setAllGroupsExpanded(true)
+	case "goto-start":
+		a.goToStart()
+	case "goto-end":
+		a.goToEnd()
 	}
 }
 
@@ -819,6 +824,18 @@ func (a *app) pageMove(direction int) {
 	} else {
 		a.moveCursor(amount)
 	}
+}
+
+// goToStart jumps the cursor to the first row, so long lists don't require scrolling by hand.
+func (a *app) goToStart() {
+	a.cursor = 0
+	a.adjustScroll()
+}
+
+// goToEnd jumps the cursor to the last row, so long lists don't require scrolling by hand.
+func (a *app) goToEnd() {
+	a.cursor = max(len(a.visible)-1, 0)
+	a.adjustScroll()
 }
 
 func (a *app) currentNode() *nodeRef {
@@ -1412,11 +1429,11 @@ func groupKeyText(group *dupview.Group) string {
 func footerHelp(width float32) string {
 	switch {
 	case width < 850:
-		return "arrows navigate | space marks | d delete | shift+L link | shift+R reflink | q exits"
+		return "arrows navigate | home/end jump | space marks | d delete | shift+L link | shift+R reflink | q exits"
 	case width < 1180:
-		return "jk arrows navigate | enter folds | space marks | a mark all | u clear | d delete | q exits"
+		return "jk arrows navigate | home/end jump | enter folds | space marks | a mark all | u clear | d delete | q exits"
 	default:
-		return "jk arrows navigate | enter folds | space/m mark | a mark all | u clear | d delete | shift+L link | shift+R reflink | q exits"
+		return "jk arrows navigate | home/end jump | enter folds | space/m mark | a mark all | u clear | d delete | shift+L link | shift+R reflink | q exits"
 	}
 }
 
