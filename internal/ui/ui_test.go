@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jdefrancesco/dskDitto/internal/dmap"
 	"github.com/jdefrancesco/dskDitto/internal/dupview"
 )
@@ -77,6 +78,33 @@ func TestStartConfirmationPromptSkipsPromptWhenConfigured(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("expected marked file to be deleted, stat err: %v", err)
+	}
+}
+
+func TestHandleTreeKeysReflinkStartsConfirmation(t *testing.T) {
+	m := &model{
+		mode: modeTree,
+		groups: []*dupview.Group{
+			{Files: []*dupview.FileEntry{{Path: "/tmp/marked", Marked: true}}},
+		},
+	}
+
+	m.handleTreeKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+
+	if m.mode != modeConfirm {
+		t.Fatalf("expected confirmation mode")
+	}
+	if m.action != confirmReflink {
+		t.Fatalf("expected reflink action, got %v", m.action)
+	}
+}
+
+func TestFormatFileStatusReflinked(t *testing.T) {
+	entry := &fileEntry{Path: "/tmp/dup.bin", Status: fileStatusReflinked, Message: "reflinked -> /tmp/target.bin"}
+
+	got := formatFileStatus(entry, 40)
+	if !strings.Contains(got, "REFLINK") {
+		t.Fatalf("expected status text to contain REFLINK, got %q", got)
 	}
 }
 

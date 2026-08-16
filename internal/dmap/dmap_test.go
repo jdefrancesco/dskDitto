@@ -254,6 +254,78 @@ func TestRemoveDuplicatesZeroKeep(t *testing.T) {
 	}
 }
 
+func TestReflinkDuplicates(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(2)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	tmp := t.TempDir()
+	const keep uint = 1
+	var dfiles []*dfs.Dfile
+	for i := 0; i < 3; i++ {
+		path := filepath.Join(tmp, fmt.Sprintf("dup_%d.dat", i))
+		if writeErr := os.WriteFile(path, []byte("duplicate"), 0o644); writeErr != nil {
+			t.Fatalf("write %s: %v", path, writeErr)
+		}
+		df, dfErr := dfs.NewDfile(path, int64(len("duplicate")), dfs.HashSHA256)
+		if dfErr != nil {
+			t.Fatalf("NewDfile(%s): %v", path, dfErr)
+		}
+		dfiles = append(dfiles, df)
+		dm.Add(df)
+	}
+
+	reflinked, reflinkErr := dm.ReflinkDuplicates(keep)
+	if reflinkErr != nil {
+		if errors.Is(reflinkErr, dfs.ErrReflinkUnsupported) {
+			t.Skipf("reflink not supported on this filesystem/platform: %v", reflinkErr)
+		}
+		t.Fatalf("ReflinkDuplicates returned error: %v", reflinkErr)
+	}
+	if len(reflinked) != 2 {
+		t.Fatalf("expected 2 files reflinked, got %d", len(reflinked))
+	}
+
+	for _, path := range reflinked {
+		info, statErr := os.Lstat(path)
+		if statErr != nil {
+			t.Fatalf("expected %s to survive as a regular file: %v", path, statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			t.Fatalf("expected %s to remain a regular file, not a symlink", path)
+		}
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatalf("read %s: %v", path, readErr)
+		}
+		if string(content) != "duplicate" {
+			t.Fatalf("unexpected content for %s: got %q", path, content)
+		}
+	}
+
+	hashKey := Digest(dfiles[0].Hash())
+	remaining := dm.GetMap()[hashKey]
+	if len(remaining) != int(keep) {
+		t.Fatalf("expected %d survivor, got %d", keep, len(remaining))
+	}
+}
+
+func TestReflinkDuplicatesZeroKeep(t *testing.T) {
+	setupLogging()
+
+	dm, err := NewDmap(0)
+	if err != nil {
+		t.Fatalf("NewDmap failed: %v", err)
+	}
+
+	if _, reflinkErr := dm.ReflinkDuplicates(0); reflinkErr == nil {
+		t.Fatalf("expected error when keep is zero")
+	}
+}
+
 func TestExportJSONAndCSV(t *testing.T) {
 	setupLogging()
 

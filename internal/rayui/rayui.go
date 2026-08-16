@@ -235,6 +235,8 @@ func (a *app) updateKeyboard() {
 		} else {
 			a.expandCurrentGroup()
 		}
+	case rl.IsKeyPressed(rl.KeyR) && shiftDown():
+		a.startConfirmation(dupview.ActionReflink)
 	case rl.IsKeyPressed(rl.KeyEnter):
 		a.toggleCurrentGroup()
 	case rl.IsKeyPressed(rl.KeySpace) || rl.IsKeyPressed(rl.KeyM):
@@ -579,9 +581,13 @@ func (a *app) drawConfirmModal() {
 
 	title := "Confirm Deletion"
 	verb := "delete"
-	if a.action == dupview.ActionLink {
+	switch a.action {
+	case dupview.ActionLink:
 		title = "Confirm Symlink Conversion"
 		verb = "convert to symlinks"
+	case dupview.ActionReflink:
+		title = "Confirm Reflink Conversion"
+		verb = "convert to reflinks (copy-on-write clones)"
 	}
 
 	x := panel.X + 24
@@ -691,6 +697,7 @@ func (a *app) buildToolbarButtons(width, margin, gap float32) ([]button, float32
 	actionSpecs := []button{
 		{id: "delete", label: "Delete", enabled: marked > 0, danger: true},
 		{id: "link", label: "Link", enabled: marked > 0, primary: true},
+		{id: "reflink", label: "Reflink", enabled: marked > 0, primary: true},
 	}
 
 	buttons := make([]button, 0, len(viewSpecs)+len(actionSpecs))
@@ -764,6 +771,8 @@ func (a *app) handleButton(id string) {
 		a.startConfirmation(dupview.ActionDelete)
 	case "link":
 		a.startConfirmation(dupview.ActionLink)
+	case "reflink":
+		a.startConfirmation(dupview.ActionReflink)
 	case "sort":
 		a.results.CycleSortMode()
 		a.rebuildVisibleNodes()
@@ -1403,11 +1412,11 @@ func groupKeyText(group *dupview.Group) string {
 func footerHelp(width float32) string {
 	switch {
 	case width < 850:
-		return "arrows navigate | space marks | d delete | shift+L link | q exits"
+		return "arrows navigate | space marks | d delete | shift+L link | shift+R reflink | q exits"
 	case width < 1180:
 		return "jk arrows navigate | enter folds | space marks | a mark all | u clear | d delete | q exits"
 	default:
-		return "jk arrows navigate | enter folds | space/m mark | a mark all | u clear | d delete | shift+L link | q exits"
+		return "jk arrows navigate | enter folds | space/m mark | a mark all | u clear | d delete | shift+L link | shift+R reflink | q exits"
 	}
 }
 
@@ -1425,6 +1434,8 @@ func fileStatusLabel(entry *dupview.FileEntry) string {
 		return "DELETED"
 	case dupview.FileStatusLinked:
 		return "LINKED"
+	case dupview.FileStatusReflinked:
+		return "REFLINK"
 	case dupview.FileStatusError:
 		if entry.Message != "" {
 			return "ERROR: " + entry.Message
@@ -1437,7 +1448,7 @@ func fileStatusLabel(entry *dupview.FileEntry) string {
 
 func fileStatusColor(entry *dupview.FileEntry) rl.Color {
 	switch entry.Status {
-	case dupview.FileStatusDeleted, dupview.FileStatusLinked:
+	case dupview.FileStatusDeleted, dupview.FileStatusLinked, dupview.FileStatusReflinked:
 		return colorSuccess
 	case dupview.FileStatusError:
 		return colorDanger

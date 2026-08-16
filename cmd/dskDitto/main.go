@@ -185,6 +185,7 @@ func main() {
 		flHashAlgo           = flag.String("hash", "sha256", "Hash algorithm `algo`: sha256 (default) or blake3.")
 		flKeep               = flag.Uint("remove", 0, "Operate on duplicates, keeping only this many `keep` files per group.")
 		flLinkMode           = flag.Bool("link", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).")
+		flReflinkMode        = flag.Bool("reflink", false, "Convert extra duplicates into reflinks (copy-on-write clones) instead of deleting them (use with --remove; requires a reflink-capable filesystem such as APFS, Btrfs, or XFS with reflink=1).")
 		flSingleFile         = flag.String("file", "", "Only search for duplicates of the specified `path` file.")
 		flNameOnly           = flag.Bool("name-only", false, "Only compare exact file names, ignoring content and size.")
 		flFileShallow        = flag.String("file-shallow", "", "Only search for files with the same exact name as the specified `path` file.")
@@ -222,8 +223,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *flLinkMode && *flReflinkMode {
+		fmt.Fprintf(os.Stderr, "invalid invocation: --link and --reflink cannot be combined\n")
+		os.Exit(1)
+	}
+
 	fuzzyMode := *flFuzzy
-	if fuzzyErr := validateFuzzyMode(fuzzyMode, shallowMode, *flSingleFile, *flBackupFile, *flRestoreFile, *flKeep, *flLinkMode, *flFuzzyThreshold); fuzzyErr != nil {
+	if fuzzyErr := validateFuzzyMode(fuzzyMode, shallowMode, *flSingleFile, *flBackupFile, *flRestoreFile, *flKeep, *flLinkMode || *flReflinkMode, *flFuzzyThreshold); fuzzyErr != nil {
 		fmt.Fprintf(os.Stderr, "invalid fuzzy invocation: %v\n", fuzzyErr)
 		os.Exit(1)
 	}
@@ -282,7 +288,7 @@ func main() {
 
 	if *flRestoreFile != "" {
 		if err := validateRestoreMode(*flRestoreFile, *flBackupFile, flag.Args(), *flGui, *flTextOutput, *flShowBullets, *flCSVOut,
-			*flJSONOut, *flSingleFile, *flFileShallow, *flNameOnly, *flKeep, *flLinkMode); err != nil {
+			*flJSONOut, *flSingleFile, *flFileShallow, *flNameOnly, *flKeep, *flLinkMode || *flReflinkMode); err != nil {
 			fmt.Fprintf(os.Stderr, "invalid restore invocation: %v\n", err)
 			os.Exit(1)
 		}
@@ -606,6 +612,13 @@ CollectLoop:
 		fmt.Printf("Converted %d duplicate files to symlinks, kept %d real file(s) per group.\n", len(linkedPaths), keepCount)
 		if linkErr != nil {
 			fmt.Fprintf(os.Stderr, "Linking completed with errors: %v\n", linkErr)
+			os.Exit(1)
+		}
+	case keepCount > 0 && *flReflinkMode:
+		reflinkedPaths, reflinkErr := dMap.ReflinkDuplicates(keepCount)
+		fmt.Printf("Converted %d duplicate files to reflinks, kept %d real file(s) per group.\n", len(reflinkedPaths), keepCount)
+		if reflinkErr != nil {
+			fmt.Fprintf(os.Stderr, "Reflinking completed with errors: %v\n", reflinkErr)
 			os.Exit(1)
 		}
 	case keepCount > 0:

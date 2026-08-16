@@ -27,6 +27,8 @@ func ApplyMarked(groups []*Group, action Action, opts ApplyOptions) (string, err
 		switch action {
 		case ActionLink:
 			return LinkMarked(groups), nil
+		case ActionReflink:
+			return ReflinkMarked(groups), nil
 		default:
 			return DeleteMarked(groups), nil
 		}
@@ -119,6 +121,8 @@ func executeMutationPlan(plan []plannedMutation) string {
 	switch plan[0].action {
 	case ActionLink:
 		return executeLinkPlan(plan)
+	case ActionReflink:
+		return executeReflinkPlan(plan)
 	default:
 		return executeDeletePlan(plan)
 	}
@@ -156,6 +160,42 @@ func executeDeletePlan(plan []plannedMutation) string {
 		return fmt.Sprintf("Failed to delete %d file(s).", failures)
 	default:
 		return fmt.Sprintf("Deleted %d file(s); %d error(s) occurred.", deleted, failures)
+	}
+}
+
+func executeReflinkPlan(plan []plannedMutation) string {
+	var reflinked, failures int
+	for _, step := range plan {
+		for _, entry := range step.affected {
+			if err := dfs.ReflinkReplace(entry.Path, step.targetPath); err != nil {
+				entry.Status = FileStatusError
+				entry.Message = err.Error()
+				if dsklog.Dlogger != nil {
+					dsklog.Dlogger.Errorf("Failed to reflink %s -> %s: %v", entry.Path, step.targetPath, err)
+				}
+				failures++
+				entry.Marked = false
+				continue
+			}
+			entry.Status = FileStatusReflinked
+			entry.Message = fmt.Sprintf("reflinked -> %s", filepath.Base(step.targetPath))
+			if dsklog.Dlogger != nil {
+				dsklog.Dlogger.Infof("Converted duplicate to reflink: %s -> %s", entry.Path, step.targetPath)
+			}
+			reflinked++
+			entry.Marked = false
+		}
+	}
+
+	switch {
+	case reflinked == 0 && failures == 0:
+		return "No files were converted."
+	case failures == 0:
+		return fmt.Sprintf("Converted %d file(s) to reflinks.", reflinked)
+	case reflinked == 0:
+		return fmt.Sprintf("Failed to convert %d file(s) to reflinks.", failures)
+	default:
+		return fmt.Sprintf("Converted %d file(s); %d error(s) occurred.", reflinked, failures)
 	}
 }
 

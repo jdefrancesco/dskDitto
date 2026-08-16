@@ -90,7 +90,7 @@ func validateFuzzyMode(fuzzyMode, shallowMode bool, singleFile, backupFile, rest
 		return fmt.Errorf("--fuzzy cannot be combined with --restore")
 	}
 	if keep > 0 || linkMode {
-		return fmt.Errorf("--remove/--link are disabled in --fuzzy mode; near matches are review-only")
+		return fmt.Errorf("--remove/--link/--reflink are disabled in --fuzzy mode; near matches are review-only")
 	}
 	if threshold < 0 || threshold > 100 {
 		return fmt.Errorf("--fuzzy-threshold must be between 0 and 100")

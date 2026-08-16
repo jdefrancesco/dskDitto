@@ -21,6 +21,7 @@ const (
 	FileStatusPending FileStatus = iota
 	FileStatusDeleted
 	FileStatusLinked
+	FileStatusReflinked
 	FileStatusError
 )
 
@@ -29,6 +30,7 @@ type Action int
 const (
 	ActionDelete Action = iota
 	ActionLink
+	ActionReflink
 )
 
 type SortMode int
@@ -315,6 +317,77 @@ func LinkMarked(groups []*Group) string {
 		return fmt.Sprintf("Failed to convert %d file(s) to symlinks.", failures)
 	default:
 		return fmt.Sprintf("Converted %d file(s); %d error(s) occurred.", linked, failures)
+	}
+}
+
+func ReflinkMarked(groups []*Group) string {
+	if len(groups) == 0 {
+		return ""
+	}
+
+	var reflinked, failures int
+	for _, group := range groups {
+		var target *FileEntry
+		for _, entry := range group.Files {
+			if entry.Status == FileStatusDeleted {
+				continue
+			}
+			if !entry.Marked {
+				target = entry
+				break
+			}
+		}
+		if target == nil {
+			for _, entry := range group.Files {
+				if !entry.Marked {
+					continue
+				}
+				entry.Status = FileStatusError
+				entry.Message = "no unmarked file to reflink from"
+				entry.Marked = false
+				failures++
+			}
+			continue
+		}
+
+		for _, entry := range group.Files {
+			if !entry.Marked {
+				continue
+			}
+			if entry.Status == FileStatusDeleted {
+				entry.Marked = false
+				continue
+			}
+
+			if err := dfs.ReflinkReplace(entry.Path, target.Path); err != nil {
+				entry.Status = FileStatusError
+				entry.Message = err.Error()
+				if dsklog.Dlogger != nil {
+					dsklog.Dlogger.Errorf("Failed to reflink %s -> %s: %v", entry.Path, target.Path, err)
+				}
+				failures++
+				entry.Marked = false
+				continue
+			}
+			entry.Status = FileStatusReflinked
+			entry.Message = fmt.Sprintf("reflinked -> %s", filepath.Base(target.Path))
+			if dsklog.Dlogger != nil {
+				dsklog.Dlogger.Infof("Converted duplicate to reflink: %s -> %s", entry.Path, target.Path)
+			}
+			reflinked++
+			entry.Marked = false
+		}
+	}
+
+	switch {
+	case reflinked == 0 && failures == 0:
+		return "No files were converted."
+	case failures == 0:
+		return fmt.Sprintf("Converted %d file(s) to reflinks.", reflinked)
+	case reflinked == 0:
+		return fmt.Sprintf("Failed to convert %d file(s) to reflinks.", failures)
+	default:
+		return fmt.Sprintf("Converted %d file(s); %d error(s) occurred.", reflinked, failures)
 	}
 }
 

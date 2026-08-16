@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/jdefrancesco/dskDitto/internal/dfs"
@@ -181,6 +182,63 @@ func TestApplyMarkedLinkBackupUsesCurrentUnmarkedTarget(t *testing.T) {
 		}
 		if target != paths[1] {
 			t.Fatalf("unexpected symlink target for %s: got %s want %s", path, target, paths[1])
+		}
+	}
+}
+
+func TestApplyMarkedReflinkBackupUsesCurrentUnmarkedTarget(t *testing.T) {
+	initDupviewTestLogger()
+
+	dir := t.TempDir()
+	group, paths := newTestGroup(t, dir, "same-content", []testFileSpec{
+		{name: "a.bin", marked: true},
+		{name: "b.bin", marked: false},
+		{name: "c.bin", marked: true},
+	})
+	manifestPath := filepath.Join(dir, "restore.jsonl")
+
+	result, err := ApplyMarked([]*Group{group}, ActionReflink, ApplyOptions{
+		BackupPath:    manifestPath,
+		HashAlgorithm: dfs.HashSHA256,
+	})
+	if err != nil {
+		t.Fatalf("ApplyMarked: %v", err)
+	}
+	if strings.Contains(result, "reflink not supported") {
+		t.Skipf("reflink not supported on this filesystem/platform: %s", result)
+	}
+	if result != "Converted 2 file(s) to reflinks." {
+		t.Fatalf("unexpected result: %q", result)
+	}
+
+	entries, err := manifest.Read(manifestPath)
+	if err != nil {
+		t.Fatalf("Read manifest: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("unexpected manifest entry count: got %d want 2", len(entries))
+	}
+	wantCanonical := absPath(t, paths[1])
+	for _, entry := range entries {
+		if entry.Canonical != wantCanonical {
+			t.Fatalf("unexpected canonical path: got %s want %s", entry.Canonical, wantCanonical)
+		}
+	}
+
+	for _, path := range []string{paths[0], paths[2]} {
+		info, err := os.Lstat(path)
+		if err != nil {
+			t.Fatalf("lstat %s: %v", path, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			t.Fatalf("%s should remain a regular file (not a symlink) after reflinking", path)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if string(content) != "same-content" {
+			t.Fatalf("unexpected content for %s: got %q", path, content)
 		}
 	}
 }

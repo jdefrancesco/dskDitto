@@ -434,3 +434,67 @@ func (d *Dmap) LinkDuplicates(keep uint) ([]string, error) {
 
 	return linked, nil
 }
+
+// ReflinkDuplicates converts duplicates to copy-on-write reflink clones, leaving at most
+// "keep" real files per group. Each extra duplicate is atomically replaced by a clone of
+// one of the kept files, sharing disk blocks until either copy is modified. Unlike
+// LinkDuplicates, converted files remain independent regular files rather than symlinks.
+// Requires a reflink-capable filesystem (e.g. APFS, Btrfs, XFS with reflink=1); returns
+// dfs.ErrReflinkUnsupported per-file when the filesystem or platform can't clone.
+// It returns the paths that were successfully converted.
+func (d *Dmap) ReflinkDuplicates(keep uint) ([]string, error) {
+	if keep == 0 {
+		return nil, errors.New("keep count must be greater than zero")
+	}
+
+	// Guard against integer overflow
+	if keep > uint(math.MaxInt) {
+		dsklog.Dlogger.Debug("keep value overflow")
+		return nil, fmt.Errorf("keep count of %d exceeds maximum %d", keep, math.MaxInt)
+	}
+	keepThreshold := int(keep)
+
+	var reflinked []string
+	var errs []error
+
+	for hash, files := range d.filesMap {
+		if uint(len(files)) <= keep {
+			continue
+		}
+
+		keepCount := keepThreshold
+		if keepCount > len(files) {
+			keepCount = len(files)
+		}
+
+		// Survivors remain as real files. We clone all converted duplicates from the first survivor.
+		survivors := append([]string(nil), files[:keepCount]...)
+		target := survivors[0]
+
+		for _, path := range files[keepCount:] {
+			if err := dfs.ReflinkReplace(path, target); err != nil {
+				errs = append(errs, fmt.Errorf("reflink %s -> %s: %w", path, target, err))
+				// Preserve logical membership if the clone attempt fails; the original
+				// duplicate file is left untouched by ReflinkReplace.
+				survivors = append(survivors, path)
+				continue
+			}
+			dsklog.Dlogger.Infof("Converted duplicate to reflink: %s -> %s", path, target)
+			reflinked = append(reflinked, path)
+		}
+
+		if len(survivors) == 0 {
+			delete(d.filesMap, hash)
+			delete(d.matches, hash)
+			continue
+		}
+
+		d.filesMap[hash] = survivors
+	}
+
+	if len(errs) > 0 {
+		return reflinked, errors.Join(errs...)
+	}
+
+	return reflinked, nil
+}

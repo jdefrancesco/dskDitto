@@ -170,17 +170,19 @@ const (
 type fileStatus = dupview.FileStatus
 
 const (
-	fileStatusPending = dupview.FileStatusPending
-	fileStatusDeleted = dupview.FileStatusDeleted
-	fileStatusLinked  = dupview.FileStatusLinked
-	fileStatusError   = dupview.FileStatusError
+	fileStatusPending   = dupview.FileStatusPending
+	fileStatusDeleted   = dupview.FileStatusDeleted
+	fileStatusLinked    = dupview.FileStatusLinked
+	fileStatusReflinked = dupview.FileStatusReflinked
+	fileStatusError     = dupview.FileStatusError
 )
 
 type confirmAction = dupview.Action
 
 const (
-	confirmDelete = dupview.ActionDelete
-	confirmLink   = dupview.ActionLink
+	confirmDelete  = dupview.ActionDelete
+	confirmLink    = dupview.ActionLink
+	confirmReflink = dupview.ActionReflink
 )
 
 type fileEntry = dupview.FileEntry
@@ -350,6 +352,9 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "L":
 		m.startConfirmationPrompt(confirmLink)
 
+	case "R":
+		m.startConfirmationPrompt(confirmReflink)
+
 	case "1":
 		m.setSortMode(sortByTotalSize)
 
@@ -515,9 +520,13 @@ func (m *model) renderConfirmView() string {
 	width := m.effectiveWidth()
 	title := "Confirm Deletion"
 	verb := "delete"
-	if m.action == confirmLink {
+	switch m.action {
+	case confirmLink:
 		title = "Confirm Symlink Conversion"
 		verb = "convert to symlinks"
+	case confirmReflink:
+		title = "Confirm Reflink Conversion"
+		verb = "convert to reflinks (copy-on-write clones)"
 	}
 	content := []string{
 		titleStyle.Render(title),
@@ -689,6 +698,8 @@ func (m *model) processConfirmedAction() {
 	switch m.action {
 	case confirmLink:
 		m.processLinking()
+	case confirmReflink:
+		m.processReflink()
 	default:
 		m.processDeletion()
 	}
@@ -713,6 +724,18 @@ func (m *model) processLinking() {
 	m.confirmInput = ""
 	m.confirmError = ""
 	result, err := dupview.ApplyMarked(m.groups, dupview.ActionLink, m.applyOptions)
+	if err != nil {
+		m.deleteResult = err.Error()
+		return
+	}
+	m.deleteResult = result
+}
+
+func (m *model) processReflink() {
+	m.mode = modeTree
+	m.confirmInput = ""
+	m.confirmError = ""
+	result, err := dupview.ApplyMarked(m.groups, dupview.ActionReflink, m.applyOptions)
 	if err != nil {
 		m.deleteResult = err.Error()
 		return
@@ -850,6 +873,12 @@ func formatFileStatus(entry *fileEntry, maxWidth int) string {
 			text = runewidth.Truncate(text, maxWidth, "…")
 		}
 		return " " + statusDeletedStyle.Render(text)
+	case fileStatusReflinked:
+		text := "REFLINK"
+		if runewidth.StringWidth(text) > maxWidth {
+			text = runewidth.Truncate(text, maxWidth, "…")
+		}
+		return " " + statusDeletedStyle.Render(text)
 	case fileStatusError:
 		text := "ERROR"
 		if entry.Message != "" {
@@ -895,7 +924,7 @@ func (m *model) listAreaHeight() int {
 }
 
 func (m *model) instructionsText() string {
-	return "enter exp/fold • arrows nav • m toggle • a mark all • u clear • d delete marked • L link marked • q exit"
+	return "enter exp/fold • arrows nav • m toggle • a mark all • u clear • d delete marked • L link marked • R reflink marked • q exit"
 }
 
 func (m *model) sortHotkeysText() string {

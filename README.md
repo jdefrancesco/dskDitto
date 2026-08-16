@@ -13,7 +13,7 @@
 - **Blazingly fast duplicate scanning** — Parallel processing finds duplicates across large disks instantly.
 - **Interactive TUI by default** — Browse, compare, and manage duplicates with an intuitive terminal interface powered by Bubble Tea.
 - **Optional GUI** — Use the experimental Raylib GUI for a graphical alternative to the TUI.
-- **Safe deletion & symlink conversion** — Remove duplicates or replace them with symlinks, with confirmation dialogs to prevent accidents.
+- **Safe deletion, symlink, and reflink conversion** — Remove duplicates, replace them with symlinks, or (on reflink-capable filesystems) convert them into space-saving copy-on-write clones, with confirmation dialogs to prevent accidents.
 - **Smart single-file search** — Hash a specific file and instantly find all its duplicates across your filesystem.
 - **Flexible hashing** — Choose between SHA-256 (default) or BLAKE3 for content verification.
 - **Fine-grained filtering** — Skip files by size, depth, hidden files, symlinks, virtual filesystems, and filesystem boundaries.
@@ -68,6 +68,7 @@ Common flags:
 | `--text`, `--bullet`      | Render duplicates without launching the TUI                                                         |
 | `--remove <keep>`         | Operate on duplicates, keeping the first `<keep>` entries per group                                 |
 | `--link`                  | With `--remove`, convert extra duplicates to symlinks instead of deleting them                      |
+| `--reflink`               | With `--remove`, convert extra duplicates to reflinks (copy-on-write clones) instead of deleting them |
 | `--file <path>`           | Only report duplicates of the given file; with `--name-only`, match by that file's exact name       |
 | `--name-only`             | Shallow mode: group files by exact file name, ignoring content and size                             |
 | `--file-shallow <path>`   | Shallow mode: only report files with the same exact name as `<path>`                                |
@@ -79,19 +80,20 @@ Common flags:
 | `--json-out <file>`       | Write duplicate groups to JSON                                                                      |
 | `--fs-detect <path>`      | Print the filesystem type that contains `<path>`                                                    |
 | `--color-safe`            | Use a high-compatibility TUI theme that avoids custom colors (best for problematic terminal themes) |
-| `--no-confirm`            | Skip interactive confirmation codes for TUI/GUI delete and link actions                             |
+| `--no-confirm`            | Skip interactive confirmation codes for TUI/GUI delete, link, and reflink actions                    |
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted through the TUI or GUI, a confirmation dialog prevents accidental mass changes unless `--no-confirm` is set.
 
-### Duplicate removal and symlink conversion
+### Duplicate removal, symlink, and reflink conversion
 
 `dskDitto` never deletes or rewrites anything unless you explicitly ask it to with `--remove`.
 
 - **Dry / interactive modes:** by default (or with `--text` / `--bullet`) the tool only reports duplicates.
 - **Delete extras:** use `--remove <keep>` to delete all but `<keep>` files in each duplicate group.
 - **Convert extras to symlinks:** combine `--remove <keep> --link` to replace extra duplicates with symlinks pointing at one kept file per group.
+- **Convert extras to reflinks:** combine `--remove <keep> --reflink` to replace extra duplicates with copy-on-write clones of one kept file per group. `--link` and `--reflink` are mutually exclusive.
 
-In the TUI you can also convert the currently marked files into symlinks: mark the duplicates you want to replace, then press `L` and enter the confirmation code. Each group’s symlinks will point at one unmarked file in that group. Power users can pass `--no-confirm` to skip the confirmation code in the TUI and GUI.
+In the TUI you can also convert the currently marked files into symlinks or reflinks: mark the duplicates you want to replace, then press `L` (symlink) or `R` (reflink) and enter the confirmation code. Each group's replacements point at (or clone from) one unmarked file in that group. Power users can pass `--no-confirm` to skip the confirmation code in the TUI and GUI.
 
 On Unix-like systems, multiple hard links to the same underlying file are treated as a single entry during scanning: `dskDitto` hashes the content once and does not report those hard-link paths as separate space-wasting duplicates.
 
@@ -104,6 +106,26 @@ When using `--link`, the on-disk layout after the operation looks like this for 
 ```
 
 In the TUI, files that are symlinks are annotated with a `[symlink]` suffix so you can see which entries were converted.
+
+#### Reflink (copy-on-write clone) conversion
+
+Unlike a symlink, a reflink stays a real, independent file — the same size and inode-visible content as the original — but shares its underlying disk blocks with the kept file until either copy is modified, at which point the filesystem transparently copies only the changed blocks. This means:
+
+- Deleting or moving the original kept file does not break the reflinked duplicate (no dangling link, unlike a symlink).
+- Editing either the kept file or a reflinked duplicate does not affect the other; the shared blocks are copied on first write.
+- Disk usage drops immediately after conversion, just like symlinking, but each path remains a fully independent file to every other tool that touches it.
+
+Reflink cloning requires a copy-on-write-capable filesystem: **APFS** (macOS, via `clonefile(2)`) or **Btrfs**/**XFS with `reflink=1`** (Linux, via the `FICLONE` ioctl). It is not supported on ext4, FAT/exFAT, NTFS, or when the kept file and duplicate live on different filesystems/volumes. If cloning isn't possible for a given file, `dskDitto` reports it as an error for that file and leaves it untouched rather than deleting it — reflink conversion never removes a duplicate it failed to clone.
+
+When using `--reflink`, the on-disk layout after the operation looks like this for a group of 3 identical files and `--remove 1 --reflink`:
+
+```text
+/path/to/keep/file.txt      # original file kept
+/path/to/dup/file-copy.txt  # independent file, COW-cloned from file.txt
+/another/location/file.txt  # independent file, COW-cloned from file.txt
+```
+
+In the TUI, converted files are marked with a `REFLINK` status tag rather than the `[symlink]` annotation, since they remain regular files on disk.
 
 ### Single-file duplicate search
 
@@ -209,6 +231,12 @@ Shrink a media library by converting duplicates into symlinks instead of deletin
 dskDitto --remove 1 --link ~/Media
 ```
 
+Shrink a media library on an APFS/Btrfs/XFS volume by converting duplicates into copy-on-write reflinks, keeping each file independently addressable:
+
+```bash
+dskDitto --remove 1 --reflink ~/Media
+```
+
 Export duplicate information to CSV or JSON for offline analysis:
 
 ```bash
@@ -228,6 +256,12 @@ dskDitto --json-out dupes.json ~/Projects
 
   ```bash
   dskDitto --remove 1 --link /Volumes/photo-archive
+  ```
+
+- **Deduplicate a photo drive on APFS/Btrfs/XFS while keeping each file independently addressable:**
+
+  ```bash
+  dskDitto --remove 1 --reflink /Volumes/photo-archive
   ```
 
 - **Hunt for big redundant media files only:**
