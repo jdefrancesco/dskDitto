@@ -42,45 +42,48 @@ go install -tags gui github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 dskDitto [options] PATH ...
 ```
 
-Common flags:
+Run `dskDitto --help` for the full, categorized reference (General, Filtering & Scanning, Search Scope, Fuzzy Matching, Duplicate Actions, Output & Export, Backup & Restore); it's colorized by default and falls back to plain text with `--color-safe` or when output isn't a terminal. Common flags, most with a single-letter shorthand:
 
-| Flag                      | Description                                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------------- |
-| `--version`               | Print the current version and exit                                                                  |
-| `--no-banner`             | Skip the startup banner                                                                             |
-| `--gui`                   | Review results in the experimental Raylib GUI instead of the default TUI; requires a GUI build      |
-| `--profile <file>`        | Write a CPU profile to the given file                                                               |
-| `--time-only`             | Exit immediately after the scan, printing only the elapsed time                                     |
-| `--min-size <bytes>`      | Ignore files smaller than the provided size                                                         |
-| `--max-size <bytes>`      | Skip files larger than the provided size (default 4 GiB; use `0` for no limit)                      |
-| `--all-sizes`             | Scan files of any size; clearer equivalent to `--max-size 0`                                        |
-| `--hidden`                | Include dot files and dot-directories                                                               |
-| `--exclude <path>`        | Exclude a path from scanning (repeatable; excludes descendants)                                     |
-| `--no-symlinks`           | Skip symbolic links                                                                                 |
-| `--empty`                 | Include zero-byte files                                                                             |
-| `--include-vfs`           | Include virtual filesystem directories such as `/proc` or `/dev`                                    |
-| `--one-file-system`       | Do not descend into directories on a different filesystem device; `--xdev` is a short alias         |
-| `--dir-concurrency <int>` | Limit concurrent directory reads; values `<= 0` use automatic tuning                                |
-| `--no-cache`              | On supported platforms, ask the OS not to populate the filesystem cache while hashing               |
-| `--current`               | Restrict the scan to only the specified paths (no recursion)                                        |
-| `--depth <levels>`        | Limit recursion to `<levels>` directories below the starting paths                                  |
-| `--dups <count>`          | Only show groups that contain at least `<count>` files                                              |
-| `--text`, `--bullet`      | Render duplicates without launching the TUI                                                         |
-| `--remove <keep>`         | Operate on duplicates, keeping the first `<keep>` entries per group                                 |
-| `--link`                  | With `--remove`, convert extra duplicates to symlinks instead of deleting them                      |
-| `--reflink`               | With `--remove`, convert extra duplicates to reflinks (copy-on-write clones) instead of deleting them |
-| `--file <path>`           | Only report duplicates of the given file; with `--name-only`, match by that file's exact name       |
-| `--name-only`             | Shallow mode: group files by exact file name, ignoring content and size                             |
-| `--file-shallow <path>`   | Shallow mode: only report files with the same exact name as `<path>`                                |
-| `--fuzzy`                 | Content-based near-duplicate mode (file similarity, not filename similarity)                         |
-| `--fuzzy-threshold <pct>` | Minimum similarity percentage in fuzzy mode (default `75`)                                          |
-| `--fuzzy-same-ext`        | In fuzzy mode, only compare files that share the same extension                                      |
-| `--hash <algo>`           | Select hash algorithm: `sha256` (default) or `blake3`                                               |
-| `--csv-out <file>`        | Write duplicate groups to CSV                                                                       |
-| `--json-out <file>`       | Write duplicate groups to JSON                                                                      |
-| `--fs-detect <path>`      | Print the filesystem type that contains `<path>`                                                    |
-| `--color-safe`            | Use a high-compatibility TUI theme that avoids custom colors (best for problematic terminal themes) |
-| `--no-confirm`            | Skip interactive confirmation codes for TUI/GUI delete, link, and reflink actions                    |
+| Flag                      | Short | Description                                                                                         |
+| ------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `--version`               | `-v`  | Print the current version and exit                                                                  |
+| `--no-banner`             |       | Skip the startup banner                                                                             |
+| `--gui`                   | `-g`  | Review results in the experimental Raylib GUI instead of the default TUI; requires a GUI build      |
+| `--profile <file>`        |       | Write a CPU profile to the given file                                                               |
+| `--time-only`             |       | Exit immediately after the scan, printing only the elapsed time                                     |
+| `--min-size <bytes>`      |       | Ignore files smaller than the provided size                                                         |
+| `--max-size <bytes>`      |       | Skip files larger than the provided size (default 4 GiB; use `0` for no limit)                      |
+| `--all-sizes`             |       | Scan files of any size; clearer equivalent to `--max-size 0`                                        |
+| `--hidden`                |       | Include dot files and dot-directories                                                               |
+| `--exclude <path>`        | `-x`  | Exclude a path from scanning (repeatable; excludes descendants)                                     |
+| `--no-symlinks`           |       | Skip symbolic links                                                                                 |
+| `--empty`                 |       | Include zero-byte files                                                                             |
+| `--include-vfs`           |       | Include virtual filesystem directories such as `/proc` or `/dev`                                    |
+| `--one-file-system`       |       | Do not descend into directories on a different filesystem device; `--xdev` is a long alias          |
+| `--dir-concurrency <int>` |       | Limit concurrent directory reads; values `<= 0` use automatic tuning                                |
+| `--no-cache`              |       | On supported platforms, ask the OS not to populate the filesystem cache while hashing               |
+| `--current`               |       | Restrict the scan to only the specified paths (no recursion)                                        |
+| `--depth <levels>`        | `-d`  | Limit recursion to `<levels>` directories below the starting paths                                  |
+| `--dups <count>`          |       | Only show groups that contain at least `<count>` files                                              |
+| `--text`, `--bullet`      | `-t`, `-b` | Render duplicates without launching the TUI                                                    |
+| `--remove <keep>`         | `-r`  | Operate on duplicates, keeping the first `<keep>` entries per group                                 |
+| `--link`                  | `-l`  | With `--remove`, convert extra duplicates to symlinks instead of deleting them                      |
+| `--reflink`               | `-R`  | With `--remove`, convert extra duplicates to reflinks (copy-on-write clones) instead of deleting them |
+| `--file <path>`           | `-f`  | Only report duplicates of the given file; with `--name-only`, match by that file's exact name       |
+| `--name-only`             |       | Shallow mode: group files by exact file name, ignoring content and size                             |
+| `--file-shallow <path>`   |       | Shallow mode: only report files with the same exact name as `<path>`                                |
+| `--fuzzy`                 | `-F`  | Content-based near-duplicate mode (file similarity, not filename similarity)                         |
+| `--fuzzy-threshold <pct>` |       | Minimum similarity percentage in fuzzy mode (default `75`)                                          |
+| `--fuzzy-same-ext`        |       | In fuzzy mode, only compare files that share the same extension                                      |
+| `--hash <algo>`           | `-H`  | Select hash algorithm: `sha256` (default) or `blake3`                                               |
+| `--csv-out <file>`        |       | Write duplicate groups to CSV                                                                       |
+| `--json-out <file>`       |       | Write duplicate groups to JSON                                                                      |
+| `--fs-detect <path>`      |       | Print the filesystem type that contains `<path>`                                                    |
+| `--color-safe`            |       | Use a high-compatibility theme (TUI and `--help`) that avoids custom colors                          |
+| `--no-confirm`            | `-y`  | Skip interactive confirmation codes for TUI/GUI delete, link, and reflink actions                    |
+| `--dry-run`               | `-n`  | With `--restore`, print actions without writing files                                               |
+
+Short and long forms are interchangeable and write to the same option, e.g. `-r 1 -R` is identical to `--remove 1 --reflink`.
 
 Press `Ctrl+C` at any time to abort a scan. When duplicates are removed or converted through the TUI or GUI, a confirmation dialog prevents accidental mass changes unless `--no-confirm` is set.
 

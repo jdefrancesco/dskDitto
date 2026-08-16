@@ -16,6 +16,53 @@ func TestNewDupView(t *testing.T) {
 
 }
 
+func TestFormatFlagOptionWithShortAndArg(t *testing.T) {
+	got := formatFlagOption(flagMeta{short: "r", long: "remove", argName: "keep"})
+	if got != "-r, --remove <keep>" {
+		t.Fatalf("unexpected option text: %q", got)
+	}
+}
+
+func TestFormatFlagOptionWithoutShort(t *testing.T) {
+	got := formatFlagOption(flagMeta{long: "no-banner"})
+	if got != "    --no-banner" {
+		t.Fatalf("unexpected option text: %q", got)
+	}
+}
+
+func TestPadRightExpandsToWidth(t *testing.T) {
+	got := padRight("-r, --remove", 20)
+	if len(got) != 20 {
+		t.Fatalf("expected padded length 20, got %d (%q)", len(got), got)
+	}
+	if !strings.HasPrefix(got, "-r, --remove") {
+		t.Fatalf("expected prefix preserved, got %q", got)
+	}
+}
+
+func TestPadRightLeavesLongerStringsUntouched(t *testing.T) {
+	long := "-R, --reflink <this-is-already-quite-long>"
+	got := padRight(long, 5)
+	if got != long {
+		t.Fatalf("expected string unchanged when already >= width, got %q", got)
+	}
+}
+
+func TestHelpColorEnabledRespectsColorSafeArg(t *testing.T) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	os.Args = []string{"dskDitto", "--color-safe", "--help"}
+	if helpColorEnabled() {
+		t.Fatalf("expected color disabled when --color-safe is present")
+	}
+
+	os.Args = []string{"dskDitto", "--help"}
+	if !helpColorEnabled() {
+		t.Fatalf("expected color enabled by default")
+	}
+}
+
 func TestEligibleHashCandidatesSkipsUniqueSizes(t *testing.T) {
 	groups := map[int64][]dwalk.FileCandidate{
 		10: []dwalk.FileCandidate{{Path: "one", Size: 10}},
