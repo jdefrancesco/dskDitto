@@ -12,11 +12,16 @@ BIN_PATH := $(BIN_DIR)/$(BINARY_NAME)
 SOURCE_VERSION ?= $(shell awk -F'"' '/^[[:space:]]*var[[:space:]]+Version[[:space:]]*=[[:space:]]*"/ { print $$2; exit }' internal/buildinfo/version.go)
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || printf '%s' $(SOURCE_VERSION))
 VERSION_LDFLAGS := -X github.com/jdefrancesco/dskDitto/internal/buildinfo.Version=$(VERSION)
+# -s -w strip the symbol table and DWARF debug info; ~1/3 smaller binaries,
+# at the cost of debuggability/profilability. Used for release artifacts only.
+RELEASE_LDFLAGS := $(VERSION_LDFLAGS) -s -w
 
 INSTALL_PKG := github.com/jdefrancesco/dskDitto/cmd/$(BINARY_NAME)
 REMOTE_NAME ?= origin
 RELEASE_BRANCH ?= master
 PREFIX ?= /usr/local/bin
+DIST_DIR ?= ./dist
+DIST_PLATFORMS ?= darwin/arm64 darwin/amd64 linux/amd64 linux/arm64
 
 BENCH_BIN := $(BIN_DIR)/bench.test
 CPU_PROFILE ?= cpu.prof
@@ -34,7 +39,7 @@ GOSEC_TAGS ?=
 .DEFAULT_GOAL := all
 
 .PHONY: all security-scan check-gosec debug build build-gui run-gui build-darwin-arm64 \
-	test bench bench-dir-sweep-build bench-dir-sweep bench-build bench-profile \
+	dist test bench bench-dir-sweep-build bench-dir-sweep bench-build bench-profile \
 	pprof-web gosec install release-check release-install-check clean
 
 all: test build
@@ -70,7 +75,24 @@ run-gui: build-gui
 	$(BIN_PATH) --gui $(GUI_PATH)
 
 build-darwin-arm64: | $(BIN_DIR)
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags "$(VERSION_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags "$(RELEASE_LDFLAGS)" -o $(BIN_PATH) ./cmd/$(BINARY_NAME)
+
+# dist cross-builds stripped, versioned CLI/TUI release binaries for DIST_PLATFORMS.
+# darwin targets need CGO_ENABLED=1 (gosigar's darwin filesystem-info code is cgo-only;
+# its pure-Go fallback is incomplete). linux targets build fine with CGO_ENABLED=0.
+# Only run this from a macOS host with Xcode command line tools installed: it cross-arch
+# builds darwin/amd64 via clang's multi-arch support, but cannot cross-compile cgo for
+# other host OSes. The GUI build needs cgo+raylib and isn't produced by this target.
+dist:
+	@mkdir -p $(DIST_DIR)
+	@for platform in $(DIST_PLATFORMS); do \
+		os=$${platform%/*}; arch=$${platform#*/}; \
+		out="$(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-$$os-$$arch"; \
+		cgo=0; if [ "$$os" = "darwin" ]; then cgo=1; fi; \
+		echo "Building $$out (CGO_ENABLED=$$cgo)"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=$$cgo $(GOBUILD) -ldflags "$(RELEASE_LDFLAGS)" -o "$$out" ./cmd/$(BINARY_NAME) || exit 1; \
+	done
+	@echo "Stripped release binaries written to $(DIST_DIR)/"
 
 test:
 	$(GOTEST) -v ./...
@@ -123,6 +145,9 @@ release-check:
 	@echo "4. Verify the public install path after the tag is visible:"
 	@echo '   tmpdir=$$(mktemp -d) && GOBIN="$$tmpdir" go install $(INSTALL_PKG)@latest && "$$tmpdir/$(BINARY_NAME)" --version && rm -rf "$$tmpdir"'
 	@echo "Note: go install builds the tagged source directly and does not use Makefile ldflags."
+	@echo "      The README's documented install command passes -ldflags=\"-s -w\" directly for a stripped binary;"
+	@echo "      that only applies if users copy that exact command, since go install never applies repo-side defaults."
+	@echo "5. Optional: 'make dist' produces stripped, versioned CLI/TUI binaries under $(DIST_DIR)/ to attach to the GitHub release."
 
 release-install-check:
 	@tmpdir=$$(mktemp -d); \

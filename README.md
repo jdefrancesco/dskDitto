@@ -25,16 +25,18 @@
 Install straight from source using Go 1.22+:
 
 ```bash
-go install github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
+go install -ldflags="-s -w" github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 ```
 
-This drops the CLI/TUI binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default). The default install does not build the optional Raylib GUI.
+This drops the CLI/TUI binary at `$(go env GOPATH)/bin/dskDitto` (or `~/go/bin` by default). The default install does not build the optional Raylib GUI. `-ldflags="-s -w"` strips debug symbols, shrinking the binary by roughly a third; drop it if you want a debuggable/profilable build instead.
 
 To install a GUI-capable binary, make sure Raylib and CGo are available, then build with the `gui` tag:
 
 ```bash
-go install -tags gui github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
+go install -tags gui -ldflags="-s -w" github.com/jdefrancesco/dskDitto/cmd/dskDitto@latest
 ```
+
+> **Note:** `go install ...@latest` always compiles from source on your machine, so `-ldflags` has to be passed on the command you run — there's no way for the module to bake that in for you.
 
 ## Usage
 
