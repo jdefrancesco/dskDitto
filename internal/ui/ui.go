@@ -1100,7 +1100,7 @@ func (m *model) selectedGroupInfoLine() string {
 }
 
 func estimateGroupTotalSize(files []string) uint64 {
-	return dupview.EstimateGroupTotalSize(files)
+	return dupview.EstimateGroupTotalSize(nil, files)
 }
 
 // formatGroupTitle constructs a descriptive label for a digest-based group, summarizing its hash, file count, and approximate total size.

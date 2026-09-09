@@ -81,7 +81,7 @@ func New(dMap *dmap.Dmap) *Model {
 			continue
 		}
 
-		totalSize := EstimateGroupTotalSize(files)
+		totalSize := EstimateGroupTotalSize(dMap, files)
 		matchInfo := dMap.MatchInfo(hash)
 		group := &Group{
 			Hash:      hash,
@@ -391,12 +391,23 @@ func ReflinkMarked(groups []*Group) string {
 	}
 }
 
-func EstimateGroupTotalSize(files []string) uint64 {
+// EstimateGroupTotalSize sums the sizes of files in a duplicate group. It
+// prefers sizes already cached on dMap from scan time, falling back to a
+// stat() only for files whose size wasn't recorded during the walk (e.g.
+// fuzzy-match groups). This avoids re-stating potentially millions of files
+// when building the TUI's view model after a large scan.
+func EstimateGroupTotalSize(dMap *dmap.Dmap, files []string) uint64 {
 	if len(files) == 0 {
 		return 0
 	}
 	var total uint64
 	for _, file := range files {
+		if dMap != nil {
+			if size, ok := dMap.SizeOf(file); ok {
+				total += size
+				continue
+			}
+		}
 		total += dfs.GetFileSize(file)
 	}
 	return total

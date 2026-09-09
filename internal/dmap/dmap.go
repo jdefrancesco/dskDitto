@@ -61,6 +61,11 @@ type Dmap struct {
 	filesMap map[Digest][]string
 	matches  map[Digest]MatchInfo
 
+	// sizes caches file sizes already known at scan time (path -> size in
+	// bytes) so downstream consumers, such as the TUI's group summaries,
+	// don't have to re-stat every duplicate file on disk.
+	sizes map[string]uint64
+
 	// Files deffered for reasons such as size are stored here for later processing.
 	deferredFiles []string
 	// Number of files in our map.
@@ -83,6 +88,7 @@ func NewDmap(minDuplicates uint) (*Dmap, error) {
 	// Initialize our map.
 	dmap.filesMap = make(map[Digest][]string, mapInitSize)
 	dmap.matches = make(map[Digest]MatchInfo, mapInitSize)
+	dmap.sizes = make(map[string]uint64, mapInitSize)
 	dsklog.Dlogger.Debug("Dmap created with initial size: ", mapInitSize)
 
 	return dmap, nil
@@ -91,6 +97,7 @@ func NewDmap(minDuplicates uint) (*Dmap, error) {
 // Add will take a dfile and add it the map.
 func (d *Dmap) Add(dfile *dfs.Dfile) {
 	d.AddPath(Digest(dfile.Hash()), dfile.FileName())
+	d.recordSize(dfile.FileName(), dfile.FileSize())
 }
 
 // AddPath records a path under an already computed digest.
@@ -105,6 +112,14 @@ func (d *Dmap) AddPath(hash Digest, path string) {
 	d.fileCount++
 }
 
+// AddPathSized behaves like AddPath but also caches the file's size, which the
+// caller already knows from the scan. This lets downstream consumers (e.g. the
+// TUI's group summaries) avoid re-stating every duplicate file on disk.
+func (d *Dmap) AddPathSized(hash Digest, path string, size int64) {
+	d.AddPath(hash, path)
+	d.recordSize(path, size)
+}
+
 // AddNamePath records a path under a shallow filename match key.
 func (d *Dmap) AddNamePath(name, path string) {
 	if name == "" || path == "" {
@@ -114,6 +129,30 @@ func (d *Dmap) AddNamePath(name, path string) {
 	d.matches[hash] = MatchInfo{Type: MatchName, Key: name}
 	d.filesMap[hash] = append(d.filesMap[hash], path)
 	d.fileCount++
+}
+
+// AddNamePathSized behaves like AddNamePath but also caches the file's
+// already-known size. See AddPathSized.
+func (d *Dmap) AddNamePathSized(name, path string, size int64) {
+	d.AddNamePath(name, path)
+	d.recordSize(path, size)
+}
+
+// recordSize caches a file's size if it is known and non-negative.
+func (d *Dmap) recordSize(path string, size int64) {
+	if path == "" || size < 0 {
+		return
+	}
+	d.sizes[path] = uint64(size)
+}
+
+// SizeOf returns the size cached for path at scan time, if known.
+func (d *Dmap) SizeOf(path string) (uint64, bool) {
+	if d == nil {
+		return 0, false
+	}
+	size, ok := d.sizes[path]
+	return size, ok
 }
 
 // AddFuzzyPath records a path under a fuzzy content-match key.

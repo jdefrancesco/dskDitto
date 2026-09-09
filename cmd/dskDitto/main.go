@@ -852,7 +852,7 @@ func addNameOnlyGroups(dMap *dmap.Dmap, nameGroups map[string][]dwalk.FileCandid
 			return files[i].Path < files[j].Path
 		})
 		for _, file := range files {
-			dMap.AddNamePath(name, file.Path)
+			dMap.AddNamePathSized(name, file.Path, file.Size)
 		}
 		addedGroups++
 	}
@@ -1033,7 +1033,7 @@ func runContentPipeline(
 	dsklog.Dlogger.Debugf("Skipped %d files with unique samples before full hashing", skippedBySample)
 
 	for _, file := range directFiles {
-		dMap.AddPath(file.digest, file.candidate.Path)
+		dMap.AddPathSized(file.digest, file.candidate.Path, file.candidate.Size)
 	}
 
 	if len(fullHashList) == 0 {
