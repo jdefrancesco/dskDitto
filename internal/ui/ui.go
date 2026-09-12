@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -192,9 +193,10 @@ type sortMode = dupview.SortMode
 const (
 	sortByTotalSize = dupview.SortByTotalSize
 	sortByCount     = dupview.SortByCount
+	sortByPath      = sortMode(dupview.SortModeCount)
 )
 
-const sortModeCount = dupview.SortModeCount
+const sortModeCount = dupview.SortModeCount + 1
 
 type duplicateGroup = dupview.Group
 
@@ -321,6 +323,12 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "right", "l":
 		m.expandCurrentGroup()
 
+	case "c", "C":
+		m.setAllGroupsExpanded(false)
+
+	case "o", "O":
+		m.setAllGroupsExpanded(true)
+
 	case "pgup":
 		m.pageMove(-1)
 
@@ -360,6 +368,9 @@ func (m *model) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "2":
 		m.setSortMode(sortByCount)
+
+	case "3":
+		m.setSortMode(sortByPath)
 
 	case "s", "S":
 		m.cycleSortMode()
@@ -649,6 +660,20 @@ func (m *model) toggleCurrentGroup() {
 	m.rebuildVisibleNodes()
 }
 
+func (m *model) setAllGroupsExpanded(expanded bool) {
+	changed := false
+	for _, group := range m.groups {
+		if group.Expanded == expanded {
+			continue
+		}
+		group.Expanded = expanded
+		changed = true
+	}
+	if changed {
+		m.rebuildVisibleNodes()
+	}
+}
+
 func (m *model) toggleCurrentFileMark() {
 	node := m.currentNode()
 	if node == nil || node.typ != nodeFile {
@@ -893,17 +918,13 @@ func formatFileStatus(entry *fileEntry, maxWidth int) string {
 	}
 }
 
-// effectiveWidth returns the model's width constrained between 80 and 120,
-// defaulting to 80 when the current width is non-positive.
+// effectiveWidth returns the current terminal width, defaulting to 80 when
+// the current width is non-positive.
 func (m *model) effectiveWidth() int {
-	switch {
-	case m.width <= 0:
+	if m.width <= 0 {
 		return 80
-	case m.width > 120:
-		return 120
-	default:
-		return m.width
 	}
+	return m.width
 }
 
 // listAreaHeight returns how many rows are available to render the list
@@ -924,11 +945,11 @@ func (m *model) listAreaHeight() int {
 }
 
 func (m *model) instructionsText() string {
-	return "enter exp/fold • arrows nav • m toggle • a mark all • u clear • d delete marked • L link marked • R reflink marked • q exit"
+	return "enter exp/fold • arrows nav • c collapse all • o open all • m toggle • a mark all • u clear • d delete marked • L link marked • R reflink marked • q exit"
 }
 
 func (m *model) sortHotkeysText() string {
-	return "1 sort by total size; by 2 dup count • s cycle"
+	return "1 sort by total size • 2 sort by dup count • 3 sort alphabetically • s cycle"
 }
 
 func wrapText(text string, width int) string {
@@ -991,11 +1012,12 @@ func (m *model) instructionsFooter(width int) string {
 }
 
 func (m *model) instructionsLineCount(width int) int {
-	text := m.instructionsText() + "\n" + m.sortHotkeysText()
+	nav := m.instructionsText()
+	sort := m.sortHotkeysText()
 	if width <= 0 {
-		return max(1, lipgloss.Height(text))
+		return max(1, lipgloss.Height(nav)+lipgloss.Height(sort))
 	}
-	return max(1, lipgloss.Height(wrapText(text, width)))
+	return max(1, lipgloss.Height(wrapText(nav, width))+lipgloss.Height(wrapText(sort, width)))
 }
 
 // listTopOffset returns the number of rows occupied above the list.
@@ -1063,7 +1085,39 @@ func (m *model) sortGroups() {
 	if m.sortMode < 0 || int(m.sortMode) >= sortModeCount {
 		m.sortMode = sortByTotalSize
 	}
+	if m.sortMode == sortByPath {
+		sortGroupsByPath(m.groups)
+		return
+	}
 	dupview.SortGroups(m.groups, m.sortMode)
+}
+
+func sortGroupsByPath(groups []*duplicateGroup) {
+	sort.SliceStable(groups, func(i, j int) bool {
+		left := groupPathSortKey(groups[i])
+		right := groupPathSortKey(groups[j])
+		if left == right {
+			return groups[i].Title < groups[j].Title
+		}
+		return left < right
+	})
+}
+
+func groupPathSortKey(group *duplicateGroup) string {
+	if group == nil || len(group.Files) == 0 {
+		return ""
+	}
+	key := ""
+	for _, entry := range group.Files {
+		if entry == nil || entry.Path == "" {
+			continue
+		}
+		path := strings.ToLower(entry.Path)
+		if key == "" || path < key {
+			key = path
+		}
+	}
+	return key
 }
 
 func (m *model) recordGroupFocus() {

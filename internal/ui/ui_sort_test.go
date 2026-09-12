@@ -41,3 +41,42 @@ func TestSortGroupsByCount(t *testing.T) {
 		t.Fatalf("expected group with fewest files last, got %q", got)
 	}
 }
+
+func TestSortGroupsByPath(t *testing.T) {
+	m := &model{
+		sortMode: sortByPath,
+		groups: []*duplicateGroup{
+			{Title: "zeta", TotalSz: 300, Files: []*fileEntry{{Path: "zeta.bin"}, {Path: "omega.bin"}}},
+			{Title: "alpha", TotalSz: 100, Files: []*fileEntry{{Path: "alpha.bin"}}},
+			{Title: "middle", TotalSz: 200, Files: []*fileEntry{{Path: "middle.bin"}}},
+		},
+	}
+
+	m.sortGroups()
+
+	want := []string{"alpha", "middle", "zeta"}
+	for i, title := range want {
+		if got := m.groups[i].Title; got != title {
+			t.Fatalf("unexpected group at index %d: got %q want %q", i, got, title)
+		}
+	}
+}
+
+func TestCycleSortModeIncludesPathSort(t *testing.T) {
+	m := &model{sortMode: sortByTotalSize}
+
+	m.cycleSortMode()
+	if m.sortMode != sortByCount {
+		t.Fatalf("expected second sort mode to be dup count, got %v", m.sortMode)
+	}
+
+	m.cycleSortMode()
+	if m.sortMode != sortByPath {
+		t.Fatalf("expected third sort mode to be path, got %v", m.sortMode)
+	}
+
+	m.cycleSortMode()
+	if m.sortMode != sortByTotalSize {
+		t.Fatalf("expected sort cycle to wrap to total size, got %v", m.sortMode)
+	}
+}
