@@ -357,7 +357,7 @@ make pprof-web     # launch go tool pprof with HTTP UI for the latest profile
 
 ## Architecture
 
-See [`DittoDoc`](DittoDoc.md)
+See [`DittoDoc`](docs/DittoDoc.md)
 
 ## Configuration
 
