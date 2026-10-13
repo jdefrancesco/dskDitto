@@ -42,7 +42,7 @@ var flagCategoryOrder = []flagCategory{
 }
 
 // flagMeta records a single registered flag (and its optional shorthand) for
-// the custom categorized --help renderer below; it stands in for flag.VisitAll,
+// the categorized --help renderer and shell completion; it stands in for flag.VisitAll,
 // which only knows about individual *flag.Flag entries and can't tell us that
 // two of them (e.g. "r" and "remove") are really one logical option.
 type flagMeta struct {
@@ -56,7 +56,7 @@ type flagMeta struct {
 var flagRegistry []flagMeta
 
 // registerFlag records long (and, if non-empty, short) as one logical flag
-// for --help purposes. It must run after both names are registered with the
+// for help and completion. It must run after both names are registered with the
 // flag package so flag.UnquoteUsage can recover the `arg` placeholder.
 func registerFlag(short, long string, category flagCategory) {
 	f := flag.Lookup(long)
@@ -201,6 +201,8 @@ func (s *stringListFlag) Set(value string) error {
 type commandOptions struct {
 	noBanner           bool
 	showVersion        bool
+	completionShell    string
+	completionSet      bool
 	cpuProfile         string
 	timeOnly           bool
 	gui                bool
@@ -253,6 +255,7 @@ func parseOptions() commandOptions {
 		// General
 		flNoBanner    = boolFlag("no-banner", "", false, "Do not show the dskDitto banner.", catGeneral)
 		flShowVersion = boolFlag("version", "v", false, "Display version and exit.", catGeneral)
+		flCompletion  = stringFlag("completion", "", "", "Print a completion script for `shell` (bash or zsh) and exit.", catGeneral)
 		flCpuProfile  = stringFlag("profile", "", "", "Write CPU profile to `file` for analysis.", catGeneral)
 		flTimeOnly    = boolFlag("time-only", "", false, "Use to show only the time taken to scan directory for duplicates.", catGeneral)
 		flGui         = boolFlag("gui", "g", false, "Review results in an interactive raylib GUI (requires a GUI build).", catGeneral)
@@ -313,9 +316,18 @@ func parseOptions() commandOptions {
 	registerFlag("x", "exclude", catFilter)
 	flag.Parse()
 
+	completionRequested := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "completion" {
+			completionRequested = true
+		}
+	})
+
 	return commandOptions{
 		noBanner:           *flNoBanner,
 		showVersion:        *flShowVersion,
+		completionShell:    *flCompletion,
+		completionSet:      completionRequested,
 		cpuProfile:         *flCpuProfile,
 		timeOnly:           *flTimeOnly,
 		gui:                *flGui,

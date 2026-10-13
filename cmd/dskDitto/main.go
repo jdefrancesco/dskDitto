@@ -43,8 +43,16 @@ func signalHandler(ctx context.Context, sig os.Signal) {
 }
 
 func main() {
+	opts := parseOptions()
+	if opts.completionSet {
+		if err := writeCompletion(os.Stdout, opts.completionShell, flagRegistry); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
-	// Initialize logger
+	// Completion generation needs no logger, signal handler, or scan setup.
 	dsklog.InitializeDlogger(".dskditto.log")
 	dsklog.Dlogger.Info("Logger initialized")
 
@@ -62,8 +70,6 @@ func main() {
 			signalHandler(ctx, sig)
 		}
 	}()
-
-	opts := parseOptions()
 
 	if opts.gui {
 		if err := validateGUIBuild(); err != nil {

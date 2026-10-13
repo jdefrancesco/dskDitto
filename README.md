@@ -38,6 +38,42 @@ go install -tags gui -ldflags="-s -w" github.com/jdefrancesco/dskDitto/cmd/dskDi
 
 > **Note:** `go install ...@latest` always compiles from source on your machine, so `-ldflags` has to be passed on the command you run — there's no way for the module to bake that in for you.
 
+### Shell completion (Bash and Zsh)
+
+Generate completion from the installed binary. It includes long flags, short
+aliases, `--hash` and `--completion` choices, and file/path arguments.
+Place flags before scan paths, as with normal dskDitto invocations.
+
+For Bash, load completion in the current shell:
+
+```bash
+source <(dskDitto --completion bash)
+```
+
+Add that line to `~/.bashrc` to load it in future interactive shells (on macOS,
+ensure `~/.bash_profile` sources `~/.bashrc`). No bash-completion package is required.
+
+For Zsh, initialize completion if your shell configuration has not already done
+so, then load the script:
+
+```zsh
+autoload -Uz compinit
+compinit
+source <(dskDitto --completion zsh)
+```
+
+Add the `source` line to `~/.zshrc` after your existing `compinit` setup. You can
+also save the generated script as `_dskDitto` in a directory on `$fpath`, before
+running `compinit`:
+
+```zsh
+mkdir -p ~/.zsh/completions
+dskDitto --completion zsh > ~/.zsh/completions/_dskDitto
+```
+
+Then add `fpath=(~/.zsh/completions $fpath)` to `~/.zshrc` before `compinit`.
+Regenerate saved scripts after updating dskDitto to pick up new flags.
+
 ## Usage
 
 ```bash
@@ -49,6 +85,7 @@ Run `dskDitto --help` for the full, categorized reference (General, Filtering & 
 | Flag                      | Short | Description                                                                                         |
 | ------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `--version`               | `-v`  | Print the current version and exit                                                                  |
+| `--completion <shell>`    |       | Print a Bash or Zsh completion script and exit                                                      |
 | `--no-banner`             |       | Skip the startup banner                                                                             |
 | `--gui`                   | `-g`  | Review results in the experimental Raylib GUI instead of the default TUI; requires a GUI build      |
 | `--profile <file>`        |       | Write a CPU profile to the given file                                                               |
