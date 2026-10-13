@@ -293,10 +293,14 @@ func parseOptions() commandOptions {
 		flFuzzyMinSize       = stringFlag("fuzzy-min-size", "", fuzzy.DefaultFuzzyMinSizeStr, "Skip files smaller than this `size` in fuzzy mode (e.g. 4K, 1MiB).", catFuzzy)
 
 		// Duplicate Actions
-		flKeep        = uintFlag("remove", "r", 0, "Operate on duplicates, keeping only this many `keep` files per group.", catActions)
-		flLinkMode    = boolFlag("link", "l", false, "Convert extra duplicates into symlinks instead of deleting them (use with --remove).", catActions)
-		flReflinkMode = boolFlag("reflink", "R", false, "Convert extra duplicates into reflinks (copy-on-write clones) instead of deleting them (use with --remove; requires a reflink-capable filesystem such as APFS, Btrfs, or XFS with reflink=1).", catActions)
-
+		flKeep        = uintFlag("remove", "r", 0, "Operate on dups, keeping only this many `keep` files per group.", catActions)
+		flLinkMode    = boolFlag("link", "l", false, "Convert dups into symlinks instead of deleting them (use with --remove).", catActions)
+		flReflinkMode = boolFlag(
+			"reflink", "R", false,
+			"Convert dups into reflinks (copy-on-write clones) "+
+				"instead of deleting them. Use with --remove; note a reflink-capable filesystem needed.",
+			catActions,
+		)
 		// Output & Export
 		flTextOutput  = boolFlag("text", "t", false, "Dump results in grep/text friendly format. Useful for scripting.", catOutput)
 		flShowBullets = boolFlag("bullet", "b", false, "Show duplicates as formatted bullet list.", catOutput)
